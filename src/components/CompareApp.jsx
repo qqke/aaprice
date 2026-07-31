@@ -209,9 +209,9 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
         frameRef.current = requestAnimationFrame(scan)
       }
       frameRef.current = requestAnimationFrame(scan)
-    } catch (error) {
+    } catch {
       stopCamera()
-      setStatus(`相机启动失败：${error.message}`)
+      setStatus("无法启动相机，请检查浏览器相机权限，或手动输入 JAN 码。")
     }
   }
 
@@ -220,29 +220,29 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
       <DialogContent className="max-h-[90dvh] max-w-[min(560px,calc(100vw-2rem))] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><ScanLine className="size-5 text-primary" /> 扫码检索</DialogTitle>
-          <DialogDescription>使用后置相机识别 EAN/JAN，HTTPS 或本机环境才能调用相机。</DialogDescription>
+          <DialogDescription>将商品条码放入取景框，首次使用请允许浏览器访问相机。</DialogDescription>
         </DialogHeader>
         <div className="relative mt-2 aspect-[4/3] overflow-hidden rounded-2xl border bg-slate-950">
           <video ref={videoRef} muted playsInline className="h-full w-full object-cover" aria-label="条码扫描相机预览" />
-          <div className="pointer-events-none absolute inset-x-8 top-1/2 h-px bg-primary shadow-[0_0_18px_3px_oklch(0.75_0.15_190)]" />
+          <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 bg-primary" />
           {!scanning && <div className="absolute inset-0 grid place-items-center text-center text-sm text-white/65"><Camera className="mx-auto mb-3 size-8" />相机尚未启动</div>}
         </div>
         <div className="flex gap-2">
           <Button className="flex-1" onClick={startCamera} disabled={scanning}><Camera /> 启动相机</Button>
           <Button variant="outline" onClick={stopCamera} disabled={!scanning}>停止</Button>
         </div>
-        <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
-          <Input value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="手动输入 JAN 码" aria-label="手动输入 JAN 码" />
-          <Button type="submit" variant="secondary">查询</Button>
+        <form onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
+          <label htmlFor="manual-jan" className="mb-2 block text-sm font-medium">手动输入 JAN 码</label>
+          <div className="flex gap-2"><Input id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" /><Button type="submit" variant="secondary">查询</Button></div>
         </form>
         <p className="min-h-5 text-sm text-muted-foreground" role="status">{status}</p>
         {draft && <form className="space-y-3 rounded-2xl border bg-muted/35 p-4" onSubmit={submitMissing}>
           <div><p className="font-medium">补录缺失商品</p><p className="mt-1 text-xs text-muted-foreground">JAN {draft.barcode} · 提交后由管理员审核</p></div>
-          <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="商品名称" required aria-label="商品名称" />
-          <div className="grid gap-3 sm:grid-cols-2"><Input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} placeholder="品牌" aria-label="品牌" /><Input value={draft.pack} onChange={(event) => setDraft({ ...draft, pack: event.target.value })} placeholder="规格" aria-label="规格" /></div>
-          <Input value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} placeholder="分类" aria-label="分类" />
-          <Input type="url" value={draft.image_url} onChange={(event) => setDraft({ ...draft, image_url: event.target.value })} placeholder="商品图片 URL（可选）" aria-label="商品图片 URL" />
-          <Input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="商品说明（可选）" aria-label="商品说明" />
+          <label className="block"><span className="mb-2 block text-sm font-medium">商品名称</span><Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-2 block text-sm font-medium">品牌</span><Input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} /></label><label className="block"><span className="mb-2 block text-sm font-medium">规格</span><Input value={draft.pack} onChange={(event) => setDraft({ ...draft, pack: event.target.value })} placeholder="例如 30 片" /></label></div>
+          <label className="block"><span className="mb-2 block text-sm font-medium">分类</span><Input value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></label>
+          <label className="block"><span className="mb-2 block text-sm font-medium">商品图片 URL <span className="font-normal text-muted-foreground">（可选）</span></span><Input type="url" value={draft.image_url} onChange={(event) => setDraft({ ...draft, image_url: event.target.value })} /></label>
+          <label className="block"><span className="mb-2 block text-sm font-medium">商品说明 <span className="font-normal text-muted-foreground">（可选）</span></span><Input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
           {session ? <Button type="submit" className="w-full" disabled={submitting}>{submitting ? <LoaderCircle className="animate-spin" /> : <Plus />}{submitting ? "正在提交" : "提交审核"}</Button> : <Button asChild className="w-full"><a href={`/login/?redirect=${encodeURIComponent(`/scan/?jan=${draft.barcode}`)}`}><LogIn /> 登录后提交</a></Button>}
         </form>}
       </DialogContent>
@@ -310,12 +310,12 @@ function LoginDialog({ open, onOpenChange, onSignedIn }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[min(440px,calc(100vw-2rem))] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>登录原 APrice 账号</DialogTitle>
-          <DialogDescription>门店价格沿用原后台额度规则，商品目录和 JAN 检索无需登录。</DialogDescription>
+          <DialogTitle>登录 AAPRICE</DialogTitle>
+          <DialogDescription>登录后可以查询门店价格；浏览商品与扫码检索无需登录。</DialogDescription>
         </DialogHeader>
         <form className="mt-2 space-y-3" onSubmit={submit}>
-          <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="邮箱" autoComplete="email" required aria-label="邮箱" />
-          <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="密码" autoComplete="current-password" required aria-label="密码" />
+          <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>
+          <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
           {turnstileEnabled && <div ref={turnstileRef} className="min-h-[65px]" aria-label="人机验证" />}
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading || (turnstileEnabled && !captchaToken)}>
