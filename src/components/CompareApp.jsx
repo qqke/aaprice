@@ -4,6 +4,7 @@ import {
   Barcode,
   Camera,
   Check,
+  ChevronDown,
   ChevronRight,
   LoaderCircle,
   LogIn,
@@ -19,6 +20,7 @@ import {
   SlidersHorizontal,
   Store,
   Sun,
+  UserRound,
   X,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -435,6 +437,7 @@ export default function CompareApp({ initialScan = false }) {
   const [catalogError, setCatalogError] = useState("")
   const [query, setQuery] = useState("")
   const [segment, setSegment] = useState("全部")
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [budget, setBudget] = useState([MAX_PRICE])
   const [sort, setSort] = useState("score")
   const [selected, setSelected] = useState([])
@@ -564,9 +567,9 @@ export default function CompareApp({ initialScan = false }) {
           <a href="#top" className="flex items-center gap-3" aria-label="AAPRICE 首页"><span className="grid size-9 place-items-center rounded-xl bg-primary font-mono text-sm font-bold text-primary-foreground">AA</span><span><span className="block font-semibold leading-none tracking-[-0.04em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span></a>
           <div className="flex items-center gap-1">
             <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="#catalog">商品比价</a></Button>
-            <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="/scan/"><ScanLine /> 扫码</a></Button>
-            {session && <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="/me/">我的</a></Button>}
-            {supabaseConfigured && (session ? <Button variant="ghost" size="sm" onClick={handleSignOut}><LogOut /> 退出</Button> : <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)}><LogIn /> 登录</Button>)}
+            <Button asChild variant="ghost" className="size-9 px-0 sm:w-auto sm:px-2.5"><a href="/scan/" aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
+            {session && <Button asChild variant="ghost" className="size-9 px-0 sm:w-auto sm:px-2.5"><a href="/me/" aria-label="我的账户"><UserRound /><span className="hidden sm:inline">我的</span></a></Button>}
+            {supabaseConfigured && (session ? <Button variant="ghost" size="sm" onClick={handleSignOut} className="size-9 px-0 sm:w-auto sm:px-2.5" aria-label="退出登录"><LogOut /><span className="hidden sm:inline">退出</span></Button> : <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="size-9 px-0 sm:w-auto sm:px-2.5" aria-label="登录"><LogIn /><span className="hidden sm:inline">登录</span></Button>)}
             <ThemeButton />
           </div>
         </div>
@@ -589,13 +592,18 @@ export default function CompareApp({ initialScan = false }) {
 
         <section id="catalog" className="mx-auto max-w-[1440px] px-4 pb-32 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start">
-            <aside className="rounded-2xl border bg-card p-5 lg:sticky lg:top-24">
-              <div className="flex items-center justify-between"><div className="flex items-center gap-2 font-semibold"><SlidersHorizontal className="size-4" /> 筛选</div>{hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}><RotateCcw /> 重置</Button>}</div>
-              <div className="mt-7"><p className="text-sm font-medium">商品分类</p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div></div>
-              <div className="mt-8"><div className="flex items-center justify-between gap-3"><label htmlFor="budget" className="text-sm font-medium">最高预算</label><span className="font-mono text-sm">{formatPrice(budget[0])}</span></div><Slider id="budget" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /><div className="mt-3 flex justify-between font-mono text-[11px] text-muted-foreground"><span>¥500</span><span>¥3,200</span></div></div>
-              <div className="mt-8"><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">后台默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem><SelectItem value="unit">单位价优先</SelectItem><SelectItem value="saving">门店差价最大</SelectItem><SelectItem value="distance">离我最近</SelectItem></SelectContent></Select></div>
-              <Button variant={locationStatus === "ready" ? "secondary" : "outline"} className="mt-5 w-full justify-start" onClick={locate} disabled={locationStatus === "loading" || locationStatus === "unsupported"}><MapPin /> {locationCopy}</Button>
-              <p className="mt-8 border-t pt-5 text-xs leading-relaxed text-muted-foreground">价格仅供比较，不构成用药建议；用药前请咨询药师并阅读说明书。</p>
+            <aside className="rounded-2xl border bg-card p-4 lg:sticky lg:top-24 lg:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-9 flex-1 items-center gap-2 text-left font-semibold lg:pointer-events-none" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序 <ChevronDown className={`ml-auto size-4 transition-transform lg:hidden ${filtersOpen ? "rotate-180" : ""}`} /></button>
+                {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}><RotateCcw /> 重置</Button>}
+              </div>
+              <div id="catalog-filters" className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
+                <div className="mt-7"><p className="text-sm font-medium">商品分类</p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div></div>
+                <div className="mt-8"><div className="flex items-center justify-between gap-3"><label htmlFor="budget" className="text-sm font-medium">最高预算</label><span className="font-mono text-sm">{formatPrice(budget[0])}</span></div><Slider id="budget" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /><div className="mt-3 flex justify-between font-mono text-[11px] text-muted-foreground"><span>¥500</span><span>¥3,200</span></div></div>
+                <div className="mt-8"><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">后台默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem><SelectItem value="unit">单位价优先</SelectItem><SelectItem value="saving">门店差价最大</SelectItem><SelectItem value="distance">离我最近</SelectItem></SelectContent></Select></div>
+                <Button variant={locationStatus === "ready" ? "secondary" : "outline"} className="mt-5 w-full justify-start" onClick={locate} disabled={locationStatus === "loading" || locationStatus === "unsupported"}><MapPin /> {locationCopy}</Button>
+                <p className="mt-8 border-t pt-5 text-xs leading-relaxed text-muted-foreground">价格仅供比较，不构成用药建议；用药前请咨询药师并阅读说明书。</p>
+              </div>
             </aside>
 
             <div>
