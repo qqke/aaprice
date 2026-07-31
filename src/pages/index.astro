@@ -1,0 +1,24 @@
+---
+import CompareApp from '@/components/CompareApp.jsx';
+import '@/styles/global.css';
+---
+
+<!doctype html>
+<html lang="zh-CN" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content="AAPRICE 是一个比较日本药妆商品、门店价格与单位价格的应用。" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>AAPRICE | 日本药妆商品比价</title>
+    <script is:inline>
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.classList.toggle('dark', savedTheme ? savedTheme === 'dark' : prefersDark);
+    </script>
+  </head>
+  <body>
+    <CompareApp client:load />
+  </body>
+</html>

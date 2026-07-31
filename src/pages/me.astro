@@ -1,0 +1,15 @@
+---
+import MeApp from '@/components/MeApp.jsx';
+import '@/styles/global.css';
+---
+<!doctype html>
+<html lang="zh-CN" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content="AAPRICE 个人价格、收藏、额度与任务。" />
+    <title>AAPRICE | 个人中心</title>
+    <script is:inline>const t=localStorage.getItem('theme');document.documentElement.classList.toggle('dark',t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches);</script>
+  </head>
+  <body><MeApp client:load /></body>
+</html>
