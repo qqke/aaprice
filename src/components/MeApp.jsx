@@ -1,8 +1,8 @@
 import { motion } from "motion/react"
-import { KeyRound, ListChecks, LoaderCircle, LogOut, Save, SkipForward, Sparkles } from "lucide-react"
+import { KeyRound, ListChecks, LogOut, Save, SkipForward, Sparkles } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
-import AppShell from "@/components/AppShell"
+import AppShell, { AppLoading } from "@/components/AppShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -130,7 +130,7 @@ export default function MeApp() {
     submissions: ["商品提交", "查看扫码补录的审核进度。"],
   }
 
-  if (loading) return <AppShell title="个人中心"><div className="grid min-h-72 place-items-center text-muted-foreground"><LoaderCircle className="animate-spin" /> 正在同步账户</div></AppShell>
+  if (loading) return <AppShell title="个人中心"><AppLoading label="正在同步账户" /></AppShell>
   if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务都保存在原 APrice 账号中。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href="/login/?redirect=/me/">登录或注册</a></Button></div></AppShell>
 
   return (

@@ -2,7 +2,7 @@ import { motion } from "motion/react"
 import { BadgeJapaneseYen, ExternalLink, Heart, LoaderCircle, LocateFixed, MapPin, Save, Store } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
-import AppShell from "@/components/AppShell"
+import AppShell, { AppLoading } from "@/components/AppShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -136,7 +136,7 @@ export default function ProductApp() {
     } catch (error) { setStatus(friendlyApiError(error)) }
   }
 
-  if (loading) return <AppShell title="商品详情"><div className="grid min-h-72 place-items-center text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" /> 正在读取商品</div></AppShell>
+  if (loading) return <AppShell title="商品详情"><AppLoading label="正在读取商品" /></AppShell>
   if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href="/">返回搜索</a></Button></div></AppShell>
 
   return (

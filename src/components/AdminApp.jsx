@@ -1,8 +1,8 @@
 import { motion } from "motion/react"
-import { Activity, Boxes, Building2, Coins, LoaderCircle, PackageCheck, RefreshCw, Save, ShieldAlert, Tags } from "lucide-react"
+import { Activity, Boxes, Building2, Coins, PackageCheck, RefreshCw, Save, ShieldAlert, Tags } from "lucide-react"
 import { useEffect, useState } from "react"
 
-import AppShell from "@/components/AppShell"
+import AppShell, { AppLoading } from "@/components/AppShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -100,7 +100,7 @@ export default function AdminApp() {
   const adjustCredits = (event) => { event.preventDefault(); act(() => adminAdjustCredits({ ...creditForm, amount: Number(creditForm.amount) }), "积分已调整。").then(() => setCreditForm({ user_id: "", amount: "", note: "" })) }
   const saveSetting = (event) => { event.preventDefault(); const numeric = Number(settingForm.setting_value); act(() => adminUpdateAppSetting({ setting_key: settingForm.setting_key, setting_value: Number.isFinite(numeric) ? numeric : settingForm.setting_value }), "业务参数已更新。") }
 
-  if (loading) return <AppShell title="管理后台"><div className="grid min-h-72 place-items-center text-muted-foreground"><LoaderCircle className="animate-spin" /> 正在核验管理员权限</div></AppShell>
+  if (loading) return <AppShell title="管理后台"><AppLoading label="正在核验管理员权限" /></AppShell>
   if (!session) return <AppShell eyebrow="管理后台" title="需要登录" description="请使用管理员账号继续。"><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href="/login/?redirect=/admin/">登录</a></Button></div></AppShell>
   if (profile?.role !== "admin") return <AppShell eyebrow="管理后台" title="没有管理员权限" description="当前账号只能使用个人功能。" session={session} profile={profile}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href="/me/">返回个人中心</a></Button></div></AppShell>
 

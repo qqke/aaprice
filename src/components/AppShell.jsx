@@ -15,6 +15,21 @@ function ThemeButton() {
   return <Button variant="ghost" size="icon" onClick={toggle} aria-label={dark ? "切换浅色模式" : "切换深色模式"}>{dark ? <Sun /> : <Moon />}</Button>
 }
 
+export function AppLoading({ label = "正在加载" }) {
+  return (
+    <div className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6 lg:px-8" role="status" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      <div className="grid gap-5 motion-safe:animate-pulse" aria-hidden="true">
+        <div className="h-36 rounded-3xl bg-muted sm:h-44" />
+        <div className="grid gap-5 sm:grid-cols-[0.8fr_1.2fr]">
+          <div className="h-64 rounded-3xl bg-muted/80" />
+          <div className="space-y-4 rounded-3xl border p-6"><div className="h-5 w-1/3 rounded bg-muted" /><div className="h-12 rounded-xl bg-muted" /><div className="h-12 rounded-xl bg-muted" /><div className="h-12 w-2/3 rounded-xl bg-muted" /></div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AppShell({ children, eyebrow, title, description, session, profile, actions }) {
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
