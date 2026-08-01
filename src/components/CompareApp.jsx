@@ -411,7 +411,7 @@ function CompareDialog({ open, onOpenChange, selectedProducts, onRemove }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] max-w-[min(1100px,calc(100vw-2rem))] overflow-hidden p-0 sm:max-w-5xl">
-        <DialogHeader className="border-b px-6 py-5 text-left"><DialogTitle className="text-xl">同类商品并排比较</DialogTitle><DialogDescription>门店报价来自原 APrice Supabase，单位价按当前最低价换算。</DialogDescription></DialogHeader>
+        <DialogHeader className="border-b px-6 py-5 text-left"><DialogTitle className="text-xl">同类商品并排比较</DialogTitle><DialogDescription>门店报价来自实时价格库，单位价按当前最低价换算。</DialogDescription></DialogHeader>
         <div className="overflow-auto px-4 pb-6 sm:px-6">
           <div className="grid min-w-[760px]" style={{ gridTemplateColumns: `150px repeat(${selectedProducts.length}, minmax(190px, 1fr))` }}>
             <div className="sticky left-0 z-10 bg-popover py-5" />

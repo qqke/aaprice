@@ -131,7 +131,7 @@ export default function MeApp() {
   }
 
   if (loading) return <AppShell title="个人中心"><AppLoading label="正在同步账户" /></AppShell>
-  if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务都保存在原 APrice 账号中。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href="/login/?redirect=/me/">登录或注册</a></Button></div></AppShell>
+  if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务会同步到你的 AAPRICE 账号。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href="/login/?redirect=/me/">登录或注册</a></Button></div></AppShell>
 
   return (
     <AppShell eyebrow="个人中心" title={profile?.full_name || "我的账户"} description={`已登录 ${session.user.email}`} session={session} profile={profile} actions={<Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button>}>
