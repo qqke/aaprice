@@ -23,7 +23,7 @@ import {
   submitStorePrice,
   toggleFavorite,
 } from "@/lib/aprice-api.mjs"
-import { formatDistance, formatPrice, formatUnitPrice, getPriceStats } from "@/lib/products.mjs"
+import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getPriceStats } from "@/lib/products.mjs"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "未知"
 
@@ -40,6 +40,8 @@ export default function ProductApp() {
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
   const [status, setStatus] = useState("")
+  const [storeSearch, setStoreSearch] = useState("")
+  const [historyLimit, setHistoryLimit] = useState(12)
   const [form, setForm] = useState({ store_id: "", price_yen: "", note: "", evidence_url: "", share_to_public: false })
 
   const productId = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("id") || ""
@@ -95,14 +97,31 @@ export default function ProductApp() {
   const pricedProduct = product ? { ...product, offers } : null
   const stats = pricedProduct ? getPriceStats(pricedProduct) : null
   const productFavorite = favorites.some((item) => item.entity_type === "product" && String(item.entity_id) === String(productId))
+  const filteredStores = useMemo(() => {
+    const needle = storeSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
+    if (!needle) return stores
+    return stores.filter((store) => [store.name, store.chain_name, store.pref, store.city, store.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle))
+  }, [storeSearch, stores])
 
   const locate = () => {
-    navigator.geolocation?.getCurrentPosition(async ({ coords }) => {
+    if (!navigator.geolocation) { setStatus("当前浏览器不支持定位，请手动搜索门店。"); return }
+    setStatus("正在定位附近门店…")
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
       const next = { lat: coords.latitude, lng: coords.longitude }
       setLocation(next)
-      setStatus("已按当前位置重新查询门店价格。")
+      const nearestStore = stores
+        .filter((store) => Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng)))
+        .map((store) => ({ ...store, distance: distanceKm(next.lat, next.lng, Number(store.lat), Number(store.lng)) }))
+        .toSorted((a, b) => a.distance - b.distance)[0]
+      if (nearestStore) setForm((value) => ({ ...value, store_id: nearestStore.id }))
+      setStatus(nearestStore ? `已选择最近门店：${nearestStore.name}（${formatDistance(nearestStore.distance)}）。` : "已按当前位置重新查询门店价格。")
       try { await loadPrivate(productId, session, next) } catch (error) { setStatus(friendlyApiError(error)) }
     }, (error) => setStatus(`定位失败：${error.message}`), { timeout: 10000, maximumAge: 30000 })
+  }
+
+  const selectStore = (storeId) => {
+    const latestPrice = offers.find((offer) => String(offer.id) === String(storeId))?.price
+    setForm((value) => ({ ...value, store_id: storeId, price_yen: value.price_yen || (latestPrice ? String(latestPrice) : "") }))
   }
 
   const favoriteProduct = async () => {
@@ -140,7 +159,7 @@ export default function ProductApp() {
   if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href="/">返回搜索</a></Button></div></AppShell>
 
   return (
-    <AppShell eyebrow={product.maker} title={product.name} description={`${product.pack}，JAN ${product.barcode || "未登记"}`} session={session} profile={profile} actions={<div className="flex gap-2"><Button variant="outline" onClick={locate} disabled={!session || priceLoading}><LocateFixed /> 按距离排序</Button>{session && <Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button>}</div>}>
+    <AppShell eyebrow={product.maker} title={product.name} description={`${product.pack}，JAN ${product.barcode || "未登记"}`} session={session} profile={profile} actions={session && <div className="flex gap-2"><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></div>}>
       <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-24 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-3xl border bg-card shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">
@@ -173,7 +192,8 @@ export default function ProductApp() {
               <section className="rounded-2xl border bg-card p-6">
                 <div><h2 className="text-xl font-semibold">记录店头价格</h2><p className="mt-2 text-sm text-muted-foreground">默认仅保存到个人记录；勾选后同时提交公共审核。</p></div>
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => setForm({ ...form, store_id: event.target.value })} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">不指定门店</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+                  <label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label>
+                  <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
                   <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
                   <label><span className="mb-2 block text-sm font-medium">备注</span><Input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="会员价、促销等" /></label>
                   <label><span className="mb-2 block text-sm font-medium">凭证 URL</span><Input type="url" value={form.evidence_url} onChange={(event) => setForm({ ...form, evidence_url: event.target.value })} placeholder="可选" /></label>
@@ -184,7 +204,8 @@ export default function ProductApp() {
 
               <section>
                 <div><p className="text-sm text-muted-foreground">原始采样</p><h2 className="mt-1 text-2xl font-semibold">近期变化</h2></div>
-                <div className="mt-5 divide-y border-y">{priceRows.slice(0, 12).map((row) => <div key={row.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-medium">{row.stores?.name || row.store_id}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(row.collected_at)} · {row.source || "unknown"}</p></div><span className="font-mono font-semibold">{formatPrice(row.price_yen)}</span></div>)}</div>
+                <div className="mt-5 divide-y border-y">{priceRows.slice(0, historyLimit).map((row) => <div key={row.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-medium">{row.stores?.name || row.store_id}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(row.collected_at)} · {row.source || "unknown"}</p></div><span className="font-mono font-semibold">{formatPrice(row.price_yen)}</span></div>)}</div>
+                {priceRows.length > historyLimit && <Button variant="ghost" className="mt-4" onClick={() => setHistoryLimit((value) => value + 12)}>查看更多记录</Button>}
               </section>
 
               {logs.length > 0 && <section><h2 className="text-2xl font-semibold">我的历史记录</h2><div className="mt-5 divide-y border-y">{logs.slice(0, 10).map((log) => <div key={log.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-medium">{log.stores?.name || "未指定门店"}</p><p className="mt-1 text-xs text-muted-foreground">{log.purchased_at || log.created_at} · {log.note || "无备注"}</p></div><span className="font-mono font-semibold">{formatPrice(log.price_yen)}</span></div>)}</div></section>}
