@@ -1,5 +1,5 @@
 import { motion } from "motion/react"
-import { BadgeJapaneseYen, ExternalLink, Heart, LoaderCircle, LocateFixed, MapPin, Save, Store } from "lucide-react"
+import { ArrowLeft, BadgeJapaneseYen, ExternalLink, Heart, LoaderCircle, LocateFixed, MapPin, Save, Store } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
@@ -161,12 +161,12 @@ export default function ProductApp() {
   if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href="/">返回搜索</a></Button></div></AppShell>
 
   return (
-    <AppShell eyebrow={product.maker} title={product.name} description={`${product.pack}，JAN ${product.barcode || "未登记"}`} session={session} profile={profile} actions={session && <div className="flex gap-2"><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></div>}>
-      <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-24 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+    <AppShell eyebrow={product.maker} title={product.name} description={[product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" · ") || "商品信息"} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href="/#catalog"><ArrowLeft /> 返回结果</a></Button>{session && <><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
+      <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-32 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:pb-24">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-3xl border bg-card shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">
             <div className="aspect-[4/3] bg-muted"><img src={product.image} alt={product.name} className="h-full w-full object-cover" /></div>
-            <div className="p-6"><div className="flex flex-wrap gap-2"><Badge>{product.category}</Badge><Badge variant="outline">{product.pack}</Badge></div><p className="mt-5 text-sm leading-relaxed text-muted-foreground">{product.active}</p></div>
+            <div className="p-6"><div className="flex flex-wrap gap-2"><Badge>{product.category}</Badge>{product.pack !== "规格未登记" && <Badge variant="outline">{product.pack}</Badge>}</div>{product.active !== "商品说明未登记" && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{product.active}</p>}</div>
           </motion.div>
           {credit && <div className="mt-4 flex items-center justify-between rounded-xl border px-4 py-3 text-sm"><span>价格查询额度</span><span className="font-mono">积分 {credit.balance ?? 0}</span></div>}
         </div>
@@ -176,7 +176,7 @@ export default function ProductApp() {
             <div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]"><h2 className="text-xl font-semibold">登录后查看门店价格</h2><p className="mt-2 text-sm text-muted-foreground">价格查询、收藏和个人记录沿用原后台账户规则。</p><Button asChild className="mt-5"><a href={`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`}>登录继续</a></Button></div>
           ) : (
             <>
-              <section>
+              <section id="store-prices">
                 <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2></div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
                 {offers.length ? <div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
                   const isFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(offer.id))
@@ -215,6 +215,9 @@ export default function ProductApp() {
           )}
         </div>
       </section>
+      <div className="fixed inset-x-3 bottom-3 z-30 rounded-2xl border bg-popover/92 p-3 shadow-[0_20px_70px_oklch(0.15_0.04_240_/_0.22)] backdrop-blur-xl lg:hidden">
+        {session ? <div className="flex gap-2"><Button asChild className="flex-1"><a href="#store-prices"><BadgeJapaneseYen /> 查看门店价</a></Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></div> : <Button asChild className="w-full"><a href={`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`}><BadgeJapaneseYen /> 登录查看门店价</a></Button>}
+      </div>
     </AppShell>
   )
 }
