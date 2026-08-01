@@ -48,6 +48,8 @@ export default function MeApp() {
   const [dataTab, setDataTab] = useState("logs")
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState("")
+  const [productSearch, setProductSearch] = useState("")
+  const [storeSearch, setStoreSearch] = useState("")
   const [logForm, setLogForm] = useState({ product_id: "", store_id: "", price_yen: "", note: "" })
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" })
 
@@ -76,6 +78,16 @@ export default function MeApp() {
 
   const productNames = useMemo(() => new Map(products.map((item) => [String(item.id), item.name])), [products])
   const storeNames = useMemo(() => new Map(stores.map((item) => [String(item.id), item.name])), [stores])
+  const filteredProducts = useMemo(() => {
+    const needle = productSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
+    return needle ? products.filter((item) => [item.name, item.brand, item.barcode].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : products
+  }, [productSearch, products])
+  const filteredStores = useMemo(() => {
+    const needle = storeSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
+    return needle ? stores.filter((item) => [item.name, item.chain_name, item.pref, item.city, item.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : stores
+  }, [storeSearch, stores])
+  const selectedProductFavorite = favorites.some((item) => item.entity_type === "product" && String(item.entity_id) === String(logForm.product_id))
+  const selectedStoreFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(logForm.store_id))
 
   const saveLog = async (event) => {
     event.preventDefault()
@@ -92,6 +104,15 @@ export default function MeApp() {
       await toggleFavorite(item.entity_type, item.entity_id)
       setFavorites((rows) => rows.filter((row) => row.id !== item.id))
       setStatus("收藏已移除。")
+    } catch (error) { setStatus(friendlyApiError(error)) }
+  }
+
+  const toggleSelectedFavorite = async (entityType, entityId) => {
+    if (!entityId) return
+    try {
+      const result = await toggleFavorite(entityType, entityId)
+      setFavorites(await fetchFavorites(session.user.id))
+      setStatus(result.action === "added" ? "已添加收藏。" : "已取消收藏。")
     } catch (error) { setStatus(friendlyApiError(error)) }
   }
 
@@ -148,11 +169,14 @@ export default function MeApp() {
             <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className={panelClass}>
               <div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">快速记录价格</h2><p className="mt-1 text-sm text-muted-foreground">个人记录不会公开。</p></div><Save className="size-5 text-primary" /></div>
               <form onSubmit={saveLog} className="mt-6 space-y-4">
-                <label><span className="mb-2 block text-sm font-medium">商品</span><select value={logForm.product_id} onChange={(event) => setLogForm({ ...logForm, product_id: event.target.value })} className="h-10 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择商品</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-                <label><span className="mb-2 block text-sm font-medium">门店</span><select value={logForm.store_id} onChange={(event) => setLogForm({ ...logForm, store_id: event.target.value })} className="h-10 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{stores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                <label><span className="mb-2 block text-sm font-medium">搜索商品</span><Input type="search" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="商品名、品牌或 JAN 码" /></label>
+                <label><span className="mb-2 block text-sm font-medium">商品</span><select value={logForm.product_id} onChange={(event) => setLogForm({ ...logForm, product_id: event.target.value })} className="h-10 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择商品</option>{filteredProducts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                <label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label>
+                <label><span className="mb-2 block text-sm font-medium">门店</span><select value={logForm.store_id} onChange={(event) => setLogForm({ ...logForm, store_id: event.target.value })} className="h-10 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={logForm.price_yen} onChange={(event) => setLogForm({ ...logForm, price_yen: event.target.value })} required /></label>
                 <label><span className="mb-2 block text-sm font-medium">备注</span><Input value={logForm.note} onChange={(event) => setLogForm({ ...logForm, note: event.target.value })} placeholder="促销、会员价等" /></label>
                 <Button type="submit" className="w-full"><Save /> 保存记录</Button>
+                <div className="grid grid-cols-2 gap-2"><Button type="button" variant={selectedProductFavorite ? "secondary" : "outline"} disabled={!logForm.product_id} onClick={() => toggleSelectedFavorite("product", logForm.product_id)}>{selectedProductFavorite ? "取消商品收藏" : "收藏商品"}</Button><Button type="button" variant={selectedStoreFavorite ? "secondary" : "outline"} disabled={!logForm.store_id} onClick={() => toggleSelectedFavorite("store", logForm.store_id)}>{selectedStoreFavorite ? "取消门店收藏" : "收藏门店"}</Button></div>
               </form>
             </motion.section>
 
