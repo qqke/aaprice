@@ -1,21 +1,8 @@
 ---
 import CompareApp from '@/components/CompareApp.jsx';
-import '@/styles/global.css';
+import BaseLayout from '@/layouts/BaseLayout.astro';
 ---
 
-<!doctype html>
-<html lang="zh-CN" class="scroll-smooth">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="description" content="扫描 JAN/EAN 条码检索日本药妆商品。" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>扫码检索 | AAPRICE</title>
-    <script is:inline>
-      const savedTheme = localStorage.getItem('theme');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.classList.toggle('dark', savedTheme ? savedTheme === 'dark' : prefersDark);
-    </script>
-  </head>
-  <body><CompareApp client:load initialScan={true} /></body>
-</html>
+<BaseLayout title="AAPRICE | 扫码检索" description="扫描 JAN/EAN 条码检索日本药妆商品。">
+  <CompareApp client:load initialScan={true} />
+</BaseLayout>

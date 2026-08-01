@@ -1,15 +1,7 @@
 ---
 import ProductApp from '@/components/ProductApp.jsx';
-import '@/styles/global.css';
+import BaseLayout from '@/layouts/BaseLayout.astro';
 ---
-<!doctype html>
-<html lang="zh-CN" class="scroll-smooth">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="description" content="AAPRICE 商品详情、门店价格、收藏和个人记录。" />
-    <title>AAPRICE | 商品详情</title>
-    <script is:inline>const t=localStorage.getItem('theme');document.documentElement.classList.toggle('dark',t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches);</script>
-  </head>
-  <body><ProductApp client:load /></body>
-</html>
+<BaseLayout title="AAPRICE | 商品详情" description="查看药妆商品详情、门店价格、收藏和个人记录。">
+  <ProductApp client:load />
+</BaseLayout>
