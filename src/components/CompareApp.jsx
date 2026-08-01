@@ -588,9 +588,9 @@ export default function CompareApp({ initialScan = false }) {
           <a href="#top" className="flex items-center gap-3" aria-label="AAPRICE 首页"><span className="grid size-9 place-items-center rounded-xl bg-primary font-mono text-sm font-bold text-primary-foreground">AA</span><span><span className="block font-semibold leading-none tracking-[-0.04em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span></a>
           <div className="flex items-center gap-1">
             <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="#catalog">商品比价</a></Button>
-            <Button asChild variant="ghost" className="size-9 px-0 sm:w-auto sm:px-2.5"><a href="/scan/" aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
-            {session && <Button asChild variant="ghost" className="size-9 px-0 sm:w-auto sm:px-2.5"><a href="/me/" aria-label="我的账户"><UserRound /><span className="hidden sm:inline">我的</span></a></Button>}
-            {supabaseConfigured && (session ? <Button variant="ghost" size="sm" onClick={handleSignOut} className="size-9 px-0 sm:w-auto sm:px-2.5" aria-label="退出登录"><LogOut /><span className="hidden sm:inline">退出</span></Button> : <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="size-9 px-0 sm:w-auto sm:px-2.5" aria-label="登录"><LogIn /><span className="hidden sm:inline">登录</span></Button>)}
+            <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href="/scan/" aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
+            {session && <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href="/me/" aria-label="我的账户"><UserRound /><span className="hidden sm:inline">我的</span></a></Button>}
+            {supabaseConfigured && (session ? <Button variant="ghost" size="sm" onClick={handleSignOut} className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9" aria-label="退出登录"><LogOut /><span className="hidden sm:inline">退出</span></Button> : <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9" aria-label="登录"><LogIn /><span className="hidden sm:inline">登录</span></Button>)}
             <ThemeButton />
           </div>
         </div>
@@ -615,7 +615,7 @@ export default function CompareApp({ initialScan = false }) {
           <div className="grid gap-8 lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start">
             <aside className="rounded-2xl border bg-card p-4 lg:sticky lg:top-24 lg:p-5">
               <div className="flex items-center justify-between gap-3">
-                <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-9 flex-1 items-center gap-2 text-left font-semibold lg:pointer-events-none" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序 <ChevronDown className={`ml-auto size-4 transition-transform lg:hidden ${filtersOpen ? "rotate-180" : ""}`} /></button>
+                <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-11 flex-1 items-center gap-2 text-left font-semibold lg:pointer-events-none" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序 <ChevronDown className={`ml-auto size-4 transition-transform lg:hidden ${filtersOpen ? "rotate-180" : ""}`} /></button>
                 {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}><RotateCcw /> 重置</Button>}
               </div>
               <div id="catalog-filters" className={`${filtersOpen ? "block" : "hidden"} lg:block`}>

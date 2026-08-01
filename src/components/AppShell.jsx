@@ -42,9 +42,9 @@ export default function AppShell({ children, eyebrow, title, description, sessio
             <span><span className="block font-semibold leading-none tracking-[-0.045em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span>
           </a>
           <nav className="flex items-center gap-1" aria-label="主导航">
-            <Button asChild variant="ghost" size="sm" className="size-9 rounded-full px-0 sm:w-auto sm:px-2.5"><a href="/scan/" aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
-            <Button asChild variant="ghost" size="sm" className="size-9 rounded-full px-0 sm:w-auto sm:px-2.5"><a href={session ? "/me/" : "/login/"} aria-label={session ? "我的账户" : "登录"}><UserRound /><span className="hidden sm:inline">{session ? "我的" : "登录"}</span></a></Button>
-            {profile?.role === "admin" && <Button asChild variant="ghost" size="sm" className="size-9 rounded-full px-0 sm:w-auto sm:px-2.5"><a href="/admin/" aria-label="管理后台"><ShieldCheck /><span className="hidden sm:inline">管理</span></a></Button>}
+            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href="/scan/" aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
+            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={session ? "/me/" : "/login/"} aria-label={session ? "我的账户" : "登录"}><UserRound /><span className="hidden sm:inline">{session ? "我的" : "登录"}</span></a></Button>
+            {profile?.role === "admin" && <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href="/admin/" aria-label="管理后台"><ShieldCheck /><span className="hidden sm:inline">管理</span></a></Button>}
             <ThemeButton />
           </nav>
         </div>
