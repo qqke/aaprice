@@ -1,4 +1,5 @@
 import { Moon, ScanLine, ShieldCheck, Sun, UserRound } from "lucide-react"
+import { MotionConfig } from "motion/react"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -32,7 +33,8 @@ export function AppLoading({ label = "正在加载" }) {
 
 export default function AppShell({ children, eyebrow, title, description, session, profile, actions }) {
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <a href="/" className="flex items-center gap-3" aria-label="AAPRICE 首页">
@@ -62,6 +64,7 @@ export default function AppShell({ children, eyebrow, title, description, sessio
         )}
         {children}
       </main>
-    </div>
+      </div>
+    </MotionConfig>
   )
 }
