@@ -6,6 +6,8 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Eye,
+  EyeOff,
   LoaderCircle,
   LogIn,
   LogOut,
@@ -257,6 +259,7 @@ function LoginDialog({ open, onOpenChange, onSignedIn }) {
   const widgetIdRef = useRef(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [captchaToken, setCaptchaToken] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -317,7 +320,7 @@ function LoginDialog({ open, onOpenChange, onSignedIn }) {
         </DialogHeader>
         <form className="mt-2 space-y-3" onSubmit={submit}>
           <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>
-          <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
+          <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><span className="relative block"><Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="pr-12" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setShowPassword((value) => !value)} className="absolute right-0 top-1/2 -translate-y-1/2" aria-label={showPassword ? "隐藏密码" : "显示密码"}>{showPassword ? <EyeOff /> : <Eye />}</Button></span></label>
           {turnstileEnabled && <div ref={turnstileRef} className="min-h-[65px]" aria-label="人机验证" />}
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading || (turnstileEnabled && !captchaToken)}>

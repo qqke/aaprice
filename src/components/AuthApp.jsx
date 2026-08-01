@@ -1,5 +1,5 @@
 import { motion } from "motion/react"
-import { ArrowRight, CheckCircle2, KeyRound, LoaderCircle, LogOut, Mail, UserPlus } from "lucide-react"
+import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, LoaderCircle, LogOut, Mail, UserPlus } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import AppShell from "@/components/AppShell"
@@ -72,6 +72,7 @@ export default function AuthApp() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [captchaToken, setCaptchaToken] = useState("")
   const [status, setStatus] = useState("")
   const [loading, setLoading] = useState(true)
@@ -102,6 +103,7 @@ export default function AuthApp() {
     setStatus("")
     setPassword("")
     setConfirm("")
+    setShowPassword(false)
     setCaptchaToken("")
   }
 
@@ -157,8 +159,8 @@ export default function AuthApp() {
               <div className="flex items-start justify-between gap-4"><div><h2 className="text-2xl font-semibold">{title}</h2><p className="mt-2 text-sm text-muted-foreground">{description}</p></div><KeyRound className="size-6 text-primary" /></div>
               <div className="mt-8 space-y-4">
                 {mode !== "reset" && <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="name@example.com" /></label>}
-                {mode !== "resetRequest" && <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="至少 8 位" /></label>}
-                {(mode === "register" || mode === "reset") && <label className="block"><span className="mb-2 block text-sm font-medium">确认密码</span><Input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} required autoComplete="new-password" placeholder="再次输入" /></label>}
+                {mode !== "resetRequest" && <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><span className="relative block"><Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="至少 8 位" className="pr-12" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setShowPassword((value) => !value)} className="absolute right-0 top-1/2 -translate-y-1/2" aria-label={showPassword ? "隐藏密码" : "显示密码"}>{showPassword ? <EyeOff /> : <Eye />}</Button></span></label>}
+                {(mode === "register" || mode === "reset") && <label className="block"><span className="mb-2 block text-sm font-medium">确认密码</span><Input type={showPassword ? "text" : "password"} value={confirm} onChange={(event) => setConfirm(event.target.value)} required autoComplete="new-password" placeholder="再次输入" /></label>}
                 {mode !== "reset" && <Turnstile key={mode} onToken={setCaptchaToken} />}
                 {status && <p className="rounded-xl bg-muted px-4 py-3 text-sm" role="status">{status}</p>}
               </div>
