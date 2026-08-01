@@ -35,6 +35,12 @@ test("maps Supabase products and keeps only the latest price per store", () => {
   assert.deepEqual(offers.map(({ id, price }) => [id, price]), [["s1", 780], ["s2", 820]])
 })
 
+test("infers useful drugstore categories when imported rows have none", () => {
+  assert.equal(mapProductRow({ id: "1", name: "【第3類医薬品】ハイシーL 40錠" }).category, "医药品")
+  assert.equal(mapProductRow({ id: "2", name: "コーセー 薬用雪肌精 乳液" }).category, "护肤美妆")
+  assert.equal(mapProductRow({ id: "3", name: "マルチビタミンサプリ" }).category, "营养保健")
+})
+
 test("rejects JANCODE upstream error pages", () => {
   assert.equal(parseJancodeProductDraft("Warning: Target URL returned error 403\n## アクセスしようとしたページは表示できませんでした。", "4999999999999"), null)
 })

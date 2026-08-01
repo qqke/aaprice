@@ -81,6 +81,11 @@ export async function searchProducts(term = "", limit = 30) {
     const filters = [`name.ilike.${pattern}`, `brand.ilike.${pattern}`, `category.ilike.${pattern}`]
     if (barcode) filters.push(`barcode.ilike.%${barcode}%`)
     query.or = `(${filters.join(",")})`
+  } else {
+    // ponytail: keyword curation keeps the storefront on-topic until products have a dedicated catalog flag.
+    query.or = `(${["医薬", "薬用", "化粧", "コスメ", "スキン", "美容", "サプリ", "ビタミン", "目薬", "日焼け", "シャンプー"]
+      .flatMap((keyword) => [`name.ilike.%${keyword}%`, `category.ilike.%${keyword}%`])
+      .join(",")})`
   }
   return request("products", { query })
 }
@@ -458,7 +463,15 @@ export function mapProductRow(row) {
   const pack = String(row?.pack || "规格未登记")
   const match = pack.match(/([\d.]+)\s*(錠|粒|包|枚|本|個|mL|ml|g|kg)/i)
   const unit = match?.[2]?.toLowerCase() === "ml" ? "mL" : match?.[2] || "件"
-  const category = String(row?.category || "其他")
+  const sourceCategory = String(row?.category || "").trim()
+  const productText = `${row?.name || ""} ${sourceCategory}`
+  const category = sourceCategory || (
+    /医薬|目薬|点眼|錠|カプセル|軟膏|鎮痛|鼻炎|胃腸|かぜ|風邪/.test(productText) ? "医药品"
+      : /化粧|コスメ|美容|乳液|化粧水|ファンデ|リップ|ネイル|日焼け/.test(productText) ? "护肤美妆"
+        : /サプリ|ビタミン|健康食品/.test(productText) ? "营养保健"
+          : /シャンプー|コンディショナー|ボディソープ|歯磨|ハミガキ/.test(productText) ? "日常护理"
+            : "其他"
+  )
   const imageKey = category.includes("医薬") || category.includes("药") ? "医薬品" : category.includes("化粧") || category.includes("护") ? "化粧品" : "default"
   return {
     id: String(row.id),
