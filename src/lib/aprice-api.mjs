@@ -519,6 +519,8 @@ export function friendlyApiError(error) {
   const message = String(error?.message || error || "")
   if (/invalid login credentials/i.test(message)) return "邮箱或密码不正确。"
   if (/insufficient|credit|quota/i.test(message)) return "价格查询额度不足，请稍后再试。"
+  if (/no_price_tasks_available/i.test(message)) return "当前没有可领取的补价任务。"
+  if (/daily_task_claim_limit_reached/i.test(message)) return "今天领取任务的次数已达上限。"
   if (/failed to fetch|network/i.test(message)) return "网络连接失败，请检查后重试。"
   return message || "请求失败，请稍后再试。"
 }

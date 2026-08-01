@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { filterProducts, getClosestOffer, products } from "../src/lib/products.mjs"
-import { mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
+import { friendlyApiError, mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
   const originalOrder = products.map(({ id }) => id)
@@ -50,4 +50,9 @@ test("infers useful drugstore categories when imported rows have none", () => {
 
 test("rejects JANCODE upstream error pages", () => {
   assert.equal(parseJancodeProductDraft("Warning: Target URL returned error 403\n## アクセスしようとしたページは表示できませんでした。", "4999999999999"), null)
+})
+
+test("translates price task empty and daily limit states", () => {
+  assert.equal(friendlyApiError(new Error("no_price_tasks_available")), "当前没有可领取的补价任务。")
+  assert.equal(friendlyApiError(new Error("daily_task_claim_limit_reached")), "今天领取任务的次数已达上限。")
 })
