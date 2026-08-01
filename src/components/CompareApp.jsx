@@ -343,11 +343,11 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
       className={`group relative overflow-hidden rounded-2xl border bg-card shadow-[0_18px_60px_oklch(0.2_0.03_240_/_0.06)] ${featured ? "md:col-span-2" : ""}`}
     >
       <div className={featured ? "grid md:grid-cols-[1.05fr_0.95fr]" : ""}>
-        <div className={`relative overflow-hidden bg-muted ${featured ? "min-h-72 md:min-h-[31rem]" : "aspect-[4/3]"}`}>
+        <a href={`/product/?id=${encodeURIComponent(product.id)}`} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "min-h-72 md:min-h-[31rem]" : "aspect-[4/3]"}`}>
           <motion.img layoutId={`image-${product.id}`} src={product.image} alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
           {featured && <div className="absolute bottom-5 left-5 text-white"><p className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">实时目录</p><p className="mt-1 text-lg font-semibold">扫码、搜索、按需查询价格</p></div>}
-        </div>
+        </a>
 
         <div className={`flex flex-col p-5 ${featured ? "justify-between md:p-8" : "gap-5"}`}>
           <div>
