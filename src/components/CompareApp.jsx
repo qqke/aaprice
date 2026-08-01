@@ -345,36 +345,36 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
       className={`group relative overflow-hidden rounded-2xl border bg-card shadow-[0_18px_60px_oklch(0.2_0.03_240_/_0.06)] ${featured ? "md:col-span-2" : ""}`}
     >
       <div className={featured ? "grid md:grid-cols-[1.05fr_0.95fr]" : ""}>
-        <a href={`/product/?id=${encodeURIComponent(product.id)}`} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "min-h-72 md:min-h-[31rem]" : "aspect-[4/3]"}`}>
+        <a href={`/product/?id=${encodeURIComponent(product.id)}`} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "aspect-[16/10] md:aspect-auto md:min-h-[31rem]" : "aspect-[16/10] md:aspect-[4/3]"}`}>
           <motion.img layoutId={`image-${product.id}`} src={product.image} alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
-          {featured && <div className="absolute bottom-5 left-5 text-white"><p className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">实时目录</p><p className="mt-1 text-lg font-semibold">扫码、搜索、按需查询价格</p></div>}
+          {featured && <div className="absolute bottom-5 left-5 hidden text-white md:block"><p className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">实时目录</p><p className="mt-1 text-lg font-semibold">扫码、搜索、按需查询价格</p></div>}
         </a>
 
-        <div className={`flex flex-col p-5 ${featured ? "justify-between md:p-8" : "gap-5"}`}>
+        <div className={`flex flex-col p-4 md:p-5 ${featured ? "justify-between md:p-8" : "gap-4 md:gap-5"}`}>
           <div>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">{product.maker}</p>
-                <h2 className={`mt-1 font-semibold tracking-tight ${featured ? "text-2xl md:text-3xl" : "text-xl"}`}><a href={`/product/?id=${encodeURIComponent(product.id)}`} className="outline-none transition hover:text-primary focus-visible:ring-2">{product.name}</a></h2>
+                <h2 className={`mt-1 font-semibold tracking-tight ${featured ? "text-xl md:text-3xl" : "text-xl"}`}><a href={`/product/?id=${encodeURIComponent(product.id)}`} className="outline-none transition hover:text-primary focus-visible:ring-2">{product.name}</a></h2>
               </div>
               <Badge className="shrink-0 gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Store className="size-3" /> {hasPrices ? `${stats.storeCount} 店` : "待查价"}</Badge>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2 md:mt-5">
               <Badge variant="secondary">{product.category}</Badge>
               {product.tags.map((tag) => <Badge key={tag} variant="outline">{tag}</Badge>)}
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
+            <div className="mt-6 hidden grid-cols-2 gap-4 text-sm md:grid">
               <div><p className="text-muted-foreground">规格 / 单位价</p><p className="mt-1 font-medium">{product.pack} · {formatUnitPrice(product)}</p></div>
               <div><p className="text-muted-foreground">JAN 码</p><p className="mt-1 break-all font-mono font-medium">{product.barcode || "未登记"}</p></div>
               {featured && <div className="col-span-2"><p className="text-muted-foreground">商品说明</p><p className="mt-1 line-clamp-3 font-medium">{product.active}</p></div>}
             </div>
 
             {featured && hasPrices && (
-              <div className="mt-7 overflow-hidden rounded-xl border bg-muted/35">
-                {offers.map((item, index) => (
+              <div className="mt-7 hidden overflow-hidden rounded-xl border bg-muted/35 md:block">
+                {offers.slice(0, 3).map((item, index) => (
                   <div key={item.id || item.name} className={`flex items-center justify-between gap-4 px-4 py-3 text-sm ${index ? "border-t" : ""}`}>
                     <div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.member ? "会员价" : "店头价"} · {formatDate(item.sampledAt)}{location && ` · ${formatDistance(getClosestOffer({ offers: [item] }, location).distance)}`}</p></div>
                     <span className="shrink-0 font-mono font-semibold">{formatPrice(item.price)}</span>
@@ -383,11 +383,11 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
               </div>
             )}
 
-            {!featured && hasPrices && <p className="mt-5 truncate text-xs text-muted-foreground">最低 {stats.bestOffer.name} · {formatDate(stats.bestOffer.sampledAt)}{closest && ` · 最近 ${closest.name} ${formatDistance(closest.distance)}`}</p>}
-            {!hasPrices && <p className="mt-5 text-xs text-muted-foreground">{priceError || (priceChecked ? "该商品暂无门店报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
+            {!featured && hasPrices && <p className="mt-3 truncate text-xs text-muted-foreground md:mt-5">最低 {stats.bestOffer.name} · {formatDate(stats.bestOffer.sampledAt)}{closest && ` · 最近 ${closest.name} ${formatDistance(closest.distance)}`}</p>}
+            {!hasPrices && <p className="mt-3 text-xs text-muted-foreground md:mt-5">{priceError || (priceChecked ? "该商品暂无门店报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
           </div>
 
-          <div className={`flex items-end justify-between gap-4 ${featured ? "mt-8" : "mt-auto"}`}>
+          <div className={`flex items-end justify-between gap-4 ${featured ? "mt-5 md:mt-8" : "mt-auto"}`}>
             <div>
               <p className="text-xs text-muted-foreground">{hasPrices ? `门店最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : "同一后台实时返回"}</p>
               <p className="font-mono text-2xl font-semibold tracking-tight">{formatPrice(stats.min)}</p>
@@ -597,11 +597,11 @@ export default function CompareApp({ initialScan = false }) {
       </header>
 
       <main id="top">
-        <section className="mx-auto grid max-w-[1440px] gap-10 px-4 pb-12 pt-14 sm:px-6 md:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:px-8 lg:pb-16">
+        <section className="mx-auto grid max-w-[1440px] gap-7 px-4 pb-8 pt-9 sm:px-6 md:gap-10 md:pb-12 md:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:px-8 lg:pb-16">
           <motion.div initial={reduceMotion ? false : "hidden"} animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.09 } } }}>
             <motion.p variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }} className="text-sm font-medium text-primary">药妆店价格，一眼看清</motion.p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-6xl lg:text-7xl">{["扫码找同款，", "实时比门店。"].map((line) => <motion.span key={line} variants={{ hidden: { opacity: 0, y: 32 }, show: { opacity: 1, y: 0 } }} className="block">{line}</motion.span>)}</h1>
-            <motion.p variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }} className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">输入商品名或扫描 JAN 码，快速查看同款商品与附近门店价格。</motion.p>
+            <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:mt-4 sm:text-6xl lg:text-7xl">{["扫码找同款，", "实时比门店。"].map((line) => <motion.span key={line} variants={{ hidden: { opacity: 0, y: 32 }, show: { opacity: 1, y: 0 } }} className="block">{line}</motion.span>)}</h1>
+            <motion.p variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }} className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">输入商品名或扫描 JAN 码，快速查看同款商品与附近门店价格。</motion.p>
           </motion.div>
 
           <motion.div initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.2, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} className="rounded-2xl border bg-card p-3 shadow-[0_24px_80px_oklch(0.2_0.03_240_/_0.08)]">
