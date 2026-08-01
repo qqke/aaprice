@@ -226,15 +226,12 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
           <DialogTitle className="flex items-center gap-2"><ScanLine className="size-5 text-primary" /> 扫码检索</DialogTitle>
           <DialogDescription>将商品条码放入取景框，首次使用请允许浏览器访问相机。</DialogDescription>
         </DialogHeader>
-        <div className="relative mt-2 aspect-[4/3] overflow-hidden rounded-2xl border bg-slate-950">
+        <div className="relative mt-2 aspect-[16/10] overflow-hidden rounded-2xl border bg-slate-950 sm:aspect-[4/3]">
           <video ref={videoRef} muted playsInline className="h-full w-full object-cover" aria-label="条码扫描相机预览" />
           <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 bg-primary" />
           {!scanning && <div className="absolute inset-0 grid place-items-center text-center text-sm text-white/65"><Camera className="mx-auto mb-3 size-8" />相机尚未启动</div>}
         </div>
-        <div className="flex gap-2">
-          <Button className="flex-1" onClick={startCamera} disabled={scanning}><Camera /> 启动相机</Button>
-          <Button variant="outline" onClick={stopCamera} disabled={!scanning}>停止</Button>
-        </div>
+        {scanning ? <Button variant="outline" onClick={stopCamera}><Camera /> 停止相机</Button> : <Button onClick={startCamera}><Camera /> 启动相机</Button>}
         <form onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
           <label htmlFor="manual-jan" className="mb-2 block text-sm font-medium">手动输入 JAN 码</label>
           <div className="flex gap-2"><Input id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" /><Button type="submit" variant="secondary">查询</Button></div>
