@@ -425,6 +425,13 @@ export async function adminFetchTelemetrySummary(payload = {}) {
   return Array.isArray(result) ? result[0] || {} : result || {}
 }
 
+export async function adminFetchTelemetryRecent(payload = {}) {
+  const session = await requireSession()
+  const result = await rpc("admin_fetch_telemetry_recent", { payload }, session.access_token)
+  const rows = Array.isArray(result) ? result[0] : result
+  return Array.isArray(rows?.items) ? rows.items : []
+}
+
 const RECENT_VIEWS_KEY = "aprice:recent-views"
 
 export function fetchRecentViews() {
