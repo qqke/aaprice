@@ -434,6 +434,8 @@ export default function CompareApp({ initialScan = false }) {
   const reduceMotion = useReducedMotion()
   const [catalog, setCatalog] = useState(supabaseConfigured ? [] : demoProducts)
   const [catalogLoading, setCatalogLoading] = useState(supabaseConfigured)
+  const [catalogLoadingMore, setCatalogLoadingMore] = useState(false)
+  const [catalogHasMore, setCatalogHasMore] = useState(false)
   const [catalogError, setCatalogError] = useState("")
   const [query, setQuery] = useState("")
   const [segment, setSegment] = useState("全部")
@@ -471,7 +473,10 @@ export default function CompareApp({ initialScan = false }) {
       setCatalogError("")
       try {
         const rows = await searchProducts(query)
-        if (active) setCatalog(rows.map(mapProductRow))
+        if (active) {
+          setCatalog(rows.map(mapProductRow))
+          setCatalogHasMore(rows.length === 30)
+        }
       } catch (error) {
         if (active) {
           setCatalog([])
@@ -527,6 +532,20 @@ export default function CompareApp({ initialScan = false }) {
     const id = pendingPriceId
     setPendingPriceId("")
     if (id) await loadPrices(id, nextSession?.access_token)
+  }
+
+  const loadMoreProducts = async () => {
+    setCatalogLoadingMore(true)
+    setCatalogError("")
+    try {
+      const rows = await searchProducts(query, 30, { offset: catalog.length })
+      setCatalog((items) => [...items, ...rows.map(mapProductRow).filter((row) => !items.some((item) => item.id === row.id))])
+      setCatalogHasMore(rows.length === 30)
+    } catch (error) {
+      setCatalogError(friendlyApiError(error))
+    } finally {
+      setCatalogLoadingMore(false)
+    }
   }
 
   const handleSignOut = async () => {
@@ -613,6 +632,7 @@ export default function CompareApp({ initialScan = false }) {
               {catalogError && <div className="mb-5 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">{catalogError}</div>}
               {catalogLoading && !catalog.length && <div className="grid gap-5 md:grid-cols-2" aria-hidden="true">{[0, 1].map((item) => <div key={item} className="overflow-hidden rounded-2xl border bg-card"><div className="aspect-[16/10] animate-pulse bg-muted" /><div className="space-y-4 p-5"><div className="h-3 w-20 animate-pulse rounded bg-muted" /><div className="h-6 w-3/4 animate-pulse rounded bg-muted" /><div className="h-16 animate-pulse rounded-xl bg-muted" /></div></div>)}</div>}
               <motion.div layout className="grid gap-5 md:grid-cols-2"><AnimatePresence mode="popLayout">{filtered.map((product, index) => <ProductCard key={product.id} product={product} featured={index === 0} selected={selected.includes(product.id)} selectionFull={selected.length >= MAX_COMPARE} onToggle={toggleProduct} reduceMotion={reduceMotion} location={location} priceLoading={priceLoading[product.id]} priceChecked={priceChecked[product.id]} priceError={priceErrors[product.id]} onLoadPrices={loadPrices} />)}</AnimatePresence></motion.div>
+              {!catalogLoading && catalogHasMore && <div className="mt-8 flex justify-center"><Button variant="outline" size="lg" onClick={loadMoreProducts} disabled={catalogLoadingMore}>{catalogLoadingMore && <LoaderCircle className="animate-spin" />}{catalogLoadingMore ? "正在加载" : "加载更多商品"}</Button></div>}
               {!catalogLoading && !filtered.length && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid min-h-80 place-items-center rounded-2xl border border-dashed bg-muted/30 p-8 text-center"><div><Pill className="mx-auto size-8 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">没有符合条件的商品</h3><p className="mt-2 text-sm text-muted-foreground">换商品名、品牌、JAN 码或直接扫码试试。</p><Button className="mt-5" onClick={resetFilters}>清除筛选</Button></div></motion.div>}
             </div>
           </div>

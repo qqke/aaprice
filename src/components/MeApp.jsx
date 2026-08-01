@@ -59,7 +59,7 @@ export default function MeApp() {
       setSession(activeSession)
       if (!activeSession) return
       const [nextProfile, productRows, storeRows, logRows, favoriteRows, summary, creditRows, submissionRows] = await Promise.all([
-        fetchCurrentProfile(), searchProducts("", 100), searchStores("", 300), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id),
+        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id),
       ])
       setProfile(nextProfile)
       setProducts(productRows)

@@ -68,11 +68,12 @@ const escapeIlike = (value) => String(value || "")
   .replace(/_/g, "\\_")
   .replace(/'/g, "''")
 
-export async function searchProducts(term = "", limit = 30) {
+export async function searchProducts(term = "", limit = 30, { offset = 0, curated = true } = {}) {
   const query = {
     select: "*",
     order: "updated_at.desc",
-    limit: Math.max(1, Math.min(Number(limit) || 30, 100)),
+    limit: Math.max(1, Math.min(Number(limit) || 30, 500)),
+    offset: Math.max(0, Number(offset) || 0),
   }
   const value = String(term || "").trim()
   if (value) {
@@ -81,7 +82,7 @@ export async function searchProducts(term = "", limit = 30) {
     const filters = [`name.ilike.${pattern}`, `brand.ilike.${pattern}`, `category.ilike.${pattern}`]
     if (barcode) filters.push(`barcode.ilike.%${barcode}%`)
     query.or = `(${filters.join(",")})`
-  } else {
+  } else if (curated) {
     // ponytail: keyword curation keeps the storefront on-topic until products have a dedicated catalog flag.
     query.or = `(${["医薬", "薬用", "化粧", "コスメ", "スキン", "美容", "サプリ", "ビタミン", "目薬", "日焼け", "シャンプー"]
       .flatMap((keyword) => [`name.ilike.%${keyword}%`, `category.ilike.%${keyword}%`])

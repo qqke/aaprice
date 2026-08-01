@@ -71,7 +71,7 @@ export default function AdminApp() {
       setProfile(activeProfile)
       if (activeProfile.role !== "admin") return
       const [productRows, storeRows, priceRows, pendingPrices, pendingProducts, profileRows, appSettings, telemetrySummary] = await Promise.all([
-        searchProducts("", 100), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: 7 }),
+        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: 7 }),
       ])
       setProducts(productRows)
       setStores(storeRows)
