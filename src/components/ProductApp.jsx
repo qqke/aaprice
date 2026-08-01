@@ -49,18 +49,20 @@ export default function ProductApp() {
   const loadPrivate = async (id, activeSession, coordinates = null) => {
     setPriceLoading(true)
     try {
-      const [rows, storeRows, favoriteRows, logRows, summary] = await Promise.all([
+      const [priceResult, storeResult, favoriteResult, logResult, summaryResult] = await Promise.allSettled([
         fetchPricesForProduct(id, { token: activeSession.access_token, lat: coordinates?.lat, lng: coordinates?.lng, sinceDays: 60 }),
         searchStores("", 300),
         fetchFavorites(activeSession.user.id),
         fetchPersonalLogs(activeSession.user.id),
         fetchCreditSummary(),
       ])
-      setPriceRows(rows)
-      setStores(storeRows)
-      setFavorites(favoriteRows)
-      setLogs(logRows.filter((item) => String(item.product_id) === String(id)))
-      setCredit(summary)
+      if (priceResult.status === "fulfilled") setPriceRows(priceResult.value)
+      if (storeResult.status === "fulfilled") setStores(storeResult.value)
+      if (favoriteResult.status === "fulfilled") setFavorites(favoriteResult.value)
+      if (logResult.status === "fulfilled") setLogs(logResult.value.filter((item) => String(item.product_id) === String(id)))
+      if (summaryResult.status === "fulfilled") setCredit(summaryResult.value)
+      const failed = [priceResult, storeResult, favoriteResult, logResult, summaryResult].find((result) => result.status === "rejected")
+      if (failed) setStatus(friendlyApiError(failed.reason))
     } finally {
       setPriceLoading(false)
     }

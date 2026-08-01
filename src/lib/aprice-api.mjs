@@ -288,10 +288,15 @@ export async function skipPriceTask(id) {
 
 export async function fetchMyProductSubmissions(userId, limit = 30) {
   const session = await requireSession()
-  return request("product_submissions", {
-    token: session.access_token,
-    query: { select: "*", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc", limit },
-  })
+  try {
+    return await request("product_submissions", {
+      token: session.access_token,
+      query: { select: "*", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc", limit },
+    })
+  } catch (error) {
+    if (isMissingRelationError(error)) return []
+    throw error
+  }
 }
 
 export async function submitProductSubmission(payload) {
@@ -353,7 +358,12 @@ export async function fetchPendingPriceSubmissions(limit = 50) {
 
 export async function fetchProductSubmissions(limit = 50) {
   const session = await requireSession()
-  return request("product_submissions", { token: session.access_token, query: { select: "*", review_status: "eq.pending", order: "created_at.desc", limit } })
+  try {
+    return await request("product_submissions", { token: session.access_token, query: { select: "*", review_status: "eq.pending", order: "created_at.desc", limit } })
+  } catch (error) {
+    if (isMissingRelationError(error)) return []
+    throw error
+  }
 }
 
 export async function fetchRecentPrices(limit = 50) {
@@ -531,3 +541,5 @@ export function friendlyApiError(error) {
   if (/failed to fetch|network/i.test(message)) return "网络连接失败，请检查后重试。"
   return message || "请求失败，请稍后再试。"
 }
+
+export const isMissingRelationError = (error) => /schema cache|relation .* does not exist|42P01/i.test(String(error?.message || error || ""))
