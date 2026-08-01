@@ -31,6 +31,7 @@ import {
   searchStores,
 } from "@/lib/aprice-api.mjs"
 import { formatPrice } from "@/lib/products.mjs"
+import { appPath } from "@/lib/paths.mjs"
 
 const blankProduct = { id: "", barcode: "", name: "", brand: "", pack: "", category: "", tone: "sunset", description: "", image_url: "" }
 const blankStore = { id: "", name: "", chain_name: "", pref: "", city: "", address: "", lat: "", lng: "", hours: "" }
@@ -118,8 +119,8 @@ export default function AdminApp() {
   }
 
   if (loading) return <AppShell title="管理后台"><AppLoading label="正在核验管理员权限" /></AppShell>
-  if (!session) return <AppShell eyebrow="管理后台" title="需要登录" description="请使用管理员账号继续。"><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href="/login/?redirect=/admin/">登录</a></Button></div></AppShell>
-  if (profile?.role !== "admin") return <AppShell eyebrow="管理后台" title="没有管理员权限" description="当前账号只能使用个人功能。" session={session} profile={profile}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href="/me/">返回个人中心</a></Button></div></AppShell>
+  if (!session) return <AppShell eyebrow="管理后台" title="需要登录" description="请使用管理员账号继续。"><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/admin/"))}`)}>登录</a></Button></div></AppShell>
+  if (profile?.role !== "admin") return <AppShell eyebrow="管理后台" title="没有管理员权限" description="当前账号只能使用个人功能。" session={session} profile={profile}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath("/me/")}>返回个人中心</a></Button></div></AppShell>
 
   const tabs = [["review", "审核", PackageCheck], ["products", "商品", Boxes], ["stores", "门店", Building2], ["prices", "价格", Tags], ["business", "业务", Activity]]
   return (

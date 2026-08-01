@@ -3,6 +3,7 @@ import { MotionConfig } from "motion/react"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { appPath } from "@/lib/paths.mjs"
 
 function ThemeButton() {
   const [dark, setDark] = useState(false)
@@ -37,14 +38,14 @@ export default function AppShell({ children, eyebrow, title, description, sessio
       <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href="/" className="flex items-center gap-3" aria-label="AAPRICE 首页">
+          <a href={appPath("/")} className="flex items-center gap-3" aria-label="AAPRICE 首页">
             <span className="grid size-9 place-items-center rounded-[0.8rem] bg-primary font-mono text-xs font-bold tracking-tight text-primary-foreground shadow-[0_8px_24px_color-mix(in_oklab,var(--primary)_22%,transparent)]">AA</span>
             <span><span className="block font-semibold leading-none tracking-[-0.045em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span>
           </a>
           <nav className="flex items-center gap-1" aria-label="主导航">
-            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href="/scan/" aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
-            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={session ? "/me/" : "/login/"} aria-label={session ? "我的账户" : "登录"}><UserRound /><span className="hidden sm:inline">{session ? "我的" : "登录"}</span></a></Button>
-            {profile?.role === "admin" && <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href="/admin/" aria-label="管理后台"><ShieldCheck /><span className="hidden sm:inline">管理</span></a></Button>}
+            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
+            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath(session ? "/me/" : "/login/")} aria-label={session ? "我的账户" : "登录"}><UserRound /><span className="hidden sm:inline">{session ? "我的" : "登录"}</span></a></Button>
+            {profile?.role === "admin" && <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/admin/")} aria-label="管理后台"><ShieldCheck /><span className="hidden sm:inline">管理</span></a></Button>}
             <ThemeButton />
           </nav>
         </div>

@@ -19,6 +19,7 @@ import {
   turnstileSiteKey,
   updatePassword,
 } from "@/lib/aprice-api.mjs"
+import { appPath } from "@/lib/paths.mjs"
 
 const copy = {
   login: ["登录账号", "使用 AAPRICE 邮箱密码继续。", "登录", "还没有账号？注册"],
@@ -152,7 +153,7 @@ export default function AuthApp() {
           {loading && !session ? <div className="flex min-h-64 items-center justify-center text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" /> 读取会话</div> : session && mode === "login" ? (
             <div className="flex min-h-64 flex-col justify-between">
               <div><Badge className="gap-1"><CheckCircle2 className="size-3" /> 已登录</Badge><h2 className="mt-5 text-2xl font-semibold">{profile?.full_name || session.user.email}</h2><p className="mt-2 text-muted-foreground">角色：{profile?.role || "user"}</p></div>
-              <div className="mt-8 flex flex-wrap gap-3"><Button asChild><a href={redirectPath || (profile?.role === "admin" ? "/admin/" : "/me/")}>继续使用 <ArrowRight /></a></Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>
+              <div className="mt-8 flex flex-wrap gap-3"><Button asChild><a href={redirectPath || appPath(profile?.role === "admin" ? "/admin/" : "/me/")}>继续使用 <ArrowRight /></a></Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>
             </div>
           ) : (
             <form onSubmit={submit}>
