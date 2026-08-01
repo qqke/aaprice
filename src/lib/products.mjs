@@ -221,7 +221,7 @@ export function filterProducts(items, { query = "", segment = "全部", maxPrice
     if (sort === "unit") return (getUnitPrice(a) ?? Infinity) - (getUnitPrice(b) ?? Infinity)
     if (sort === "saving") return (getPriceStats(b).saving ?? -1) - (getPriceStats(a).saving ?? -1)
     if (sort === "distance" && location) {
-      return getClosestOffer(a, location).distance - getClosestOffer(b, location).distance
+      return (getClosestOffer(a, location)?.distance ?? Infinity) - (getClosestOffer(b, location)?.distance ?? Infinity)
     }
     return b.score - a.score
   })

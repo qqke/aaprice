@@ -22,6 +22,13 @@ test("finds the nearest priced store", () => {
   assert.equal(getClosestOffer(product, { lat: 35.6595, lng: 139.7005 }).name, "マツモトキヨシ 渋谷店")
 })
 
+test("keeps unpriced products stable when sorting by distance", () => {
+  const location = { lat: 35.6595, lng: 139.7005 }
+  const unpriced = { ...products[0], id: "unpriced", offers: [] }
+  assert.deepEqual(filterProducts([unpriced, products[0]], { sort: "distance", location }).map(({ id }) => id), [products[0].id, "unpriced"])
+  assert.doesNotThrow(() => filterProducts([unpriced], { sort: "distance", location }))
+})
+
 test("maps Supabase products and keeps only the latest price per store", () => {
   const product = mapProductRow({ id: "p1", barcode: "4901234567894", name: "测试商品", brand: "测试品牌", pack: "24錠", category: "医薬品" })
   const offers = offersFromPriceRows([
