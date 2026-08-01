@@ -116,7 +116,7 @@ export async function searchStores(term = "", limit = 100) {
   return request("stores", { query })
 }
 
-export async function fetchPricesForProduct(productId, { token, lat, lng, limit = 120, sinceDays = 30 } = {}) {
+export async function fetchPricesForProduct(productId, { token, lat, lng, limit = 120 } = {}) {
   if (!token) throw new Error("请先登录后再查询门店价格")
   const rows = await request("rpc/fetch_product_prices", {
     method: "POST",
@@ -125,7 +125,6 @@ export async function fetchPricesForProduct(productId, { token, lat, lng, limit 
       payload: {
         product_id: productId,
         limit,
-        since_days: sinceDays,
         ...(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {}),
       },
     },

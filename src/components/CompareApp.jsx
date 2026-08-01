@@ -85,6 +85,8 @@ const comparisonRows = [
   ["JAN 码", (product) => product.barcode || "未登记"],
 ]
 
+const formatDate = (value) => value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "日期未知"
+
 function ThemeButton() {
   const [dark, setDark] = useState(false)
 
@@ -374,15 +376,15 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
               <div className="mt-7 overflow-hidden rounded-xl border bg-muted/35">
                 {offers.map((item, index) => (
                   <div key={item.id || item.name} className={`flex items-center justify-between gap-4 px-4 py-3 text-sm ${index ? "border-t" : ""}`}>
-                    <div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.member ? "会员价" : "店头价"}{location && ` · ${formatDistance(getClosestOffer({ offers: [item] }, location).distance)}`}</p></div>
+                    <div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.member ? "会员价" : "店头价"} · {formatDate(item.sampledAt)}{location && ` · ${formatDistance(getClosestOffer({ offers: [item] }, location).distance)}`}</p></div>
                     <span className="shrink-0 font-mono font-semibold">{formatPrice(item.price)}</span>
                   </div>
                 ))}
               </div>
             )}
 
-            {!featured && hasPrices && <p className="mt-5 truncate text-xs text-muted-foreground">最低 {stats.bestOffer.name}{closest && ` · 最近 ${closest.name} ${formatDistance(closest.distance)}`}</p>}
-            {!hasPrices && <p className="mt-5 text-xs text-muted-foreground">{priceError || (priceChecked ? "最近 30 天暂无门店报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
+            {!featured && hasPrices && <p className="mt-5 truncate text-xs text-muted-foreground">最低 {stats.bestOffer.name} · {formatDate(stats.bestOffer.sampledAt)}{closest && ` · 最近 ${closest.name} ${formatDistance(closest.distance)}`}</p>}
+            {!hasPrices && <p className="mt-5 text-xs text-muted-foreground">{priceError || (priceChecked ? "该商品暂无门店报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
           </div>
 
           <div className={`flex items-end justify-between gap-4 ${featured ? "mt-8" : "mt-auto"}`}>

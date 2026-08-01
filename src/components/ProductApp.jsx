@@ -50,7 +50,7 @@ export default function ProductApp() {
     setPriceLoading(true)
     try {
       const [priceResult, storeResult, favoriteResult, logResult, summaryResult] = await Promise.allSettled([
-        fetchPricesForProduct(id, { token: activeSession.access_token, lat: coordinates?.lat, lng: coordinates?.lng, sinceDays: 60 }),
+        fetchPricesForProduct(id, { token: activeSession.access_token, lat: coordinates?.lat, lng: coordinates?.lng }),
         searchStores("", 300),
         fetchFavorites(activeSession.user.id),
         fetchPersonalLogs(activeSession.user.id),
@@ -177,7 +177,7 @@ export default function ProductApp() {
           ) : (
             <>
               <section>
-                <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近 60 天</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2></div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
+                <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2></div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
                 {offers.length ? <div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
                   const isFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(offer.id))
                   const mapUrl = Number.isFinite(offer.lat) && Number.isFinite(offer.lng) ? `https://www.google.com/maps/search/?api=1&query=${offer.lat},${offer.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(offer.name)}`
