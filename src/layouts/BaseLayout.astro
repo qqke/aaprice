@@ -14,6 +14,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="description" content={description} />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4faf7" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#122421" />
@@ -33,7 +36,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </script>
   </head>
   <body>
-    <a href="#main-content" class="fixed left-3 top-3 z-50 -translate-y-20 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform focus:translate-y-0">跳至主要内容</a>
-    <div id="main-content" tabindex="-1"><slot /></div>
+    <a href="#main-content" class="fixed left-3 top-3 z-50 inline-flex min-h-11 -translate-y-20 items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform focus:translate-y-0">跳至主要内容</a>
+    <slot />
   </body>
 </html>

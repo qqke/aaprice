@@ -1,5 +1,5 @@
 import { motion } from "motion/react"
-import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, LoaderCircle, LogOut, Mail, UserPlus } from "lucide-react"
+import { ArrowRight, CheckCircle2, Eye, EyeOff, LoaderCircle, LogOut, Mail, UserPlus } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import AppShell from "@/components/AppShell"
@@ -76,6 +76,7 @@ export default function AuthApp() {
   const [showPassword, setShowPassword] = useState(false)
   const [captchaToken, setCaptchaToken] = useState("")
   const [status, setStatus] = useState("")
+  const [statusType, setStatusType] = useState("info")
   const [loading, setLoading] = useState(true)
   const [redirectPath, setRedirectPath] = useState("")
 
@@ -90,18 +91,23 @@ export default function AuthApp() {
       if (!active) return
       setSession(value)
       if (value) setProfile(await fetchCurrentProfile())
-    }).catch((error) => setStatus(friendlyApiError(error))).finally(() => setLoading(false))
+    }).catch((error) => { setStatusType("error"); setStatus(friendlyApiError(error)) }).finally(() => setLoading(false))
     subscribeAuthState(async (value) => {
       if (!active) return
       setSession(value)
       setProfile(value ? await fetchCurrentProfile().catch(() => null) : null)
-    }).then((stop) => { unsubscribe = stop })
+    }).then((stop) => { unsubscribe = stop }).catch((error) => {
+      if (!active) return
+      setStatusType("error")
+      setStatus(friendlyApiError(error))
+    })
     return () => { active = false; unsubscribe() }
   }, [])
 
   const switchMode = (next) => {
     setMode(next)
     setStatus("")
+    setStatusType("info")
     setPassword("")
     setConfirm("")
     setShowPassword(false)
@@ -110,11 +116,12 @@ export default function AuthApp() {
 
   const submit = async (event) => {
     event.preventDefault()
-    if (mode !== "resetRequest" && password.length < 8) { setStatus("密码至少需要 8 位。"); return }
-    if ((mode === "register" || mode === "reset") && password !== confirm) { setStatus("两次输入的密码不一致。"); return }
-    if (turnstileEnabled && mode !== "reset" && !captchaToken) { setStatus("请先完成人机验证。"); return }
+    if (mode !== "resetRequest" && password.length < 8) { setStatusType("error"); setStatus("密码至少需要 8 位。"); return }
+    if ((mode === "register" || mode === "reset") && password !== confirm) { setStatusType("error"); setStatus("两次输入的密码不一致。"); return }
+    if (turnstileEnabled && mode !== "reset" && !captchaToken) { setStatusType("error"); setStatus("请先完成人机验证。"); return }
     setLoading(true)
     setStatus("")
+    setStatusType("info")
     try {
       if (mode === "login") {
         const value = await signInWithEmailPassword(email.trim(), password, captchaToken)
@@ -123,16 +130,20 @@ export default function AuthApp() {
         if (redirectPath) window.location.assign(redirectPath)
       } else if (mode === "register") {
         await signUpWithEmailPassword(email.trim(), password, captchaToken)
+        setStatusType("success")
         setStatus("注册邮件已发送，请确认邮箱后登录。")
       } else if (mode === "resetRequest") {
         await sendPasswordResetEmail(email.trim(), captchaToken)
+        setStatusType("success")
         setStatus("密码重置邮件已发送。")
       } else {
         await updatePassword(password)
+        setStatusType("success")
         setStatus("密码已更新，可以继续使用当前账号。")
         setMode("login")
       }
     } catch (error) {
+      setStatusType("error")
       setStatus(friendlyApiError(error))
     } finally {
       setLoading(false)
@@ -147,8 +158,8 @@ export default function AuthApp() {
 
   const [title, description, submitLabel, toggleLabel] = copy[mode]
   return (
-    <AppShell eyebrow="账户" title="账户与安全" description="登录后同步收藏、价格记录与贡献额度。" session={session} profile={profile}>
-      <section className="mx-auto grid max-w-[1040px] gap-8 px-4 pb-24 sm:px-6 lg:grid-cols-[1fr_0.7fr] lg:px-8">
+    <AppShell session={session} profile={profile}>
+      <section className="mx-auto max-w-lg px-4 py-10 pb-24 sm:px-6 sm:py-16">
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)] sm:p-8">
           {loading && !session ? <div className="flex min-h-64 items-center justify-center text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" /> 读取会话</div> : session && mode === "login" ? (
             <div className="flex min-h-64 flex-col justify-between">
@@ -157,20 +168,19 @@ export default function AuthApp() {
             </div>
           ) : (
             <form onSubmit={submit}>
-              <div className="flex items-start justify-between gap-4"><div><h2 className="text-2xl font-semibold">{title}</h2><p className="mt-2 text-sm text-muted-foreground">{description}</p></div><KeyRound className="size-6 text-primary" /></div>
+              <div><h1 className="text-3xl font-semibold tracking-tight">{title}</h1><p className="mt-2 text-sm text-muted-foreground">{description}</p></div>
               <div className="mt-8 space-y-4">
                 {mode !== "reset" && <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="name@example.com" /></label>}
                 {mode !== "resetRequest" && <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><span className="relative block"><Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="至少 8 位" className="pr-12" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setShowPassword((value) => !value)} className="absolute right-0 top-1/2 -translate-y-1/2" aria-label={showPassword ? "隐藏密码" : "显示密码"}>{showPassword ? <EyeOff /> : <Eye />}</Button></span></label>}
                 {(mode === "register" || mode === "reset") && <label className="block"><span className="mb-2 block text-sm font-medium">确认密码</span><Input type={showPassword ? "text" : "password"} value={confirm} onChange={(event) => setConfirm(event.target.value)} required autoComplete="new-password" placeholder="再次输入" /></label>}
                 {mode !== "reset" && <Turnstile key={mode} onToken={setCaptchaToken} />}
-                {status && <p className="rounded-xl bg-muted px-4 py-3 text-sm" role="status">{status}</p>}
+                {status && <p className={`rounded-xl border px-4 py-3 text-sm ${statusType === "error" ? "border-destructive/25 bg-destructive/5 text-destructive" : statusType === "success" ? "border-primary/25 bg-primary/5 text-foreground" : "bg-muted"}`} role={statusType === "error" ? "alert" : "status"} aria-live="polite">{status}</p>}
               </div>
-              <Button type="submit" className="mt-6 w-full" disabled={loading || (turnstileEnabled && mode !== "reset" && !captchaToken)}>{loading ? <LoaderCircle className="animate-spin" /> : mode === "register" ? <UserPlus /> : <Mail />}{submitLabel}</Button>
+              <Button type="submit" className="mt-6 w-full" disabled={loading || (turnstileEnabled && mode !== "reset" && !captchaToken)}>{loading ? <LoaderCircle className="animate-spin" /> : mode === "register" ? <UserPlus /> : <Mail />}{loading ? "正在处理" : submitLabel}</Button>
               <div className="mt-4 flex flex-wrap justify-between gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => switchMode(mode === "login" ? "register" : "login")}>{toggleLabel}</Button>{mode === "login" && <Button type="button" variant="ghost" size="sm" onClick={() => switchMode("resetRequest")}>忘记密码</Button>}</div>
             </form>
           )}
         </motion.div>
-        <aside className="rounded-3xl bg-muted/70 p-6 lg:p-8"><p className="text-sm font-medium">登录后可用</p><div className="mt-6 space-y-6">{[["收藏", "保存常看的商品与门店。"], ["价格记录", "保留个人记录，也可提交公共审核。"], ["贡献额度", "完成补价任务，获得积分并查询更多价格。"]].map(([heading, body]) => <div key={heading}><h3 className="font-medium">{heading}</h3><p className="mt-1 text-sm leading-relaxed text-muted-foreground">{body}</p></div>)}</div></aside>
       </section>
     </AppShell>
   )

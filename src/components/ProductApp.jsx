@@ -40,6 +40,7 @@ export default function ProductApp() {
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
+  const [savingPrice, setSavingPrice] = useState(false)
   const [status, setStatus] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
   const [historyLimit, setHistoryLimit] = useState(12)
@@ -145,7 +146,9 @@ export default function ProductApp() {
 
   const savePrice = async (event) => {
     event.preventDefault()
+    if (savingPrice) return
     if (form.share_to_public && !form.store_id) { setStatus("提交公共价格时必须选择门店。"); return }
+    setSavingPrice(true)
     setStatus("正在保存价格…")
     try {
       const entry = { product_id: productId, store_id: form.store_id || null, price_yen: Number(form.price_yen), note: form.note.trim(), purchased_at: new Date().toISOString().slice(0, 10) }
@@ -155,14 +158,14 @@ export default function ProductApp() {
       const refreshedLogs = await fetchPersonalLogs(session.user.id)
       setLogs(refreshedLogs.filter((item) => String(item.product_id) === String(productId)))
       setStatus(form.share_to_public ? "个人记录已保存，公共价格已提交审核。" : "个人价格记录已保存。")
-    } catch (error) { setStatus(friendlyApiError(error)) }
+    } catch (error) { setStatus(friendlyApiError(error)) } finally { setSavingPrice(false) }
   }
 
   if (loading) return <AppShell title="商品详情"><AppLoading label="正在读取商品" /></AppShell>
   if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath("/")}>返回搜索</a></Button></div></AppShell>
 
   return (
-    <AppShell eyebrow={product.maker} title={product.name} description={[product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" · ") || "商品信息"} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href={appPath("/#catalog")}><ArrowLeft /> 返回结果</a></Button>{session && <><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
+    <AppShell title={product.name} description={[product.maker, product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" / ")} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href={appPath("/#catalog")}><ArrowLeft /> 返回结果</a></Button>{session && <><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
       <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-32 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:pb-24">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-3xl border bg-card shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">
@@ -174,7 +177,7 @@ export default function ProductApp() {
 
         <div className="space-y-10">
           {!session ? (
-            <div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]"><h2 className="text-xl font-semibold">登录后查看门店价格</h2><p className="mt-2 text-sm text-muted-foreground">价格查询、收藏和个人记录沿用原后台账户规则。</p><Button asChild className="mt-5"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)}>登录继续</a></Button></div>
+            <div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]"><h2 className="text-xl font-semibold">登录后查看门店价格</h2><p className="mt-2 text-sm text-muted-foreground">登录后可以查询价格、收藏商品并保存记录。</p><Button asChild className="mt-5 hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)}>登录继续</a></Button></div>
           ) : (
             <>
               <section id="store-prices">
@@ -193,15 +196,15 @@ export default function ProductApp() {
               </section>
 
               <section className="rounded-2xl border bg-card p-6">
-                <div><h2 className="text-xl font-semibold">记录店头价格</h2><p className="mt-2 text-sm text-muted-foreground">默认仅保存到个人记录；勾选后同时提交公共审核。</p></div>
+                <div><h2 className="text-xl font-semibold">记录价格</h2><p className="mt-2 text-sm text-muted-foreground">只需选择门店并输入价格。</p></div>
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label>
                   <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
                   <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
-                  <label><span className="mb-2 block text-sm font-medium">备注</span><Input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="会员价、促销等" /></label>
-                  <label><span className="mb-2 block text-sm font-medium">凭证 URL</span><Input type="url" value={form.evidence_url} onChange={(event) => setForm({ ...form, evidence_url: event.target.value })} placeholder="可选" /></label>
-                  <label className="flex items-center gap-3 text-sm sm:col-span-2"><input type="checkbox" checked={form.share_to_public} onChange={(event) => setForm({ ...form, share_to_public: event.target.checked })} /> 同时提交公共比价审核</label>
-                  <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><Button type="submit"><Save /> 保存价格</Button>{status && <p className="text-sm text-muted-foreground" role="status">{status}</p>}</div>
+                  <details className="sm:col-span-2">
+                    <summary className="cursor-pointer text-sm font-medium text-muted-foreground">补充信息与公共提交（可选）</summary>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="会员价、促销等" /></label><label><span className="mb-2 block text-sm font-medium">凭证 URL</span><Input type="url" value={form.evidence_url} onChange={(event) => setForm({ ...form, evidence_url: event.target.value })} /></label><label className="flex items-center gap-3 self-end pb-2 text-sm"><input type="checkbox" checked={form.share_to_public} onChange={(event) => setForm({ ...form, share_to_public: event.target.checked })} /> 提交公共比价审核</label></div>
+                  </details>
+                  <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><Button type="submit" disabled={savingPrice}>{savingPrice ? <LoaderCircle className="animate-spin" /> : <Save />}{savingPrice ? "正在保存" : "保存价格"}</Button>{status && <p className="text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>}</div>
                 </form>
               </section>
 
@@ -216,7 +219,7 @@ export default function ProductApp() {
           )}
         </div>
       </section>
-      <div className="fixed inset-x-3 bottom-3 z-30 rounded-2xl border bg-popover/92 p-3 shadow-[0_20px_70px_oklch(0.15_0.04_240_/_0.22)] backdrop-blur-xl lg:hidden">
+      <div className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-30 rounded-2xl border bg-popover/92 p-3 shadow-[0_20px_70px_oklch(0.15_0.04_240_/_0.22)] backdrop-blur-xl lg:hidden">
         {session ? <div className="flex gap-2"><Button asChild className="flex-1"><a href="#store-prices"><BadgeJapaneseYen /> 查看门店价</a></Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></div> : <Button asChild className="w-full"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)}><BadgeJapaneseYen /> 登录查看门店价</a></Button>}
       </div>
     </AppShell>

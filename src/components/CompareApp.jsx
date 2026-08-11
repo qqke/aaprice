@@ -1,7 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
   BadgeJapaneseYen,
-  Barcode,
   Camera,
   Check,
   ChevronDown,
@@ -91,20 +90,15 @@ const comparisonRows = [
 const formatDate = (value) => value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "日期未知"
 
 function ThemeButton() {
-  const [dark, setDark] = useState(false)
-
-  useEffect(() => setDark(document.documentElement.classList.contains("dark")), [])
-
   const toggle = () => {
-    const next = !dark
+    const next = !document.documentElement.classList.contains("dark")
     document.documentElement.classList.toggle("dark", next)
     localStorage.setItem("theme", next ? "dark" : "light")
-    setDark(next)
   }
 
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label={dark ? "切换浅色模式" : "切换深色模式"}>
-      {dark ? <Sun /> : <Moon />}
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="切换颜色模式">
+      <Moon className="dark:hidden" /><Sun className="hidden dark:block" />
     </Button>
   )
 }
@@ -116,6 +110,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
   const [manualCode, setManualCode] = useState("")
   const [status, setStatus] = useState("可启动后置相机，或手动输入 JAN 码。")
   const [scanning, setScanning] = useState(false)
+  const [lookingUp, setLookingUp] = useState(false)
   const [draft, setDraft] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const initialLookupRef = useRef(false)
@@ -150,6 +145,8 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
       setStatus("请输入 8 位或 12 到 14 位 JAN 条码。")
       return
     }
+    if (lookingUp) return
+    setLookingUp(true)
     setDraft(null)
     setStatus(`正在查询 ${barcode}…`)
     try {
@@ -167,7 +164,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
       onFound(supabaseConfigured ? mapProductRow(row) : row)
     } catch (error) {
       setStatus(friendlyApiError(error))
-    }
+    } finally { setLookingUp(false) }
   }
 
   const submitMissing = async (event) => {
@@ -235,16 +232,16 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
         {scanning ? <Button variant="outline" onClick={stopCamera}><Camera /> 停止相机</Button> : <Button onClick={startCamera}><Camera /> 启动相机</Button>}
         <form onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
           <label htmlFor="manual-jan" className="mb-2 block text-sm font-medium">手动输入 JAN 码</label>
-          <div className="flex gap-2"><Input id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" /><Button type="submit" variant="secondary">查询</Button></div>
+          <div className="flex gap-2"><Input id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" disabled={lookingUp} /><Button type="submit" variant="secondary" disabled={lookingUp}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询"}</Button></div>
         </form>
-        <p className="min-h-5 text-sm text-muted-foreground" role="status">{status}</p>
+        <p className="min-h-5 text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>
         {draft && <form className="space-y-3 rounded-2xl border bg-muted/35 p-4" onSubmit={submitMissing}>
           <div><p className="font-medium">补录缺失商品</p><p className="mt-1 text-xs text-muted-foreground">JAN {draft.barcode} · 提交后由管理员审核</p></div>
           <label className="block"><span className="mb-2 block text-sm font-medium">商品名称</span><Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-2 block text-sm font-medium">品牌</span><Input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} /></label><label className="block"><span className="mb-2 block text-sm font-medium">规格</span><Input value={draft.pack} onChange={(event) => setDraft({ ...draft, pack: event.target.value })} placeholder="例如 30 片" /></label></div>
-          <label className="block"><span className="mb-2 block text-sm font-medium">分类</span><Input value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></label>
-          <label className="block"><span className="mb-2 block text-sm font-medium">商品图片 URL <span className="font-normal text-muted-foreground">（可选）</span></span><Input type="url" value={draft.image_url} onChange={(event) => setDraft({ ...draft, image_url: event.target.value })} /></label>
-          <label className="block"><span className="mb-2 block text-sm font-medium">商品说明 <span className="font-normal text-muted-foreground">（可选）</span></span><Input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium text-muted-foreground marker:text-muted-foreground">补充品牌与规格（可选）</summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-2 block text-sm font-medium">品牌</span><Input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} /></label><label className="block"><span className="mb-2 block text-sm font-medium">规格</span><Input value={draft.pack} onChange={(event) => setDraft({ ...draft, pack: event.target.value })} placeholder="例如 30 片" /></label></div>
+          </details>
           {session ? <Button type="submit" className="w-full" disabled={submitting}>{submitting ? <LoaderCircle className="animate-spin" /> : <Plus />}{submitting ? "正在提交" : "提交审核"}</Button> : <Button asChild className="w-full"><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath(`/scan/?jan=${draft.barcode}`))}`)}><LogIn /> 登录后提交</a></Button>}
         </form>}
       </DialogContent>
@@ -586,7 +583,7 @@ export default function CompareApp({ initialScan = false }) {
     <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href="#top" className="flex items-center gap-3" aria-label="AAPRICE 首页"><span className="grid size-9 place-items-center rounded-xl bg-primary font-mono text-sm font-bold text-primary-foreground">AA</span><span><span className="block font-semibold leading-none tracking-[-0.04em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span></a>
+          <a href={appPath("/")} className="flex min-h-11 items-center gap-3" aria-label="AAPRICE 首页"><span className="grid size-9 place-items-center rounded-xl bg-primary font-mono text-sm font-bold text-primary-foreground">AA</span><span><span className="block font-semibold leading-none tracking-[-0.04em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span></a>
           <div className="flex items-center gap-1">
             <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="#catalog">商品比价</a></Button>
             <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
@@ -597,38 +594,35 @@ export default function CompareApp({ initialScan = false }) {
         </div>
       </header>
 
-      <main id="top">
-        <section className="mx-auto grid max-w-[1440px] gap-7 px-4 pb-8 pt-9 sm:px-6 md:gap-10 md:pb-12 md:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:px-8 lg:pb-16">
-          <motion.div initial={reduceMotion ? false : "hidden"} animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.09 } } }}>
-            <motion.p variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }} className="text-sm font-medium text-primary">药妆店价格，一眼看清</motion.p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:mt-4 sm:text-6xl lg:text-7xl">{["扫码找同款，", "实时比门店。"].map((line) => <motion.span key={line} variants={{ hidden: { opacity: 0, y: 32 }, show: { opacity: 1, y: 0 } }} className="block">{line}</motion.span>)}</h1>
-            <motion.p variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }} className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">输入商品名或扫描 JAN 码，快速查看同款商品与附近门店价格。</motion.p>
-          </motion.div>
-
-          <motion.div initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.2, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} className="rounded-2xl border bg-card p-3 shadow-[0_24px_80px_oklch(0.2_0.03_240_/_0.08)]">
-            <label htmlFor="product-search" className="mb-2 block px-2 text-sm font-medium">找药妆商品</label>
-            <div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN 码" className="h-14 border-0 bg-muted pl-12 pr-12 text-base shadow-none focus-visible:ring-2" />{query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
-            <div className="mt-3 flex items-center justify-between gap-3 px-2 pb-1 text-xs text-muted-foreground"><span className="flex min-w-0 items-center gap-1.5"><Barcode className="size-3.5 shrink-0" /> {supabaseConfigured ? "商品目录实时更新" : "未配置后台，当前为演示数据"}</span><Button variant="ghost" size="sm" onClick={() => setScanOpen(true)} className="-mr-2 shrink-0 text-primary"><ScanLine /> 扫码检索</Button></div>
+      <main id="main-content" tabIndex={-1}>
+        <section className="mx-auto max-w-5xl px-4 pb-8 pt-10 sm:px-6 md:pb-12 md:pt-16 lg:px-8">
+          <motion.div initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
+            <h1 className="max-w-3xl text-4xl font-semibold leading-[1.02] tracking-[-0.055em] sm:text-5xl">搜商品，直接比价。</h1>
+            <p className="mt-3 text-sm text-muted-foreground sm:text-base">输入商品名、品牌或 JAN 码。</p>
+            <div className="mt-6 flex gap-2 rounded-2xl border bg-card p-2 shadow-[0_20px_60px_oklch(0.2_0.03_240_/_0.07)]">
+              <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN 码" aria-label="搜索商品" className="h-14 border-0 bg-transparent px-12 text-base shadow-none focus-visible:ring-0" />{query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
+              <Button size="lg" onClick={() => setScanOpen(true)} aria-label="扫码检索" className="h-14 shrink-0 px-4 sm:px-6"><ScanLine /><span className="hidden sm:inline">扫码</span></Button>
+            </div>
           </motion.div>
         </section>
 
-        <section id="catalog" className="mx-auto max-w-[1440px] px-4 pb-32 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start">
-            <aside className="rounded-2xl border bg-card p-4 lg:sticky lg:top-24 lg:p-5">
+        <section id="catalog" className="mx-auto max-w-6xl px-4 pb-32 sm:px-6 lg:px-8">
+          <div>
+            <div className="mb-6 rounded-2xl border bg-card p-3 sm:p-4">
               <div className="flex items-center justify-between gap-3">
-                <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-11 flex-1 items-center gap-2 text-left font-semibold lg:pointer-events-none" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序 <ChevronDown className={`ml-auto size-4 transition-transform lg:hidden ${filtersOpen ? "rotate-180" : ""}`} /></button>
+                <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-11 flex-1 items-center gap-2 text-left font-semibold" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序 <ChevronDown className={`ml-auto size-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} /></button>
                 {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}><RotateCcw /> 重置</Button>}
               </div>
-              <div id="catalog-filters" className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
+              <div id="catalog-filters" className={filtersOpen ? "block" : "hidden"}>
                 <motion.div key={filtersOpen ? "filters-open" : "filters-closed"} initial={reduceMotion ? false : { opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
-                <div className="mt-7"><p className="text-sm font-medium">商品分类</p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div></div>
-                <div className="mt-8"><div className="flex items-center justify-between gap-3"><label htmlFor="budget" className="text-sm font-medium">最高预算</label><span className="font-mono text-sm">{formatPrice(budget[0])}</span></div><Slider id="budget" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /><div className="mt-3 flex justify-between font-mono text-[11px] text-muted-foreground"><span>¥500</span><span>¥3,200</span></div></div>
-                <div className="mt-8"><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">后台默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem><SelectItem value="unit">单位价优先</SelectItem><SelectItem value="saving">门店差价最大</SelectItem><SelectItem value="distance">离我最近</SelectItem></SelectContent></Select></div>
-                <Button variant={locationStatus === "ready" ? "secondary" : "outline"} className="mt-5 w-full justify-start" onClick={locate} disabled={locationStatus === "loading" || locationStatus === "unsupported"}><MapPin /> {locationCopy}</Button>
-                <p className="mt-8 border-t pt-5 text-xs leading-relaxed text-muted-foreground">价格仅供比较，不构成用药建议；用药前请咨询药师并阅读说明书。</p>
+                <div className="mt-4 grid gap-5 border-t pt-5 md:grid-cols-[1.3fr_1fr_0.9fr]">
+                  <div><p className="text-sm font-medium">商品分类</p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div></div>
+                  <div><div className="flex items-center justify-between gap-3"><label htmlFor="budget" className="text-sm font-medium">最高预算</label><span className="font-mono text-sm">{formatPrice(budget[0])}</span></div><Slider id="budget" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
+                  <div><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem><SelectItem value="unit">单位价优先</SelectItem><SelectItem value="saving">差价最大</SelectItem><SelectItem value="distance">离我最近</SelectItem></SelectContent></Select><Button variant={locationStatus === "ready" ? "secondary" : "outline"} className="mt-3 w-full justify-start" onClick={locate} disabled={locationStatus === "loading" || locationStatus === "unsupported"}><MapPin /> {locationCopy}</Button></div>
+                </div>
                 </motion.div>
               </div>
-            </aside>
+            </div>
 
             <div aria-busy={catalogLoading}>
               <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">{catalogLoading ? "正在更新目录" : catalogError ? "后台连接异常" : "匹配结果"}</p><AnimatePresence mode="wait" initial={false}><motion.h2 key={catalogLoading ? "loading" : filtered.length} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-1 text-2xl font-semibold tracking-tight" aria-live="polite">{catalogLoading && !catalog.length ? "正在加载商品" : `${filtered.length} 款可比较商品`}</motion.h2></AnimatePresence></div><div className="flex items-center gap-2 text-sm text-muted-foreground"><BadgeJapaneseYen className="size-4" /> 价格按需查询</div></div>
@@ -640,11 +634,9 @@ export default function CompareApp({ initialScan = false }) {
             </div>
           </div>
         </section>
-
-        <section className="border-t bg-muted/35"><div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-16 sm:px-6 md:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:py-24"><div><Scale className="size-8 text-primary" /><h2 className="mt-5 text-3xl font-semibold tracking-tight">查询一次，比较清楚。</h2></div><div className="border-y">{[["公开目录", "商品名、品牌和 JAN 码均来自实时商品库。"], ["按需查价", "需要时再查询门店价格，避免无意消耗额度。"], ["附近门店", "授权定位后，结果会优先显示离你更近的门店。"]].map(([title, body], index) => <motion.div key={title} initial={reduceMotion ? false : { opacity: 0, x: 16 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: 0.5 }} transition={{ delay: index * 0.06, duration: 0.35 }} className="grid gap-2 border-b py-5 last:border-b-0 sm:grid-cols-[10rem_1fr] sm:items-baseline"><h3 className="font-semibold">{title}</h3><p className="text-sm leading-relaxed text-muted-foreground">{body}</p></motion.div>)}</div></div></section>
       </main>
 
-      <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 80, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, y: 60, scale: 0.97 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-3xl rounded-2xl border bg-popover/92 p-3 shadow-[0_28px_90px_oklch(0.15_0.04_240_/_0.25)] backdrop-blur-xl sm:bottom-5"><div className="flex items-center gap-3"><div className="hidden size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary sm:grid"><Scale className="size-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold">比较列 {selectedProducts.length}/{MAX_COMPARE}</p><p className="truncate text-xs text-muted-foreground">{selectedProducts.map(({ name }) => name).join(" / ")}</p></div><Button variant="ghost" size="sm" onClick={() => setSelected([])} className="hidden sm:inline-flex">清空</Button><Button onClick={() => setCompareOpen(true)} disabled={selectedProducts.length < 2}>{selectedProducts.length < 2 ? "再选一款" : "开始比较"}<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
+      <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 80, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, y: 60, scale: 0.97 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-3xl rounded-2xl border bg-popover/92 p-3 shadow-[0_28px_90px_oklch(0.15_0.04_240_/_0.25)] backdrop-blur-xl sm:bottom-5"><div className="flex items-center gap-3"><div className="hidden size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary sm:grid"><Scale className="size-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold">比较列 {selectedProducts.length}/{MAX_COMPARE}</p><p className="truncate text-xs text-muted-foreground">{selectedProducts.map(({ name }) => name).join(" / ")}</p></div><Button variant="ghost" size="sm" onClick={() => setSelected([])} className="hidden sm:inline-flex">清空</Button><Button onClick={() => setCompareOpen(true)} disabled={selectedProducts.length < 2}>{selectedProducts.length < 2 ? "再选一款" : "开始比较"}<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
 
       <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} onRemove={toggleProduct} />
       <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} />

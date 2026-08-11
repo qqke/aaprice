@@ -62,12 +62,13 @@ export default function AdminApp() {
   const [creditForm, setCreditForm] = useState({ user_id: "", amount: "", note: "" })
   const [settingForm, setSettingForm] = useState({ setting_key: "daily_free_price_references", setting_value: "" })
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState("")
   const [productQuery, setProductQuery] = useState("")
   const [storeQuery, setStoreQuery] = useState("")
 
-  const refresh = async () => {
-    setLoading(true)
+  const refresh = async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const activeSession = await getSession()
       setSession(activeSession)
@@ -87,19 +88,21 @@ export default function AdminApp() {
       setSettings(appSettings)
       setTelemetry(telemetrySummary)
       setTelemetryRecent(recentTelemetry)
-    } catch (error) { setStatus(friendlyApiError(error)) } finally { setLoading(false) }
+    } catch (error) { setStatus(friendlyApiError(error)) } finally { if (!silent) setLoading(false) }
   }
 
   useEffect(() => { refresh() }, [])
 
   const act = async (work, success) => {
+    if (busy) return false
+    setBusy(true)
     setStatus("正在处理…")
-    try { await work(); setStatus(success); await refresh() } catch (error) { setStatus(friendlyApiError(error)) }
+    try { await work(); setStatus(success); await refresh(true); return true } catch (error) { setStatus(friendlyApiError(error)); return false } finally { setBusy(false) }
   }
 
-  const saveProduct = (event) => { event.preventDefault(); act(() => adminUpsertProduct(productForm), "商品已保存。").then(() => setProductForm(blankProduct)) }
-  const saveStore = (event) => { event.preventDefault(); act(() => adminUpsertStore({ ...storeForm, lat: Number(storeForm.lat), lng: Number(storeForm.lng) }), "门店已保存。").then(() => setStoreForm(blankStore)) }
-  const savePrice = (event) => { event.preventDefault(); act(() => adminUpsertPrice({ ...priceForm, price_yen: Number(priceForm.price_yen), collected_at: new Date().toISOString() }), "价格已保存。").then(() => setPriceForm(blankPrice)) }
+  const saveProduct = async (event) => { event.preventDefault(); if (await act(() => adminUpsertProduct(productForm), "商品已保存。")) setProductForm(blankProduct) }
+  const saveStore = async (event) => { event.preventDefault(); if (await act(() => adminUpsertStore({ ...storeForm, lat: Number(storeForm.lat), lng: Number(storeForm.lng) }), "门店已保存。")) setStoreForm(blankStore) }
+  const savePrice = async (event) => { event.preventDefault(); if (await act(() => adminUpsertPrice({ ...priceForm, price_yen: Number(priceForm.price_yen), collected_at: new Date().toISOString() }), "价格已保存。")) setPriceForm(blankPrice) }
   const reviewPrice = (id, action) => { if (window.confirm(`确认${action === "approve" ? "通过" : "拒绝"}这条价格提交？`)) act(() => adminReviewPriceSubmission(id, action), "价格审核已完成。") }
   const reviewProduct = (id, action) => { if (window.confirm(`确认${action === "approve" ? "通过" : "拒绝"}这条商品提交？`)) act(() => adminReviewProductSubmission(id, action), "商品审核已完成。") }
   const remove = (type, id) => {
@@ -107,7 +110,7 @@ export default function AdminApp() {
     const action = type === "product" ? adminDeleteProduct : type === "store" ? adminDeleteStore : adminDeletePrice
     act(() => action(id), "记录已删除。")
   }
-  const adjustCredits = (event) => { event.preventDefault(); act(() => adminAdjustCredits({ ...creditForm, amount: Number(creditForm.amount) }), "积分已调整。").then(() => setCreditForm({ user_id: "", amount: "", note: "" })) }
+  const adjustCredits = async (event) => { event.preventDefault(); if (await act(() => adminAdjustCredits({ ...creditForm, amount: Number(creditForm.amount) }), "积分已调整。")) setCreditForm({ user_id: "", amount: "", note: "" }) }
   const saveSetting = (event) => { event.preventDefault(); const numeric = Number(settingForm.setting_value); act(() => adminUpdateAppSetting({ setting_key: settingForm.setting_key, setting_value: Number.isFinite(numeric) ? numeric : settingForm.setting_value }), "业务参数已更新。") }
   const findProducts = async (event) => {
     event.preventDefault()
@@ -124,8 +127,8 @@ export default function AdminApp() {
 
   const tabs = [["review", "审核", PackageCheck], ["products", "商品", Boxes], ["stores", "门店", Building2], ["prices", "价格", Tags], ["business", "业务", Activity]]
   return (
-    <AppShell eyebrow="管理后台" title="管理工作台" description="审核社区提交，维护商品、门店、价格与业务参数。" session={session} profile={profile} actions={<Button variant="outline" onClick={refresh}><RefreshCw /> 刷新</Button>}>
-      <section className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6 lg:px-8">
+    <AppShell title="管理工作台" description="审核提交并维护业务数据。" session={session} profile={profile} actions={<Button variant="outline" onClick={() => act(() => Promise.resolve(), "数据已刷新。")} disabled={busy}><RefreshCw className={busy ? "animate-spin" : ""} /> 刷新</Button>}>
+      <section className={`mx-auto max-w-[1320px] px-4 pb-24 transition-opacity sm:px-6 lg:px-8 ${busy ? "pointer-events-none opacity-70" : ""}`} aria-busy={busy}>
         <nav className="flex snap-x gap-1 overflow-x-auto rounded-2xl border bg-card p-1.5 shadow-sm" aria-label="管理功能">{tabs.map(([value, label, Icon]) => <Button key={value} id={`admin-tab-${value}`} className="shrink-0 snap-start rounded-xl" variant={tab === value ? "default" : "ghost"} onClick={() => setTab(value)} aria-pressed={tab === value} aria-controls={`admin-panel-${value}`}><Icon /> {label}</Button>)}</nav>
         {status && <div className="mt-6 rounded-xl border bg-card px-4 py-3 text-sm" role="status">{status}</div>}
 
