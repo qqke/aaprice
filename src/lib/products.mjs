@@ -236,6 +236,16 @@ export function formatPrice(value) {
   }).format(value)
 }
 
+export function getPriceFreshness(value, now = Date.now()) {
+  if (!value) return { ageDays: null, label: "更新时间未知", stale: true }
+  const sampledAt = new Date(value).getTime()
+  if (!Number.isFinite(sampledAt)) return { ageDays: null, label: "更新时间未知", stale: true }
+  const ageDays = Math.max(0, Math.floor((Number(now) - sampledAt) / 86_400_000))
+  if (ageDays === 0) return { ageDays, label: "今日采集", stale: false }
+  if (ageDays <= 30) return { ageDays, label: `${ageDays} 天前采集`, stale: false }
+  return { ageDays, label: `超过 30 天`, stale: true }
+}
+
 export function formatUnitPrice(product) {
   const price = getUnitPrice(product)
   return price === null ? "待查询" : `${new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: 1 }).format(price)}/${product.unit}`

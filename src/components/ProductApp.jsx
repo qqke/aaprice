@@ -13,6 +13,7 @@ import {
   fetchPersonalLogs,
   fetchPricesForProduct,
   fetchProductById,
+  fetchPublicPricePreview,
   friendlyApiError,
   getSession,
   mapProductRow,
@@ -23,7 +24,7 @@ import {
   submitStorePrice,
   toggleFavorite,
 } from "@/lib/aprice-api.mjs"
-import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getPriceStats } from "@/lib/products.mjs"
+import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getPriceFreshness, getPriceStats } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "未知"
@@ -37,6 +38,7 @@ export default function ProductApp() {
   const [favorites, setFavorites] = useState([])
   const [logs, setLogs] = useState([])
   const [credit, setCredit] = useState(null)
+  const [pricePreview, setPricePreview] = useState(null)
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
@@ -87,6 +89,8 @@ export default function ProductApp() {
         if (activeSession) {
           setProfile(await fetchCurrentProfile())
           await loadPrivate(productId, activeSession)
+        } else {
+          setPricePreview(await fetchPublicPricePreview(productId).catch(() => null))
         }
       } catch (error) {
         if (active) setStatus(friendlyApiError(error))
@@ -98,6 +102,8 @@ export default function ProductApp() {
   }, [])
 
   const offers = useMemo(() => offersFromPriceRows(priceRows), [priceRows])
+  const newestOffer = offers.toSorted((a, b) => new Date(b.sampledAt || 0) - new Date(a.sampledAt || 0))[0]
+  const freshness = getPriceFreshness(newestOffer?.sampledAt)
   const pricedProduct = product ? { ...product, offers } : null
   const stats = pricedProduct ? getPriceStats(pricedProduct) : null
   const productFavorite = favorites.some((item) => item.entity_type === "product" && String(item.entity_id) === String(productId))
@@ -177,16 +183,16 @@ export default function ProductApp() {
 
         <div className="space-y-10">
           {!session ? (
-            <div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]"><h2 className="text-xl font-semibold">登录后查看门店价格</h2><p className="mt-2 text-sm text-muted-foreground">登录后可以查询价格、收藏商品并保存记录。</p><Button asChild className="mt-5 hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)}>登录继续</a></Button></div>
+            <div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">{pricePreview ? <><p className="text-sm text-muted-foreground">匿名价格预览</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-3xl font-semibold">{formatPrice(pricePreview.minPrice)}</p><p className="mt-2 text-sm text-muted-foreground">{pricePreview.storeCount} 家门店 · {getPriceFreshness(pricePreview.latestCollectedAt).label}</p></div><Button asChild className="hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)}>登录查看门店</a></Button></div><p className="mt-5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">仅展示近期最低价概览。登录后可查看具体门店、距离和完整报价。</p></> : <><h2 className="text-xl font-semibold">登录后查看门店价格</h2><p className="mt-2 text-sm text-muted-foreground">登录后可以查询价格、收藏商品并保存记录。</p><Button asChild className="mt-5 hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)}>登录继续</a></Button></>}</div>
           ) : (
             <>
               <section id="store-prices">
-                <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2></div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
-                {offers.length ? <div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
+                <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2>{offers.length > 0 && <p className="mt-2 text-sm text-muted-foreground">{offers.length} 家门店有报价 · <span className={freshness.stale ? "text-amber-700 dark:text-amber-400" : "text-foreground"}>{freshness.label}</span></p>}</div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
+                {offers.length ? <><div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
                   const isFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(offer.id))
                   const mapUrl = Number.isFinite(offer.lat) && Number.isFinite(offer.lng) ? `https://www.google.com/maps/search/?api=1&query=${offer.lat},${offer.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(offer.name)}`
                   return <div key={offer.id} className="flex flex-wrap items-center gap-4 py-5"><div className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary"><Store className="size-5" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">{offer.name}</h3><p className="mt-1 text-xs text-muted-foreground">{offer.address || offer.chain}{offer.distance !== null && ` · ${formatDistance(offer.distance)}`} · {formatDate(offer.sampledAt)}</p></div><div className="text-right"><p className="font-mono text-xl font-semibold">{formatPrice(offer.price)}</p><p className="text-xs text-muted-foreground">{offer.member ? "会员价" : "店头价"}</p></div><Button variant="ghost" size="icon" onClick={() => favoriteStore(offer.id)} aria-label={isFavorite ? `取消收藏 ${offer.name}` : `收藏 ${offer.name}`}><Heart className={isFavorite ? "fill-current text-primary" : ""} /></Button><Button asChild variant="ghost" size="icon"><a href={mapUrl} target="_blank" rel="noreferrer" aria-label={`在地图查看 ${offer.name}`}><ExternalLink /></a></Button></div>
-                })}</div> : <div className="mt-5 rounded-2xl border border-dashed p-8 text-center text-muted-foreground">当前没有近期门店报价。</div>}
+                })}</div><p className="mt-3 text-xs leading-relaxed text-muted-foreground">价格可能因门店、会员资格和促销变化，请以店头结算为准。</p></> : <div className="mt-5 rounded-2xl border border-dashed p-8 text-center text-muted-foreground">当前没有近期门店报价。</div>}
               </section>
 
               <section className="grid gap-4 sm:grid-cols-3">

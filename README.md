@@ -29,6 +29,6 @@ PUBLIC_TURNSTILE_SITE_KEY=...
 PUBLIC_DISABLE_TURNSTILE=0
 ```
 
-首次接入新的 Supabase 项目时，先应用 `supabase/migrations/20260731141000_product_submissions_review.sql`。配置后，商品目录、模糊搜索、JAN 扫码和门店价格会读取同一套后台；门店价格只在用户主动查询时调用。
+首次接入新的 Supabase 项目时，按文件名时间顺序应用 `supabase/migrations/` 下的迁移。配置后，商品目录、模糊搜索、JAN 扫码和门店价格会读取同一套后台；匿名用户仅能读取近期普通店头价的聚合预览，具体门店价格仍只在登录用户主动查询时调用。
 
 所有 `PUBLIC_` 变量都会进入浏览器构建产物。这里只能使用 Supabase anon key，禁止填写 service role key 或其他服务端密钥。生产环境应启用 Turnstile；`PUBLIC_DISABLE_TURNSTILE=1` 仅用于本地测试。

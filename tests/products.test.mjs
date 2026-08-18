@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { filterProducts, getClosestOffer, products } from "../src/lib/products.mjs"
+import { filterProducts, getClosestOffer, getPriceFreshness, products } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
@@ -61,4 +61,12 @@ test("recognizes optional Supabase relation failures", () => {
   assert.equal(isMissingRelationError(new Error("Could not find the table 'public.product_submissions' in the schema cache")), true)
   assert.equal(isMissingRelationError(new Error('relation "product_submissions" does not exist')), true)
   assert.equal(isMissingRelationError(new Error("network error")), false)
+})
+
+test("labels price freshness without hiding stale quotes", () => {
+  const now = Date.parse("2026-08-18T12:00:00Z")
+  assert.deepEqual(getPriceFreshness("2026-08-18T02:00:00Z", now), { ageDays: 0, label: "今日采集", stale: false })
+  assert.deepEqual(getPriceFreshness("2026-08-11T12:00:00Z", now), { ageDays: 7, label: "7 天前采集", stale: false })
+  assert.equal(getPriceFreshness("2026-07-01T12:00:00Z", now).stale, true)
+  assert.equal(getPriceFreshness(null, now).label, "更新时间未知")
 })

@@ -132,6 +132,18 @@ export async function fetchPricesForProduct(productId, { token, lat, lng, limit 
   return Array.isArray(rows) ? rows : []
 }
 
+export async function fetchPublicPricePreview(productId) {
+  if (!productId) return null
+  const rows = await rpc("fetch_public_product_price_preview", { payload: { product_id: productId } })
+  const row = Array.isArray(rows) ? rows[0] : rows
+  if (!row || !Number.isFinite(Number(row.min_price_yen))) return null
+  return {
+    minPrice: Number(row.min_price_yen),
+    storeCount: Number(row.store_count) || 0,
+    latestCollectedAt: row.latest_collected_at || null,
+  }
+}
+
 export async function getSession() {
   if (!supabaseConfigured) return null
   const supabase = await getClient()
