@@ -1,5 +1,5 @@
 import { motion } from "motion/react"
-import { ArrowLeft, BadgeJapaneseYen, ExternalLink, Heart, LoaderCircle, LocateFixed, MapPin, Save, Store } from "lucide-react"
+import { ArrowLeft, BadgeJapaneseYen, Heart, LoaderCircle, LocateFixed, MapPin, Save, Scale, Store } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
@@ -25,10 +25,11 @@ import {
   submitStorePrice,
   toggleFavorite,
 } from "@/lib/aprice-api.mjs"
-import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getMapUrl, getPriceFreshness, getPriceStats } from "@/lib/products.mjs"
+import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getMapUrl, getPriceFreshness, getPriceStats, sanitizeCompareSelection } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "未知"
+const COMPARE_SELECTION_KEY = "aprice:compare-selection"
 
 export default function ProductApp() {
   const [session, setSession] = useState(null)
@@ -43,6 +44,7 @@ export default function ProductApp() {
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
+  const [pricesLoaded, setPricesLoaded] = useState(false)
   const [savingPrice, setSavingPrice] = useState(false)
   const [status, setStatus] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
@@ -51,29 +53,29 @@ export default function ProductApp() {
 
   const productId = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("id") || ""
 
-  const loadPrivate = async (id, activeSession, coordinates = null) => {
+  const loadPrivate = async (id, activeSession) => {
+    const [storeResult, favoriteResult, logResult, summaryResult] = await Promise.allSettled([
+      searchStores("", 300), fetchFavorites(activeSession.user.id), fetchPersonalLogs(activeSession.user.id), fetchCreditSummary(),
+    ])
+    if (storeResult.status === "fulfilled") setStores(storeResult.value)
+    if (favoriteResult.status === "fulfilled") setFavorites(favoriteResult.value)
+    if (logResult.status === "fulfilled") setLogs(logResult.value.filter((item) => String(item.product_id) === String(id)))
+    if (summaryResult.status === "fulfilled") setCredit(summaryResult.value)
+    const failed = [storeResult, favoriteResult, logResult, summaryResult].find((result) => result.status === "rejected")
+    if (failed) setStatus(friendlyApiError(failed.reason))
+  }
+
+  const loadPrices = async () => {
+    if (!session || priceLoading) return
     setPriceLoading(true)
+    setStatus("")
     try {
-      const [priceResult, storeResult, favoriteResult, logResult, summaryResult] = await Promise.allSettled([
-        fetchPricesForProduct(id, { token: activeSession.access_token, lat: coordinates?.lat, lng: coordinates?.lng }),
-        searchStores("", 300),
-        fetchFavorites(activeSession.user.id),
-        fetchPersonalLogs(activeSession.user.id),
-        fetchCreditSummary(),
-      ])
-      if (priceResult.status === "fulfilled") {
-        setPriceRows(priceResult.value)
-        void recordTelemetryEvent("price_query_succeeded", { product_id: id, offer_count: offersFromPriceRows(priceResult.value).length, has_location: Boolean(coordinates) }).catch(() => {})
-      }
-      if (storeResult.status === "fulfilled") setStores(storeResult.value)
-      if (favoriteResult.status === "fulfilled") setFavorites(favoriteResult.value)
-      if (logResult.status === "fulfilled") setLogs(logResult.value.filter((item) => String(item.product_id) === String(id)))
-      if (summaryResult.status === "fulfilled") setCredit(summaryResult.value)
-      const failed = [priceResult, storeResult, favoriteResult, logResult, summaryResult].find((result) => result.status === "rejected")
-      if (failed) setStatus(friendlyApiError(failed.reason))
-    } finally {
-      setPriceLoading(false)
-    }
+      const rows = await fetchPricesForProduct(productId, { token: session.access_token, lat: location?.lat, lng: location?.lng })
+      setPriceRows(rows)
+      setPricesLoaded(true)
+      void recordTelemetryEvent("price_query_succeeded", { product_id: productId, offer_count: offersFromPriceRows(rows).length, has_location: Boolean(location) }).catch(() => {})
+      fetchCreditSummary().then(setCredit).catch(() => {})
+    } catch (error) { setStatus(friendlyApiError(error)) } finally { setPriceLoading(false) }
   }
 
   useEffect(() => {
@@ -108,11 +110,18 @@ export default function ProductApp() {
     return () => { active = false }
   }, [])
 
-  const offers = useMemo(() => offersFromPriceRows(priceRows), [priceRows])
+  const offers = useMemo(() => offersFromPriceRows(priceRows).map((offer) => location && Number.isFinite(offer.lat) && Number.isFinite(offer.lng) ? { ...offer, distance: distanceKm(location.lat, location.lng, offer.lat, offer.lng) } : offer), [priceRows, location])
   const newestOffer = offers.toSorted((a, b) => new Date(b.sampledAt || 0) - new Date(a.sampledAt || 0))[0]
   const freshness = getPriceFreshness(newestOffer?.sampledAt)
   const pricedProduct = product ? { ...product, offers } : null
   const stats = pricedProduct ? getPriceStats(pricedProduct) : null
+  const closestOfferId = location ? offers.filter(({ distance }) => Number.isFinite(distance)).toSorted((a, b) => a.distance - b.distance)[0]?.id : null
+  const recommendedOffer = offers.find(({ id }) => String(id) === String(closestOfferId)) || stats?.bestOffer
+  const freePriceQueriesRemaining = credit ? Math.max(0, Number(credit.daily_free_price_references || 0) - Number(credit.references_today || 0)) : null
+  const priceQueryCost = Math.max(0, Number(credit?.price_reference_cost || 0))
+  const canAffordPriceQuery = freePriceQueriesRemaining === null || freePriceQueriesRemaining > 0 || priceQueryCost === 0 || Number(credit?.balance || 0) >= priceQueryCost
+  const priceQueryCopy = freePriceQueriesRemaining === null ? "主动查询才计入今日价格查询额度。" : freePriceQueriesRemaining > 0 ? `今日还可免费查询 ${freePriceQueriesRemaining} 次；点击后计入额度。` : !canAffordPriceQuery ? `查询需要 ${priceQueryCost} 积分，当前余额 ${Number(credit?.balance || 0)}。可通过补价任务获得积分。` : priceQueryCost > 0 ? `免费额度已用完，本次查询消耗 ${priceQueryCost} 积分。` : "主动查询才计入今日价格查询额度。"
+  const priceQueryLabel = freePriceQueriesRemaining > 0 ? "免费查询门店价" : priceQueryCost > 0 ? `用 ${priceQueryCost} 积分查价` : "查询门店价"
   const productFavorite = favorites.some((item) => item.entity_type === "product" && String(item.entity_id) === String(productId))
   const filteredStores = useMemo(() => {
     const needle = storeSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
@@ -131,8 +140,7 @@ export default function ProductApp() {
         .map((store) => ({ ...store, distance: distanceKm(next.lat, next.lng, Number(store.lat), Number(store.lng)) }))
         .toSorted((a, b) => a.distance - b.distance)[0]
       if (nearestStore) setForm((value) => ({ ...value, store_id: nearestStore.id }))
-      setStatus(nearestStore ? `已选择最近门店：${nearestStore.name}（${formatDistance(nearestStore.distance)}）。` : "已按当前位置重新查询门店价格。")
-      try { await loadPrivate(productId, session, next) } catch (error) { setStatus(friendlyApiError(error)) }
+      setStatus(nearestStore ? `已选择最近门店：${nearestStore.name}（${formatDistance(nearestStore.distance)}）。` : "已保存位置，查询后将按距离排序。")
     }, (error) => setStatus(`定位失败：${error.message}`), { timeout: 10000, maximumAge: 30000 })
   }
 
@@ -147,6 +155,12 @@ export default function ProductApp() {
       setFavorites((items) => result.action === "added" ? [...items, { entity_type: "product", entity_id: productId }] : items.filter((item) => !(item.entity_type === "product" && String(item.entity_id) === String(productId))))
       setStatus(result.action === "added" ? "已收藏商品。" : "已取消商品收藏。")
     } catch (error) { setStatus(friendlyApiError(error)) }
+  }
+
+  const compareProduct = () => {
+    let ids = [productId]
+    try { ids = sanitizeCompareSelection([productId, ...JSON.parse(localStorage.getItem(COMPARE_SELECTION_KEY) || "[]")]) } catch {}
+    window.location.assign(appPath(`/?compare=${ids.map((id) => encodeURIComponent(id)).join(",")}&compare_source=product`))
   }
 
   const favoriteStore = async (storeId) => {
@@ -178,7 +192,7 @@ export default function ProductApp() {
   if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath("/")}>返回搜索</a></Button></div></AppShell>
 
   return (
-    <AppShell title={product.name} description={[product.maker, product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" / ")} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href={appPath("/#catalog")}><ArrowLeft /> 返回结果</a></Button>{session && <><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
+    <AppShell title={product.name} description={[product.maker, product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" / ")} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href={appPath("/#catalog")}><ArrowLeft /> 返回结果</a></Button><Button variant="outline" onClick={compareProduct}><Scale />加入比价</Button>{session && <><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
       <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-32 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:pb-24">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-3xl border bg-card shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">
@@ -194,19 +208,20 @@ export default function ProductApp() {
           ) : (
             <>
               <section id="store-prices">
-                <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2>{offers.length > 0 && <p className="mt-2 text-sm text-muted-foreground">{offers.length} 家门店有报价 · <span className={freshness.stale ? "text-amber-700 dark:text-amber-400" : "text-foreground"}>{freshness.label}</span></p>}</div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
+                <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2>{offers.length > 0 && <p className="mt-2 text-sm text-muted-foreground">{offers.length} 家门店有报价 · {location ? "按距离排序" : "按价格排序"} · <span className={freshness.stale ? "text-amber-700 dark:text-amber-400" : "text-foreground"}>{freshness.label}</span></p>}</div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
                 {offers.length ? <><div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
                   const isFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(offer.id))
                   const mapUrl = getMapUrl(offer)
-                  return <div key={offer.id} className="flex flex-wrap items-center gap-4 py-5"><div className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary"><Store className="size-5" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">{offer.name}</h3><p className="mt-1 text-xs text-muted-foreground">{offer.address || offer.chain}{offer.distance !== null && ` · ${formatDistance(offer.distance)}`} · {formatDate(offer.sampledAt)}</p></div><div className="text-right"><p className="font-mono text-xl font-semibold">{formatPrice(offer.price)}</p><p className="text-xs text-muted-foreground">{offer.member ? "会员价" : "店头价"}</p></div><Button variant="ghost" size="icon" onClick={() => favoriteStore(offer.id)} aria-label={isFavorite ? `取消收藏 ${offer.name}` : `收藏 ${offer.name}`}><Heart className={isFavorite ? "fill-current text-primary" : ""} /></Button><Button asChild variant="ghost" size="icon"><a href={mapUrl} target="_blank" rel="noreferrer" aria-label={`在地图查看 ${offer.name}`} onClick={() => void recordTelemetryEvent("map_opened", { product_id: productId, store_id: offer.id }).catch(() => {})}><ExternalLink /></a></Button></div>
-                })}</div><p className="mt-3 text-xs leading-relaxed text-muted-foreground">价格可能因门店、会员资格和促销变化，请以店头结算为准。</p></> : <div className="mt-5 rounded-2xl border border-dashed p-8 text-center text-muted-foreground">当前没有近期门店报价。</div>}
+                  const premium = offer.price - stats.min
+                  return <div key={offer.id} className="flex flex-wrap items-center gap-4 py-5"><div className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary"><Store className="size-5" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{offer.name}</h3>{offer.price === stats.min && <Badge>最低</Badge>}{String(offer.id) === String(closestOfferId) && <Badge variant="outline">最近</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{offer.address || offer.chain}{offer.distance !== null && ` · ${formatDistance(offer.distance)}`} · {formatDate(offer.sampledAt)}</p></div><div className="text-right"><p className="font-mono text-xl font-semibold">{formatPrice(offer.price)}</p><p className="text-xs text-muted-foreground">{offer.member ? "会员价" : "店头价"}{premium > 0 && ` · 比最低多 ${formatPrice(premium)}`}</p></div><Button variant="ghost" size="icon" onClick={() => favoriteStore(offer.id)} aria-label={isFavorite ? `取消收藏 ${offer.name}` : `收藏 ${offer.name}`}><Heart className={isFavorite ? "fill-current text-primary" : ""} /></Button><Button asChild variant="outline" size="sm"><a href={mapUrl} target="_blank" rel="noreferrer" aria-label={`在地图查看 ${offer.name}`} onClick={() => void recordTelemetryEvent("map_opened", { product_id: productId, store_id: offer.id }).catch(() => {})}><MapPin />地图</a></Button></div>
+                })}</div><p className="mt-3 text-xs leading-relaxed text-muted-foreground">价格可能因门店、会员资格和促销变化，请以店头结算为准。</p></> : pricesLoaded ? <div className="mt-5 rounded-2xl border border-dashed p-8 text-center text-muted-foreground">当前没有近期门店报价。</div> : <div className="mt-5 rounded-2xl border border-dashed p-8 text-center"><p className="text-sm text-muted-foreground">{priceQueryCopy}</p>{canAffordPriceQuery ? <Button className="mt-4" onClick={loadPrices} disabled={priceLoading}>{priceLoading ? <LoaderCircle className="animate-spin" /> : <BadgeJapaneseYen />}{priceLoading ? "查询中" : priceQueryLabel}</Button> : <Button asChild className="mt-4"><a href={appPath("/me/")}>查看积分与任务</a></Button>}</div>}
               </section>
 
-              <section className="grid gap-4 sm:grid-cols-3">
+              {offers.length > 0 && <section className="grid gap-4 sm:grid-cols-3">
                 <div className="border-t pt-4"><p className="text-sm text-muted-foreground">当前最低</p><p className="mt-2 font-mono text-2xl font-semibold">{formatPrice(stats.min)}</p></div>
                 <div className="border-t pt-4"><p className="text-sm text-muted-foreground">单位价格</p><p className="mt-2 font-mono text-2xl font-semibold">{formatUnitPrice(pricedProduct)}</p></div>
                 <div className="border-t pt-4"><p className="text-sm text-muted-foreground">门店差价</p><p className="mt-2 font-mono text-2xl font-semibold">{formatPrice(stats.saving)}</p></div>
-              </section>
+              </section>}
 
               <section className="rounded-2xl border bg-card p-6">
                 <div><h2 className="text-xl font-semibold">记录价格</h2><p className="mt-2 text-sm text-muted-foreground">只需选择门店并输入价格。</p></div>
@@ -221,11 +236,11 @@ export default function ProductApp() {
                 </form>
               </section>
 
-              <section>
+              {priceRows.length > 0 && <section>
                 <div><p className="text-sm text-muted-foreground">原始采样</p><h2 className="mt-1 text-2xl font-semibold">近期变化</h2></div>
                 <div className="mt-5 divide-y border-y">{priceRows.slice(0, historyLimit).map((row) => <div key={row.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-medium">{row.stores?.name || row.store_id}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(row.collected_at)} · {row.source || "unknown"}</p></div><span className="font-mono font-semibold">{formatPrice(row.price_yen)}</span></div>)}</div>
                 {priceRows.length > historyLimit && <Button variant="ghost" className="mt-4" onClick={() => setHistoryLimit((value) => value + 12)}>查看更多记录</Button>}
-              </section>
+              </section>}
 
               {logs.length > 0 && <section><h2 className="text-2xl font-semibold">我的历史记录</h2><div className="mt-5 divide-y border-y">{logs.slice(0, 10).map((log) => <div key={log.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-medium">{log.stores?.name || "未指定门店"}</p><p className="mt-1 text-xs text-muted-foreground">{log.purchased_at || log.created_at} · {log.note || "无备注"}</p></div><span className="font-mono font-semibold">{formatPrice(log.price_yen)}</span></div>)}</div></section>}
             </>
@@ -233,7 +248,7 @@ export default function ProductApp() {
         </div>
       </section>
       <div className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-30 rounded-2xl border bg-popover/92 p-3 shadow-[0_20px_70px_oklch(0.15_0.04_240_/_0.22)] backdrop-blur-xl lg:hidden">
-        {session ? <div className="flex gap-2"><Button asChild className="flex-1"><a href="#store-prices"><BadgeJapaneseYen /> 查看门店价</a></Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></div> : <Button asChild className="w-full"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "mobile_product_gate", product_id: productId }).catch(() => {})}><BadgeJapaneseYen /> 登录查看门店价</a></Button>}
+        {session ? <div className="flex gap-2">{recommendedOffer ? <Button asChild className="flex-1"><a href={getMapUrl(recommendedOffer)} target="_blank" rel="noreferrer" onClick={() => void recordTelemetryEvent("map_opened", { source: "mobile_recommendation", product_id: productId, store_id: recommendedOffer.id }).catch(() => {})}><MapPin />{closestOfferId ? "最近门店" : recommendedOffer.member ? "最低会员价" : "最低价门店"} · {formatPrice(recommendedOffer.price)}</a></Button> : canAffordPriceQuery ? <Button className="flex-1" onClick={loadPrices} disabled={priceLoading}>{priceLoading ? <LoaderCircle className="animate-spin" /> : <BadgeJapaneseYen />}{priceLoading ? "查询中" : priceQueryLabel}</Button> : <Button asChild className="flex-1"><a href={appPath("/me/")}>查看积分与任务</a></Button>}<Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></div> : <Button asChild className="w-full"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "mobile_product_gate", product_id: productId }).catch(() => {})}><BadgeJapaneseYen /> 登录查看门店价</a></Button>}
       </div>
     </AppShell>
   )

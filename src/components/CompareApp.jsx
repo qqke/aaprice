@@ -526,7 +526,7 @@ export default function CompareApp({ initialScan = false }) {
         const sharedCount = shared.filter((id) => rows.some((row) => row.id === id)).length
         if (sharedCount) {
           setCompareOpen(true)
-          if (compareSource !== "account") void recordTelemetryEvent("compare_list_opened", { item_count: sharedCount }).catch(() => {})
+          if (!compareSource) void recordTelemetryEvent("compare_list_opened", { item_count: sharedCount }).catch(() => {})
         }
       })
     }
