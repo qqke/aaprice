@@ -24,6 +24,8 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(shell, /<main id="main-content" tabIndex=\{-1\}>/)
   assert.match(compare, /<main id="main-content" tabIndex=\{-1\}>/)
   assert.match(compare, /env\(safe-area-inset-bottom\)/)
+  assert.match(compare, /查询门店价/)
+  assert.match(compare, /setSavedProducts\(\(items\) => items\.map/)
   assert.match(product, /env\(safe-area-inset-bottom\)/)
   assert.match(auth, /subscribeAuthState[\s\S]*?\.catch\(\(error\) =>/)
   assert.match(admin, /if \(await act\([\s\S]*?\)\) setProductForm\(blankProduct\)/)

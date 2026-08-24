@@ -415,7 +415,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
   )
 }
 
-function CompareDialog({ open, onOpenChange, selectedProducts, onRemove }) {
+function CompareDialog({ open, onOpenChange, selectedProducts, onRemove, onLoadPrices, priceLoading, priceChecked, priceErrors }) {
   const [shareStatus, setShareStatus] = useState("")
   const summary = getBasketSummary(selectedProducts)
   const singleStore = getBestSingleStoreBasket(selectedProducts)
@@ -448,7 +448,8 @@ function CompareDialog({ open, onOpenChange, selectedProducts, onRemove }) {
           <div className="grid min-w-[760px]" style={{ gridTemplateColumns: `150px repeat(${selectedProducts.length}, minmax(190px, 1fr))` }}>
             <div className="sticky left-0 z-10 bg-popover py-5" />
             {selectedProducts.map((product) => {
-              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div></div>
+              const needsPrice = !product.offers.length
+              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div>{needsPrice && supabaseConfigured && <div className="mt-3"><Button variant="outline" size="sm" onClick={() => onLoadPrices(product.id)} disabled={priceLoading[product.id]}>{priceLoading[product.id] && <LoaderCircle className="animate-spin" />}{priceLoading[product.id] ? "查询中" : priceChecked[product.id] ? "重新查询" : "查询门店价"}</Button>{priceErrors[product.id] && <p className="mt-2 text-xs text-destructive" role="alert">{priceErrors[product.id]}</p>}</div>}</div>
             })}
             {comparisonRows.flatMap(([label, value]) => [
               <div key={`${label}-label`} className="sticky left-0 z-10 border-b bg-popover py-4 text-sm text-muted-foreground">{label}</div>,
@@ -481,6 +482,7 @@ export default function CompareApp({ initialScan = false }) {
   const [authOpen, setAuthOpen] = useState(false)
   const [session, setSession] = useState(null)
   const [pendingPriceId, setPendingPriceId] = useState("")
+  const [reopenCompareAfterAuth, setReopenCompareAfterAuth] = useState(false)
   const [priceLoading, setPriceLoading] = useState({})
   const [priceChecked, setPriceChecked] = useState({})
   const [priceErrors, setPriceErrors] = useState({})
@@ -585,6 +587,7 @@ export default function CompareApp({ initialScan = false }) {
       const offers = offersFromPriceRows(rows)
       void recordTelemetryEvent("price_query_succeeded", { product_id: id, offer_count: offers.length, has_location: Boolean(location) }).catch(() => {})
       setCatalog((items) => items.map((product) => product.id === id ? { ...product, offers } : product))
+      setSavedProducts((items) => items.map((product) => product.id === id ? { ...product, offers } : product))
       setPriceChecked((value) => ({ ...value, [id]: true }))
     } catch (error) {
       setPriceErrors((value) => ({ ...value, [id]: friendlyApiError(error) }))
@@ -599,6 +602,26 @@ export default function CompareApp({ initialScan = false }) {
     const id = pendingPriceId
     setPendingPriceId("")
     if (id) await loadPrices(id, nextSession?.access_token)
+    if (reopenCompareAfterAuth) {
+      setReopenCompareAfterAuth(false)
+      setCompareOpen(true)
+    }
+  }
+
+  const loadComparePrices = (id) => {
+    if (!session) {
+      setCompareOpen(false)
+      setReopenCompareAfterAuth(true)
+    }
+    void loadPrices(id)
+  }
+
+  const handleAuthOpenChange = (open) => {
+    setAuthOpen(open)
+    if (!open && !session) {
+      setPendingPriceId("")
+      setReopenCompareAfterAuth(false)
+    }
   }
 
   const loadMoreProducts = async () => {
@@ -704,9 +727,9 @@ export default function CompareApp({ initialScan = false }) {
 
       <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 80, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, y: 60, scale: 0.97 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-3xl rounded-2xl border bg-popover/92 p-3 shadow-[0_28px_90px_oklch(0.15_0.04_240_/_0.25)] backdrop-blur-xl sm:bottom-5"><div className="flex items-center gap-3"><div className="hidden size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary sm:grid"><Scale className="size-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold">比价清单 {selectedProducts.length}/{MAX_COMPARE}</p><p className="truncate text-xs text-muted-foreground">{basketSummary.pricedCount ? `已查价 ${basketSummary.pricedCount}/${basketSummary.totalCount} 件 · 最低合计 ${formatPrice(basketSummary.minimumTotal)}` : selectedProducts.map(({ name }) => name).join(" / ")}</p></div><Button variant="ghost" size="sm" onClick={() => setSelected([])} className="hidden sm:inline-flex">清空</Button><Button onClick={() => setCompareOpen(true)}>查看清单<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
 
-      <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} onRemove={toggleProduct} />
+      <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} onRemove={toggleProduct} onLoadPrices={loadComparePrices} priceLoading={priceLoading} priceChecked={priceChecked} priceErrors={priceErrors} />
       <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} />
-      <LoginDialog open={authOpen} onOpenChange={setAuthOpen} onSignedIn={handleSignedIn} />
+      <LoginDialog open={authOpen} onOpenChange={handleAuthOpenChange} onSignedIn={handleSignedIn} />
     </div>
   )
 }
