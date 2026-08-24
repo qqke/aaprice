@@ -147,11 +147,10 @@ export async function fetchPublicPricePreview(productId) {
 
 export async function recordTelemetryEvent(eventName, properties = {}) {
   if (!supabaseConfigured || typeof window === "undefined") return
-  let sessionId = sessionStorage.getItem(TELEMETRY_SESSION_KEY)
-  if (!sessionId) {
-    sessionId = crypto.randomUUID()
-    sessionStorage.setItem(TELEMETRY_SESSION_KEY, sessionId)
-  }
+  let sessionId
+  try { sessionId = sessionStorage.getItem(TELEMETRY_SESSION_KEY) } catch {}
+  sessionId ||= crypto.randomUUID()
+  try { sessionStorage.setItem(TELEMETRY_SESSION_KEY, sessionId) } catch {}
   const session = await getSession().catch(() => null)
   await rpc("record_telemetry_event", { payload: { event_name: eventName, session_id: sessionId, properties } }, session?.access_token)
 }

@@ -5,7 +5,7 @@ import test from "node:test"
 const readSource = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8")
 
 test("keeps production UI interaction contracts", async () => {
-  const [buttons, inputs, admin, layout, shell, compare, product, auth] = await Promise.all([
+  const [buttons, inputs, admin, layout, shell, compare, product, auth, account, api] = await Promise.all([
     readSource("src/components/ui/button.tsx"),
     readSource("src/components/ui/input.tsx"),
     readSource("src/components/AdminApp.jsx"),
@@ -14,6 +14,8 @@ test("keeps production UI interaction contracts", async () => {
     readSource("src/components/CompareApp.jsx"),
     readSource("src/components/ProductApp.jsx"),
     readSource("src/components/AuthApp.jsx"),
+    readSource("src/components/MeApp.jsx"),
+    readSource("src/lib/aprice-api.mjs"),
   ])
 
   assert.match(buttons, /default:\s*\n\s*"h-11[^"]*md:h-10/, "buttons need 44px mobile targets")
@@ -30,7 +32,9 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(compare, /priceIntent=\{Boolean\(pendingPriceId\)\}/)
   assert.match(compare, /if \(!compareSource\) void recordTelemetryEvent\("compare_list_opened"/)
   assert.match(compare, /setSavedProducts\(\(items\) => items\.map/)
-  assert.match(await readSource("src/components/MeApp.jsx"), /比较商品 \{dataCompareIds\.length\}/)
+  assert.match(compare, /referrerPolicy="no-referrer"/)
+  assert.match(compare, /inline-flex min-h-11 items-center/)
+  assert.match(account, /比较商品 \{dataCompareIds\.length\}/)
   assert.match(product, /env\(safe-area-inset-bottom\)/)
   assert.match(product, /比最低多/)
   assert.match(product, />地图<\/a>/)
@@ -45,11 +49,13 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(product, /补价任务已提交审核，审核通过后发放积分。/)
   assert.match(product, /id="record-price"/)
   assert.doesNotMatch(product, /await loadPrivate\(productId, activeSession, next\)/)
-  assert.match(await readSource("src/components/MeApp.jsx"), /task=1[\s\S]*#record-price/)
-  assert.match(await readSource("src/components/MeApp.jsx"), /fetchActivePriceTask\(\)/)
-  assert.match(await readSource("src/components/MeApp.jsx"), /id="price-tasks"/)
-  assert.match(await readSource("src/components/MeApp.jsx"), /审核通过后获得 \{credit\?\.approved_contribution_reward/)
-  assert.match(await readSource("src/components/MeApp.jsx"), /有效期至 \{formatDate\(task\.expires_at, true\)\}/)
+  assert.match(account, /task=1[\s\S]*#record-price/)
+  assert.match(account, /fetchActivePriceTask\(\)/)
+  assert.match(account, /id="price-tasks"/)
+  assert.match(account, /审核通过后获得 \{credit\?\.approved_contribution_reward/)
+  assert.match(account, /有效期至 \{formatDate\(task\.expires_at, true\)\}/)
+  assert.match(account, /Promise\.allSettled/)
+  assert.match(account, /role="tablist"/)
   assert.match(await readSource(".github/workflows/deploy.yml"), /PUBLIC_DISABLE_TURNSTILE:.*\|\| '1'/)
   assert.match(auth, /subscribeAuthState[\s\S]*?\.catch\(\(error\) =>/)
   assert.doesNotMatch(auth, /请先完成人机验证。/)
@@ -57,4 +63,9 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(admin, /if \(await act\([\s\S]*?\)\) setProductForm\(blankProduct\)/)
   assert.match(admin, /if \(await act\([\s\S]*?\)\) setStoreForm\(blankStore\)/)
   assert.match(admin, /if \(await act\([\s\S]*?\)\) setPriceForm\(blankPrice\)/)
+  assert.match(admin, /运营待办概览/)
+  assert.match(admin, /纬度（-90～90）和经度（-180～180）/)
+  assert.match(admin, /积分调整必须是非零整数，并填写原因/)
+  assert.match(admin, /Promise\.allSettled/)
+  assert.match(api, /try \{ sessionId = sessionStorage\.getItem/)
 })

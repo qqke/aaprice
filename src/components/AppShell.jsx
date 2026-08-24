@@ -8,7 +8,7 @@ function ThemeButton() {
   const toggle = () => {
     const next = !document.documentElement.classList.contains("dark")
     document.documentElement.classList.toggle("dark", next)
-    localStorage.setItem("theme", next ? "dark" : "light")
+    try { localStorage.setItem("theme", next ? "dark" : "light") } catch {}
   }
   return <Button variant="ghost" size="icon" onClick={toggle} aria-label="切换颜色模式"><Moon className="dark:hidden" /><Sun className="hidden dark:block" /></Button>
 }

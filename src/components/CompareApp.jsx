@@ -359,7 +359,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
     >
       <div className={featured ? "grid md:grid-cols-[1.05fr_0.95fr]" : ""}>
         <a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "aspect-[16/10] md:aspect-auto md:min-h-[31rem]" : "aspect-[16/10] md:aspect-[4/3]"}`}>
-          <motion.img layoutId={`image-${product.id}`} src={product.image} alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
+          <motion.img layoutId={`image-${product.id}`} src={product.image} alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} decoding="async" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
           {featured && <div className="absolute bottom-5 left-5 hidden text-white md:block"><p className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">实时目录</p><p className="mt-1 text-lg font-semibold">扫码、搜索、按需查询价格</p></div>}
         </a>
@@ -369,7 +369,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">{product.maker}</p>
-                <h2 className={`mt-1 font-semibold tracking-tight ${featured ? "text-xl md:text-3xl" : "text-xl"}`}><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} className="outline-none transition hover:text-primary focus-visible:ring-2">{product.name}</a></h2>
+                <h2 className={`mt-1 font-semibold tracking-tight ${featured ? "text-xl md:text-3xl" : "text-xl"}`}><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} className="inline-flex min-h-11 items-center outline-none transition hover:text-primary focus-visible:ring-2">{product.name}</a></h2>
               </div>
               <Badge className="shrink-0 gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Store className="size-3" /> {hasPrices ? `${stats.storeCount} 店` : "待查价"}</Badge>
             </div>
