@@ -3,10 +3,10 @@ export const MAX_PRICE = 3200
 export const MIN_PRICE = 500
 
 export const stores = {
-  matsukiyo: { name: "マツモトキヨシ 渋谷店", chain: "マツモトキヨシ", lat: 35.6595, lng: 139.7005 },
-  welcia: { name: "ウエルシア 新宿三丁目店", chain: "ウエルシア", lat: 35.6899, lng: 139.7035 },
-  sundrug: { name: "サンドラッグ 池袋駅前店", chain: "サンドラッグ", lat: 35.7296, lng: 139.7101 },
-  cocokara: { name: "ココカラファイン 銀座店", chain: "ココカラファイン", lat: 35.6719, lng: 139.7648 },
+  matsukiyo: { id: "matsukiyo-shibuya", name: "マツモトキヨシ 渋谷店", chain: "マツモトキヨシ", lat: 35.6595, lng: 139.7005 },
+  welcia: { id: "welcia-shinjuku", name: "ウエルシア 新宿三丁目店", chain: "ウエルシア", lat: 35.6899, lng: 139.7035 },
+  sundrug: { id: "sundrug-ikebukuro", name: "サンドラッグ 池袋駅前店", chain: "サンドラッグ", lat: 35.7296, lng: 139.7101 },
+  cocokara: { id: "cocokara-ginza", name: "ココカラファイン 銀座店", chain: "ココカラファイン", lat: 35.6719, lng: 139.7648 },
 }
 
 const offer = (store, price, member = false) => ({
@@ -201,6 +201,27 @@ export function getBasketSummary(items = []) {
       visibleSaving: summary.visibleSaving + stats.saving,
     }
   }, { totalCount: items.length, pricedCount: 0, minimumTotal: 0, visibleSaving: 0 })
+}
+
+export function getBestSingleStoreBasket(items = []) {
+  if (!items.length || items.some(({ offers }) => !offers.length)) return null
+  const minimumTotal = getBasketSummary(items).minimumTotal
+  return items[0].offers
+    .map((store) => {
+      const offers = items.map((product) => product.offers.find(({ id }) => id === store.id))
+      if (offers.some((offer) => !offer)) return null
+      const total = offers.reduce((sum, { price }) => sum + price, 0)
+      return { id: store.id, name: store.name, address: store.address, lat: store.lat, lng: store.lng, total, premium: total - minimumTotal, includesMemberPrice: offers.some(({ member }) => member) }
+    })
+    .filter(Boolean)
+    .toSorted((a, b) => a.total - b.total)[0] || null
+}
+
+export function getMapUrl(place = {}) {
+  const query = Number.isFinite(place.lat) && Number.isFinite(place.lng)
+    ? `${place.lat},${place.lng}`
+    : [place.name, place.address].filter(Boolean).join(" ")
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
 }
 
 export function sanitizeCompareSelection(value, max = MAX_COMPARE) {

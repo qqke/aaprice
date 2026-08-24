@@ -71,8 +71,10 @@ import {
   formatPrice,
   formatUnitPrice,
   getBasketSummary,
+  getBestSingleStoreBasket,
   getClosestOffer,
   getCompareSelectionFromSearch,
+  getMapUrl,
   getPriceStats,
   MAX_COMPARE,
   MAX_PRICE,
@@ -416,8 +418,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
 function CompareDialog({ open, onOpenChange, selectedProducts, onRemove }) {
   const [shareStatus, setShareStatus] = useState("")
   const summary = getBasketSummary(selectedProducts)
-  const prices = selectedProducts.map((product) => getPriceStats(product).min).filter((price) => price !== null)
-  const lowestPrice = prices.length ? Math.min(...prices) : null
+  const singleStore = getBestSingleStoreBasket(selectedProducts)
 
   const shareList = async () => {
     const url = new URL(appPath("/"), window.location.origin)
@@ -438,13 +439,12 @@ function CompareDialog({ open, onOpenChange, selectedProducts, onRemove }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] max-w-[min(1100px,calc(100vw-2rem))] overflow-hidden p-0 sm:max-w-5xl">
-        <DialogHeader className="border-b px-6 py-5 text-left"><div className="flex items-start justify-between gap-4 pr-8"><div><DialogTitle className="text-xl">比价清单</DialogTitle><DialogDescription className="mt-1">门店报价来自实时价格库，合计仅统计已查价商品。</DialogDescription>{shareStatus && <p className="mt-2 text-xs text-muted-foreground" role="status">{shareStatus}</p>}</div><Button className="shrink-0" variant="outline" size="sm" onClick={shareList}><Share2 />分享</Button></div>{summary.pricedCount > 0 && <div className="flex flex-wrap gap-x-8 gap-y-3 pt-3"><div><p className="text-xs text-muted-foreground">逐件最低合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.minimumTotal)}</p></div><div><p className="text-xs text-muted-foreground">可见差价合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.visibleSaving)}</p></div><p className="self-end text-xs text-muted-foreground">已查价 {summary.pricedCount}/{summary.totalCount} 件</p></div>}</DialogHeader>
+        <DialogHeader className="border-b px-6 py-5 text-left"><div className="flex items-start justify-between gap-4 pr-8"><div><DialogTitle className="text-xl">比价清单</DialogTitle><DialogDescription className="mt-1">门店报价来自实时价格库，合计仅统计已查价商品。</DialogDescription>{shareStatus && <p className="mt-2 text-xs text-muted-foreground" role="status">{shareStatus}</p>}</div><Button className="shrink-0" variant="outline" size="sm" onClick={shareList}><Share2 />分享</Button></div>{summary.pricedCount > 0 && <div className="flex flex-wrap gap-x-8 gap-y-3 pt-3"><div><p className="text-xs text-muted-foreground">逐件最低合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.minimumTotal)}</p></div><div><p className="text-xs text-muted-foreground">可见差价合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.visibleSaving)}</p></div>{selectedProducts.length > 1 && singleStore && <div><p className="text-xs text-muted-foreground">一店购最低</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(singleStore.total)}</p><p className="mt-1 max-w-48 truncate text-xs text-muted-foreground">{singleStore.name} · 多 {formatPrice(singleStore.premium)}{singleStore.includesMemberPrice && " · 含会员价"}</p><Button asChild variant="link" size="sm" className="-ml-3 mt-1"><a href={getMapUrl(singleStore)} target="_blank" rel="noreferrer" onClick={() => void recordTelemetryEvent("map_opened", { source: "compare_list", store_id: singleStore.id, item_count: selectedProducts.length }).catch(() => {})}><MapPin />地图查看</a></Button></div>}<p className="self-end text-xs text-muted-foreground">已查价 {summary.pricedCount}/{summary.totalCount} 件{selectedProducts.length > 1 && !singleStore && (summary.pricedCount < summary.totalCount ? " · 全部查价后计算一店购" : " · 暂无共同门店")}</p></div>}</DialogHeader>
         <div className="overflow-auto px-4 pb-6 sm:px-6">
           <div className="grid min-w-[760px]" style={{ gridTemplateColumns: `150px repeat(${selectedProducts.length}, minmax(190px, 1fr))` }}>
             <div className="sticky left-0 z-10 bg-popover py-5" />
             {selectedProducts.map((product) => {
-              const price = getPriceStats(product).min
-              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div>{price !== null && price === lowestPrice && <Badge className="mt-3">当前最低</Badge>}</div>
+              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div></div>
             })}
             {comparisonRows.flatMap(([label, value]) => [
               <div key={`${label}-label`} className="sticky left-0 z-10 border-b bg-popover py-4 text-sm text-muted-foreground">{label}</div>,

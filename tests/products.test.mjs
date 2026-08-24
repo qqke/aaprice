@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { filterProducts, getBasketSummary, getClosestOffer, getCompareSelectionFromSearch, getPriceFreshness, products, sanitizeCompareSelection } from "../src/lib/products.mjs"
+import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getMapUrl, getPriceFreshness, products, sanitizeCompareSelection } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
@@ -78,6 +78,10 @@ test("summarizes only priced shopping-list items and sanitizes saved ids", () =>
   assert.equal(summary.totalCount, 3)
   assert.equal(summary.pricedCount, 2)
   assert.equal(summary.minimumTotal, priced.reduce((total, product) => total + Math.min(...product.offers.map(({ price }) => price)), 0))
+  assert.deepEqual(getBestSingleStoreBasket(priced), { id: "sundrug-ikebukuro", name: "サンドラッグ 池袋駅前店", address: undefined, lat: 35.7296, lng: 139.7101, total: 1708, premium: 72, includesMemberPrice: false })
+  assert.equal(getBestSingleStoreBasket([...priced, unpriced]), null)
+  assert.equal(getMapUrl({ lat: 35.7, lng: 139.7 }), "https://www.google.com/maps/search/?api=1&query=35.7%2C139.7")
+  assert.equal(getMapUrl({ name: "测试门店", address: "东京" }), "https://www.google.com/maps/search/?api=1&query=%E6%B5%8B%E8%AF%95%E9%97%A8%E5%BA%97%20%E4%B8%9C%E4%BA%AC")
   assert.deepEqual(sanitizeCompareSelection(["a", "", "a", null, "b"], 2), ["a", "b"])
   assert.deepEqual(getCompareSelectionFromSearch("?compare=a%2Cb%2Ca%2C%2Cc"), ["a", "b", "c"])
 })

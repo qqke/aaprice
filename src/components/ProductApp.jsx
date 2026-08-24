@@ -25,7 +25,7 @@ import {
   submitStorePrice,
   toggleFavorite,
 } from "@/lib/aprice-api.mjs"
-import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getPriceFreshness, getPriceStats } from "@/lib/products.mjs"
+import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getMapUrl, getPriceFreshness, getPriceStats } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "未知"
@@ -197,7 +197,7 @@ export default function ProductApp() {
                 <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">门店价格</h2>{offers.length > 0 && <p className="mt-2 text-sm text-muted-foreground">{offers.length} 家门店有报价 · <span className={freshness.stale ? "text-amber-700 dark:text-amber-400" : "text-foreground"}>{freshness.label}</span></p>}</div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
                 {offers.length ? <><div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
                   const isFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(offer.id))
-                  const mapUrl = Number.isFinite(offer.lat) && Number.isFinite(offer.lng) ? `https://www.google.com/maps/search/?api=1&query=${offer.lat},${offer.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(offer.name)}`
+                  const mapUrl = getMapUrl(offer)
                   return <div key={offer.id} className="flex flex-wrap items-center gap-4 py-5"><div className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary"><Store className="size-5" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">{offer.name}</h3><p className="mt-1 text-xs text-muted-foreground">{offer.address || offer.chain}{offer.distance !== null && ` · ${formatDistance(offer.distance)}`} · {formatDate(offer.sampledAt)}</p></div><div className="text-right"><p className="font-mono text-xl font-semibold">{formatPrice(offer.price)}</p><p className="text-xs text-muted-foreground">{offer.member ? "会员价" : "店头价"}</p></div><Button variant="ghost" size="icon" onClick={() => favoriteStore(offer.id)} aria-label={isFavorite ? `取消收藏 ${offer.name}` : `收藏 ${offer.name}`}><Heart className={isFavorite ? "fill-current text-primary" : ""} /></Button><Button asChild variant="ghost" size="icon"><a href={mapUrl} target="_blank" rel="noreferrer" aria-label={`在地图查看 ${offer.name}`} onClick={() => void recordTelemetryEvent("map_opened", { product_id: productId, store_id: offer.id }).catch(() => {})}><ExternalLink /></a></Button></div>
                 })}</div><p className="mt-3 text-xs leading-relaxed text-muted-foreground">价格可能因门店、会员资格和促销变化，请以店头结算为准。</p></> : <div className="mt-5 rounded-2xl border border-dashed p-8 text-center text-muted-foreground">当前没有近期门店报价。</div>}
               </section>
