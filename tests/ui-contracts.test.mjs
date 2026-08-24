@@ -45,6 +45,7 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(product, /id="record-price"/)
   assert.doesNotMatch(product, /await loadPrivate\(productId, activeSession, next\)/)
   assert.match(await readSource("src/components/MeApp.jsx"), /task=1[\s\S]*#record-price/)
+  assert.match(await readSource("src/components/MeApp.jsx"), /fetchActivePriceTask\(\)/)
   assert.match(await readSource(".github/workflows/deploy.yml"), /PUBLIC_DISABLE_TURNSTILE:.*\|\| '1'/)
   assert.match(auth, /subscribeAuthState[\s\S]*?\.catch\(\(error\) =>/)
   assert.doesNotMatch(auth, /请先完成人机验证。/)

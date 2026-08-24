@@ -304,6 +304,17 @@ export async function claimRandomPriceTask() {
   return Array.isArray(result) ? result[0] || null : result || null
 }
 
+export async function fetchActivePriceTask() {
+  const session = await requireSession()
+  try {
+    const result = await rpc("get_active_price_task", {}, session.access_token)
+    return Array.isArray(result) ? result[0] || null : result || null
+  } catch (error) {
+    if (/get_active_price_task|PGRST202|schema cache/i.test(String(error?.message || error))) return null
+    throw error
+  }
+}
+
 export async function skipPriceTask(id) {
   const session = await requireSession()
   return rpc("skip_price_task", { payload: { id } }, session.access_token)

@@ -13,6 +13,7 @@ import {
   fetchCreditLedger,
   fetchCreditSummary,
   fetchCurrentProfile,
+  fetchActivePriceTask,
   fetchFavorites,
   fetchMyProductSubmissions,
   fetchPersonalLogs,
@@ -63,8 +64,8 @@ export default function MeApp() {
       const activeSession = await getSession()
       setSession(activeSession)
       if (!activeSession) return
-      const [nextProfile, productRows, storeRows, logRows, favoriteRows, summary, creditRows, submissionRows] = await Promise.all([
-        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id),
+      const [nextProfile, productRows, storeRows, logRows, favoriteRows, summary, creditRows, submissionRows, activeTask] = await Promise.all([
+        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(),
       ])
       setProfile(nextProfile)
       setProducts(productRows)
@@ -74,6 +75,7 @@ export default function MeApp() {
       setCredit(summary)
       setLedger(creditRows)
       setSubmissions(submissionRows)
+      setTask(activeTask)
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setLoading(false) }
   }
 

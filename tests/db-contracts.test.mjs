@@ -12,3 +12,15 @@ test("public price preview exposes aggregates only", async () => {
   assert.match(sql, /\(product_id, store_id, collected_at desc\)/)
   assert.match(sql, /coalesce\(p\.is_member_price, false\) = false/)
 })
+
+test("active price tasks are restored only for the current user", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260824161000_active_price_task.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.get_active_price_task\(\)/)
+  assert.match(sql, /task\.assigned_user_id = auth\.uid\(\)/)
+  assert.match(sql, /task\.completed_at is null/)
+  assert.match(sql, /task\.skipped_at is null/)
+  assert.match(sql, /task\.expires_at > now\(\)/)
+  assert.match(sql, /revoke all on function public\.get_active_price_task\(\) from public/)
+  assert.match(sql, /grant execute on function public\.get_active_price_task\(\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})
