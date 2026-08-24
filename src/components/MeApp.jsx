@@ -30,7 +30,12 @@ import {
 import { formatPrice } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
-const formatDate = (value) => value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "未知"
+const formatDate = (value, withTime = false) => {
+  const date = new Date(value)
+  return value && Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("zh-CN", withTime ? { dateStyle: "short", timeStyle: "short" } : { dateStyle: "medium" }).format(date)
+    : "未知"
+}
 const panelClass = "rounded-2xl border bg-card p-5 sm:p-6"
 const listClass = "mt-5 divide-y border-t"
 const rowClass = "flex items-center justify-between gap-4 py-4 transition-colors hover:bg-muted/35"
@@ -180,9 +185,9 @@ export default function MeApp() {
               </form>
             </motion.section>
 
-            <section className={panelClass}>
-              <div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">随机补价任务</h2><p className="mt-1 text-sm text-muted-foreground">提交一致价格可获得积分。</p></div><ListChecks className="size-5 text-primary" /></div>
-              {task ? <div className="mt-5 rounded-2xl bg-muted p-4"><p className="font-medium">{productNames.get(String(task.product_id)) || task.product_id}</p><p className="mt-1 text-sm text-muted-foreground">{storeNames.get(String(task.store_id)) || task.store_id || "任意门店"}</p><div className="mt-4 flex gap-2"><Button asChild size="sm"><a href={appPath(`/product/?id=${encodeURIComponent(task.product_id)}&task=1${task.store_id ? `&store=${encodeURIComponent(task.store_id)}` : ""}#record-price`)}>记录这个价格</a></Button><Button size="sm" variant="outline" onClick={skipTask}><SkipForward /> 跳过</Button></div></div> : <Button className="mt-5" variant="outline" onClick={claimTask}><Sparkles /> 领取随机任务</Button>}
+            <section id="price-tasks" className={`${panelClass} scroll-mt-24`}>
+              <div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">随机补价任务</h2><p className="mt-1 text-sm text-muted-foreground">审核通过后获得 {credit?.approved_contribution_reward ?? 0} 积分。</p></div><ListChecks className="size-5 text-primary" /></div>
+              {task ? <div className="mt-5 rounded-2xl bg-muted p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{productNames.get(String(task.product_id)) || task.product_id}</p><p className="mt-1 text-sm text-muted-foreground">{storeNames.get(String(task.store_id)) || task.store_id || "任意门店"}</p></div><Badge variant="outline">进行中</Badge></div>{task.expires_at && <p className="mt-3 text-xs text-muted-foreground">有效期至 {formatDate(task.expires_at, true)}</p>}<div className="mt-4 flex gap-2"><Button asChild size="sm"><a href={appPath(`/product/?id=${encodeURIComponent(task.product_id)}&task=1${task.store_id ? `&store=${encodeURIComponent(task.store_id)}` : ""}#record-price`)}>记录这个价格</a></Button><Button size="sm" variant="outline" onClick={skipTask}><SkipForward /> 跳过</Button></div></div> : <Button className="mt-5" variant="outline" onClick={claimTask}><Sparkles /> 领取随机任务</Button>}
             </section>
 
             <details className={panelClass}>
