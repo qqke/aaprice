@@ -423,9 +423,13 @@ function CompareDialog({ open, onOpenChange, selectedProducts, onRemove }) {
   const shareList = async () => {
     const url = new URL(appPath("/"), window.location.origin)
     url.searchParams.set("compare", selectedProducts.map(({ id }) => id).join(","))
+    const names = selectedProducts.slice(0, 3).map(({ name }) => name).join("、")
+    const more = selectedProducts.length > 3 ? `等 ${selectedProducts.length} 件商品` : ""
+    const total = summary.pricedCount ? `，逐件最低合计 ${formatPrice(summary.minimumTotal)}` : ""
+    const text = `${names}${more}${total}`
     try {
       if (navigator.share) {
-        await navigator.share({ title: "APrice 比价清单", text: `${selectedProducts.length} 件商品的门店比价`, url: url.href })
+        await navigator.share({ title: "APrice 比价清单", text, url: url.href })
         setShareStatus("已分享")
       } else {
         await navigator.clipboard.writeText(url.href)
@@ -490,7 +494,7 @@ export default function CompareApp({ initialScan = false }) {
     let saved = []
     try { saved = sanitizeCompareSelection(JSON.parse(localStorage.getItem(COMPARE_SELECTION_KEY) || "[]")) } catch {}
     const shared = getCompareSelectionFromSearch(window.location.search)
-    const ids = sanitizeCompareSelection([...shared, ...saved])
+    const ids = shared.length ? shared : saved
     if (shared.length) {
       const url = new URL(window.location.href)
       url.searchParams.delete("compare")
@@ -502,7 +506,11 @@ export default function CompareApp({ initialScan = false }) {
       const loadSaved = supabaseConfigured
         ? Promise.all(ids.map((id) => fetchProductById(id).catch(() => null))).then((rows) => rows.filter(Boolean).map(mapProductRow))
         : Promise.resolve(demoProducts.filter(({ id }) => ids.includes(id)))
-      loadSaved.then((rows) => { if (active) setSavedProducts(rows) })
+      loadSaved.then((rows) => {
+        if (!active) return
+        setSavedProducts(rows)
+        if (shared.some((id) => rows.some((row) => row.id === id))) setCompareOpen(true)
+      })
     }
     return () => { active = false }
   }, [])
