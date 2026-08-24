@@ -52,6 +52,8 @@ function TelemetrySummary({ data = {} }) {
     ["完整查价", data.price_query_sessions],
     ["登录成功", data.login_completed_sessions],
     ["地图打开", data.map_open_sessions],
+    ["清单分享", data.share_sessions],
+    ["分享落地", data.shared_list_open_sessions],
     ["预览 → 登录意图", data.preview_to_login_intent_percent, "%"],
     ["预览 → 登录成功", data.preview_to_login_percent, "%"],
     ["查价 → 地图", data.price_to_map_percent, "%"],

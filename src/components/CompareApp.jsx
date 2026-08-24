@@ -81,8 +81,14 @@ import {
   MIN_PRICE,
   products as demoProducts,
   sanitizeCompareSelection,
+  sanitizePriceSnapshots,
 } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
+
+const formatDate = (value) => {
+  const date = new Date(value)
+  return value && Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(date) : "日期未知"
+}
 
 const comparisonRows = [
   ["门店最低价", (product) => formatPrice(getPriceStats(product).min)],
@@ -92,11 +98,11 @@ const comparisonRows = [
   ["分类", (product) => product.category],
   ["商品说明", (product) => product.active],
   ["有价门店", (product) => `${product.offers.length} 家`],
+  ["报价更新", (product) => formatDate(Math.max(0, ...product.offers.map(({ sampledAt }) => Date.parse(sampledAt) || 0)))],
   ["JAN 码", (product) => product.barcode || "未登记"],
 ]
 const COMPARE_SELECTION_KEY = "aprice:compare-selection"
-
-const formatDate = (value) => value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "日期未知"
+const COMPARE_PRICE_KEY = "aprice:compare-price-snapshots"
 
 function ThemeButton() {
   const toggle = () => {
@@ -258,7 +264,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
   )
 }
 
-function LoginDialog({ open, onOpenChange, onSignedIn }) {
+function LoginDialog({ open, onOpenChange, onSignedIn, priceIntent = false }) {
   const turnstileRef = useRef(null)
   const widgetIdRef = useRef(null)
   const [email, setEmail] = useState("")
@@ -319,8 +325,8 @@ function LoginDialog({ open, onOpenChange, onSignedIn }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[min(440px,calc(100vw-2rem))] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>登录 AAPRICE</DialogTitle>
-          <DialogDescription>登录后可以查询门店价格；浏览商品与扫码检索无需登录。</DialogDescription>
+          <DialogTitle>{priceIntent ? "登录后继续查价" : "登录 AAPRICE"}</DialogTitle>
+          <DialogDescription>{priceIntent ? "登录后将自动继续查询门店价格，当前比价清单不会丢失。" : "登录后可查询门店价格、收藏商品并查看个人记录。"}</DialogDescription>
         </DialogHeader>
         <form className="mt-2 space-y-3" onSubmit={submit}>
           <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>
@@ -328,7 +334,7 @@ function LoginDialog({ open, onOpenChange, onSignedIn }) {
           {turnstileEnabled && <div ref={turnstileRef} className="min-h-[65px]" aria-label="人机验证" />}
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading || (turnstileEnabled && !captchaToken)}>
-            {loading ? <LoaderCircle className="animate-spin" /> : <LogIn />}{loading ? "正在登录" : "登录并查询"}
+            {loading ? <LoaderCircle className="animate-spin" /> : <LogIn />}{loading ? "正在登录" : priceIntent ? "登录并继续查价" : "登录"}
           </Button>
         </form>
       </DialogContent>
@@ -428,6 +434,7 @@ function CompareDialog({ open, onOpenChange, selectedProducts, onRemove, onLoadP
     const total = summary.pricedCount ? `，逐件最低合计 ${formatPrice(summary.minimumTotal)}` : ""
     const text = `${names}${more}${total}`
     try {
+      const shareMethod = navigator.share ? "native" : "clipboard"
       if (navigator.share) {
         await navigator.share({ title: "APrice 比价清单", text, url: url.href })
         setShareStatus("已分享")
@@ -435,6 +442,7 @@ function CompareDialog({ open, onOpenChange, selectedProducts, onRemove, onLoadP
         await navigator.clipboard.writeText(url.href)
         setShareStatus("链接已复制")
       }
+      void recordTelemetryEvent("compare_list_shared", { item_count: selectedProducts.length, priced_count: summary.pricedCount, share_method: shareMethod }).catch(() => {})
     } catch (error) {
       if (error?.name !== "AbortError") setShareStatus("分享失败，请重试")
     }
@@ -494,12 +502,16 @@ export default function CompareApp({ initialScan = false }) {
   useEffect(() => {
     let active = true
     let saved = []
+    let snapshots = {}
     try { saved = sanitizeCompareSelection(JSON.parse(localStorage.getItem(COMPARE_SELECTION_KEY) || "[]")) } catch {}
+    try { snapshots = sanitizePriceSnapshots(JSON.parse(localStorage.getItem(COMPARE_PRICE_KEY) || "{}")) } catch {}
     const shared = getCompareSelectionFromSearch(window.location.search)
+    const compareSource = new URLSearchParams(window.location.search).get("compare_source")
     const ids = shared.length ? shared : saved
     if (shared.length) {
       const url = new URL(window.location.href)
       url.searchParams.delete("compare")
+      url.searchParams.delete("compare_source")
       history.replaceState(null, "", url.href)
     }
     setSelected(ids)
@@ -510,8 +522,12 @@ export default function CompareApp({ initialScan = false }) {
         : Promise.resolve(demoProducts.filter(({ id }) => ids.includes(id)))
       loadSaved.then((rows) => {
         if (!active) return
-        setSavedProducts(rows)
-        if (shared.some((id) => rows.some((row) => row.id === id))) setCompareOpen(true)
+        setSavedProducts(rows.map((product) => snapshots[product.id] ? { ...product, offers: snapshots[product.id].offers } : product))
+        const sharedCount = shared.filter((id) => rows.some((row) => row.id === id)).length
+        if (sharedCount) {
+          setCompareOpen(true)
+          if (compareSource !== "account") void recordTelemetryEvent("compare_list_opened", { item_count: sharedCount }).catch(() => {})
+        }
       })
     }
     return () => { active = false }
@@ -560,7 +576,11 @@ export default function CompareApp({ initialScan = false }) {
   useEffect(() => { if (!segments.includes(segment)) setSegment("全部") }, [segments, segment])
 
   const filtered = useMemo(() => filterProducts(catalog, { query: supabaseConfigured ? "" : query, segment, maxPrice: budget[0], sort, location }), [catalog, query, segment, budget, sort, location])
-  const selectedProducts = selected.map((id) => catalog.find((product) => product.id === id) || savedProducts.find((product) => product.id === id)).filter(Boolean)
+  const selectedProducts = selected.map((id) => {
+    const current = catalog.find((product) => product.id === id)
+    const saved = savedProducts.find((product) => product.id === id)
+    return saved?.offers.length ? saved : current || saved
+  }).filter(Boolean)
   const basketSummary = getBasketSummary(selectedProducts)
   const hasFilters = query || segment !== "全部" || budget[0] !== MAX_PRICE || sort !== "score"
 
@@ -588,6 +608,12 @@ export default function CompareApp({ initialScan = false }) {
       void recordTelemetryEvent("price_query_succeeded", { product_id: id, offer_count: offers.length, has_location: Boolean(location) }).catch(() => {})
       setCatalog((items) => items.map((product) => product.id === id ? { ...product, offers } : product))
       setSavedProducts((items) => items.map((product) => product.id === id ? { ...product, offers } : product))
+      try {
+        const snapshots = sanitizePriceSnapshots(JSON.parse(localStorage.getItem(COMPARE_PRICE_KEY) || "{}"))
+        const entries = Object.entries(snapshots).filter(([productId]) => productId !== String(id))
+        if (offers.length) entries.push([String(id), { savedAt: Date.now(), offers }])
+        localStorage.setItem(COMPARE_PRICE_KEY, JSON.stringify(Object.fromEntries(entries.slice(-MAX_COMPARE))))
+      } catch {}
       setPriceChecked((value) => ({ ...value, [id]: true }))
     } catch (error) {
       setPriceErrors((value) => ({ ...value, [id]: friendlyApiError(error) }))
@@ -729,7 +755,7 @@ export default function CompareApp({ initialScan = false }) {
 
       <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} onRemove={toggleProduct} onLoadPrices={loadComparePrices} priceLoading={priceLoading} priceChecked={priceChecked} priceErrors={priceErrors} />
       <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} />
-      <LoginDialog open={authOpen} onOpenChange={handleAuthOpenChange} onSignedIn={handleSignedIn} />
+      <LoginDialog open={authOpen} onOpenChange={handleAuthOpenChange} onSignedIn={handleSignedIn} priceIntent={Boolean(pendingPriceId)} />
     </div>
   )
 }

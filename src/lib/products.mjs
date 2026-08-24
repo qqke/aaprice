@@ -1,6 +1,7 @@
 export const MAX_COMPARE = 6
 export const MAX_PRICE = 3200
 export const MIN_PRICE = 500
+export const PRICE_SNAPSHOT_MAX_AGE = 6 * 60 * 60 * 1000
 
 export const stores = {
   matsukiyo: { id: "matsukiyo-shibuya", name: "マツモトキヨシ 渋谷店", chain: "マツモトキヨシ", lat: 35.6595, lng: 139.7005 },
@@ -222,6 +223,31 @@ export function getMapUrl(place = {}) {
     ? `${place.lat},${place.lng}`
     : [place.name, place.address].filter(Boolean).join(" ")
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+}
+
+export function sanitizePriceSnapshots(value, now = Date.now()) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value).slice(-MAX_COMPARE).flatMap(([productId, snapshot]) => {
+    const savedAt = Number(snapshot?.savedAt)
+    if (!productId || !Number.isFinite(savedAt) || savedAt > now + 300_000 || now - savedAt > PRICE_SNAPSHOT_MAX_AGE || !Array.isArray(snapshot.offers)) return []
+    const offers = snapshot.offers.slice(0, 50).flatMap((offer) => {
+      const price = Number(offer?.price)
+      if (!offer?.id || !offer?.name || !Number.isFinite(price) || price <= 0 || price > 10_000_000) return []
+      return [{
+        id: String(offer.id).slice(0, 128),
+        name: String(offer.name).slice(0, 200),
+        chain: String(offer.chain || "").slice(0, 200),
+        address: String(offer.address || "").slice(0, 300),
+        lat: Number.isFinite(offer.lat) ? offer.lat : null,
+        lng: Number.isFinite(offer.lng) ? offer.lng : null,
+        price,
+        member: Boolean(offer.member),
+        sampledAt: typeof offer.sampledAt === "string" && Number.isFinite(Date.parse(offer.sampledAt)) ? offer.sampledAt : null,
+        distance: Number.isFinite(offer.distance) ? offer.distance : null,
+      }]
+    })
+    return offers.length ? [[String(productId).slice(0, 128), { savedAt, offers }]] : []
+  }))
 }
 
 export function sanitizeCompareSelection(value, max = MAX_COMPARE) {

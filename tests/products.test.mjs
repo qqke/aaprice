@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getMapUrl, getPriceFreshness, products, sanitizeCompareSelection } from "../src/lib/products.mjs"
+import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getMapUrl, getPriceFreshness, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
@@ -15,6 +15,18 @@ test("searches JAN and sorts filtered drugstore products without mutating source
   })
   assert.deepEqual(result.map(({ id }) => id), ["eve-a", "tylenol-a", "loxonin-s"])
   assert.deepEqual(products.map(({ id }) => id), originalOrder)
+})
+
+test("keeps only fresh validated local price snapshots", () => {
+  const now = Date.parse("2026-08-24T10:00:00Z")
+  const snapshots = sanitizePriceSnapshots({
+    fresh: { savedAt: now - 60_000, offers: [{ id: "store-1", name: "门店", price: 880, lat: 35, lng: 139, sampledAt: "2026-08-24T09:00:00Z", email: "drop@example.com" }] },
+    expired: { savedAt: now - 7 * 60 * 60 * 1000, offers: [{ id: "store-2", name: "旧门店", price: 700 }] },
+    invalid: { savedAt: now, offers: [{ id: "store-3", name: "异常价格", price: -1 }] },
+  }, now)
+  assert.deepEqual(Object.keys(snapshots), ["fresh"])
+  assert.equal(snapshots.fresh.offers[0].price, 880)
+  assert.equal("email" in snapshots.fresh.offers[0], false)
 })
 
 test("finds the nearest priced store", () => {
