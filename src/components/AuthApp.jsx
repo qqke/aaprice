@@ -10,6 +10,7 @@ import {
   fetchCurrentProfile,
   friendlyApiError,
   getSession,
+  recordTelemetryEvent,
   sendPasswordResetEmail,
   signInWithEmailPassword,
   signOut,
@@ -127,6 +128,7 @@ export default function AuthApp() {
         const value = await signInWithEmailPassword(email.trim(), password, captchaToken)
         setSession(value)
         setProfile(await fetchCurrentProfile())
+        await recordTelemetryEvent("login_completed", { source: redirectPath ? "redirect" : "direct" }).catch(() => {})
         if (redirectPath) window.location.assign(redirectPath)
       } else if (mode === "register") {
         await signUpWithEmailPassword(email.trim(), password, captchaToken)

@@ -1,4 +1,4 @@
-export const MAX_COMPARE = 3
+export const MAX_COMPARE = 6
 export const MAX_PRICE = 3200
 export const MIN_PRICE = 500
 
@@ -188,6 +188,29 @@ export function getPriceStats(product) {
     bestOffer: product.offers.find(({ price }) => price === min),
     storeCount: product.offers.length,
   }
+}
+
+export function getBasketSummary(items = []) {
+  return items.reduce((summary, product) => {
+    const stats = getPriceStats(product)
+    if (stats.min === null) return summary
+    return {
+      ...summary,
+      pricedCount: summary.pricedCount + 1,
+      minimumTotal: summary.minimumTotal + stats.min,
+      visibleSaving: summary.visibleSaving + stats.saving,
+    }
+  }, { totalCount: items.length, pricedCount: 0, minimumTotal: 0, visibleSaving: 0 })
+}
+
+export function sanitizeCompareSelection(value, max = MAX_COMPARE) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map((id) => String(id || "").trim()).filter(Boolean))].slice(0, max)
+}
+
+export function getCompareSelectionFromSearch(search = "") {
+  const value = new URLSearchParams(search).get("compare")
+  return sanitizeCompareSelection(value ? value.split(",") : [])
 }
 
 export function getClosestOffer(product, location) {

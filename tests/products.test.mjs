@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { filterProducts, getClosestOffer, getPriceFreshness, products } from "../src/lib/products.mjs"
+import { filterProducts, getBasketSummary, getClosestOffer, getCompareSelectionFromSearch, getPriceFreshness, products, sanitizeCompareSelection } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
@@ -69,4 +69,15 @@ test("labels price freshness without hiding stale quotes", () => {
   assert.deepEqual(getPriceFreshness("2026-08-11T12:00:00Z", now), { ageDays: 7, label: "7 天前采集", stale: false })
   assert.equal(getPriceFreshness("2026-07-01T12:00:00Z", now).stale, true)
   assert.equal(getPriceFreshness(null, now).label, "更新时间未知")
+})
+
+test("summarizes only priced shopping-list items and sanitizes saved ids", () => {
+  const priced = products.slice(0, 2)
+  const unpriced = { ...products[2], offers: [] }
+  const summary = getBasketSummary([...priced, unpriced])
+  assert.equal(summary.totalCount, 3)
+  assert.equal(summary.pricedCount, 2)
+  assert.equal(summary.minimumTotal, priced.reduce((total, product) => total + Math.min(...product.offers.map(({ price }) => price)), 0))
+  assert.deepEqual(sanitizeCompareSelection(["a", "", "a", null, "b"], 2), ["a", "b"])
+  assert.deepEqual(getCompareSelectionFromSearch("?compare=a%2Cb%2Ca%2C%2Cc"), ["a", "b", "c"])
 })

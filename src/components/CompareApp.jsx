@@ -18,6 +18,7 @@ import {
   Scale,
   ScanLine,
   Search,
+  Share2,
   SlidersHorizontal,
   Store,
   Sun,
@@ -48,10 +49,12 @@ import {
   fetchPricesForProduct,
   fetchJancodeProductDraft,
   fetchProductByBarcode,
+  fetchProductById,
   friendlyApiError,
   getSession,
   mapProductRow,
   offersFromPriceRows,
+  recordTelemetryEvent,
   searchProducts,
   signInWithEmailPassword,
   signOut,
@@ -67,12 +70,15 @@ import {
   formatDistance,
   formatPrice,
   formatUnitPrice,
+  getBasketSummary,
   getClosestOffer,
+  getCompareSelectionFromSearch,
   getPriceStats,
   MAX_COMPARE,
   MAX_PRICE,
   MIN_PRICE,
   products as demoProducts,
+  sanitizeCompareSelection,
 } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
@@ -86,6 +92,7 @@ const comparisonRows = [
   ["有价门店", (product) => `${product.offers.length} 家`],
   ["JAN 码", (product) => product.barcode || "未登记"],
 ]
+const COMPARE_SELECTION_KEY = "aprice:compare-selection"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "日期未知"
 
@@ -392,7 +399,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
             </div>
             {hasPrices ? (
               <Button variant={selected ? "default" : "outline"} onClick={() => onToggle(product.id)} disabled={!selected && selectionFull} aria-pressed={selected} className="shrink-0">
-                {selected ? <Check /> : <Plus />}{selected ? "已入列" : "加入比较"}
+                {selected ? <Check /> : <Plus />}{selected ? "已加入" : "加入清单"}
               </Button>
             ) : (
               <Button onClick={() => onLoadPrices(product.id)} disabled={priceLoading} className="shrink-0">
@@ -407,17 +414,37 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
 }
 
 function CompareDialog({ open, onOpenChange, selectedProducts, onRemove }) {
-  const lowestPrice = Math.min(...selectedProducts.map((product) => getPriceStats(product).min))
+  const [shareStatus, setShareStatus] = useState("")
+  const summary = getBasketSummary(selectedProducts)
+  const prices = selectedProducts.map((product) => getPriceStats(product).min).filter((price) => price !== null)
+  const lowestPrice = prices.length ? Math.min(...prices) : null
+
+  const shareList = async () => {
+    const url = new URL(appPath("/"), window.location.origin)
+    url.searchParams.set("compare", selectedProducts.map(({ id }) => id).join(","))
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "APrice 比价清单", text: `${selectedProducts.length} 件商品的门店比价`, url: url.href })
+        setShareStatus("已分享")
+      } else {
+        await navigator.clipboard.writeText(url.href)
+        setShareStatus("链接已复制")
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") setShareStatus("分享失败，请重试")
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] max-w-[min(1100px,calc(100vw-2rem))] overflow-hidden p-0 sm:max-w-5xl">
-        <DialogHeader className="border-b px-6 py-5 text-left"><DialogTitle className="text-xl">同类商品并排比较</DialogTitle><DialogDescription>门店报价来自实时价格库，单位价按当前最低价换算。</DialogDescription></DialogHeader>
+        <DialogHeader className="border-b px-6 py-5 text-left"><div className="flex items-start justify-between gap-4 pr-8"><div><DialogTitle className="text-xl">比价清单</DialogTitle><DialogDescription className="mt-1">门店报价来自实时价格库，合计仅统计已查价商品。</DialogDescription>{shareStatus && <p className="mt-2 text-xs text-muted-foreground" role="status">{shareStatus}</p>}</div><Button className="shrink-0" variant="outline" size="sm" onClick={shareList}><Share2 />分享</Button></div>{summary.pricedCount > 0 && <div className="flex flex-wrap gap-x-8 gap-y-3 pt-3"><div><p className="text-xs text-muted-foreground">逐件最低合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.minimumTotal)}</p></div><div><p className="text-xs text-muted-foreground">可见差价合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.visibleSaving)}</p></div><p className="self-end text-xs text-muted-foreground">已查价 {summary.pricedCount}/{summary.totalCount} 件</p></div>}</DialogHeader>
         <div className="overflow-auto px-4 pb-6 sm:px-6">
           <div className="grid min-w-[760px]" style={{ gridTemplateColumns: `150px repeat(${selectedProducts.length}, minmax(190px, 1fr))` }}>
             <div className="sticky left-0 z-10 bg-popover py-5" />
             {selectedProducts.map((product) => {
               const price = getPriceStats(product).min
-              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div>{price === lowestPrice && <Badge className="mt-3">当前最低</Badge>}</div>
+              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div>{price !== null && price === lowestPrice && <Badge className="mt-3">当前最低</Badge>}</div>
             })}
             {comparisonRows.flatMap(([label, value]) => [
               <div key={`${label}-label`} className="sticky left-0 z-10 border-b bg-popover py-4 text-sm text-muted-foreground">{label}</div>,
@@ -443,6 +470,8 @@ export default function CompareApp({ initialScan = false }) {
   const [budget, setBudget] = useState([MAX_PRICE])
   const [sort, setSort] = useState("score")
   const [selected, setSelected] = useState([])
+  const [savedProducts, setSavedProducts] = useState([])
+  const [selectionReady, setSelectionReady] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
@@ -455,6 +484,33 @@ export default function CompareApp({ initialScan = false }) {
   const [locationStatus, setLocationStatus] = useState("idle")
 
   useEffect(() => { if (initialScan) setScanOpen(true) }, [initialScan])
+
+  useEffect(() => {
+    let active = true
+    let saved = []
+    try { saved = sanitizeCompareSelection(JSON.parse(localStorage.getItem(COMPARE_SELECTION_KEY) || "[]")) } catch {}
+    const shared = getCompareSelectionFromSearch(window.location.search)
+    const ids = sanitizeCompareSelection([...shared, ...saved])
+    if (shared.length) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("compare")
+      history.replaceState(null, "", url.href)
+    }
+    setSelected(ids)
+    setSelectionReady(true)
+    if (ids.length) {
+      const loadSaved = supabaseConfigured
+        ? Promise.all(ids.map((id) => fetchProductById(id).catch(() => null))).then((rows) => rows.filter(Boolean).map(mapProductRow))
+        : Promise.resolve(demoProducts.filter(({ id }) => ids.includes(id)))
+      loadSaved.then((rows) => { if (active) setSavedProducts(rows) })
+    }
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!selectionReady) return
+    try { localStorage.setItem(COMPARE_SELECTION_KEY, JSON.stringify(sanitizeCompareSelection(selected))) } catch {}
+  }, [selected, selectionReady])
 
   useEffect(() => {
     if (!supabaseConfigured) return undefined
@@ -473,6 +529,7 @@ export default function CompareApp({ initialScan = false }) {
       setCatalogError("")
       try {
         const rows = await searchProducts(query)
+        void recordTelemetryEvent("search_completed", { query_present: Boolean(query.trim()), result_count: rows.length }).catch(() => {})
         if (active) {
           setCatalog(rows.map(mapProductRow))
           setCatalogHasMore(rows.length === 30)
@@ -493,7 +550,8 @@ export default function CompareApp({ initialScan = false }) {
   useEffect(() => { if (!segments.includes(segment)) setSegment("全部") }, [segments, segment])
 
   const filtered = useMemo(() => filterProducts(catalog, { query: supabaseConfigured ? "" : query, segment, maxPrice: budget[0], sort, location }), [catalog, query, segment, budget, sort, location])
-  const selectedProducts = selected.map((id) => catalog.find((product) => product.id === id)).filter(Boolean)
+  const selectedProducts = selected.map((id) => catalog.find((product) => product.id === id) || savedProducts.find((product) => product.id === id)).filter(Boolean)
+  const basketSummary = getBasketSummary(selectedProducts)
   const hasFilters = query || segment !== "全部" || budget[0] !== MAX_PRICE || sort !== "score"
 
   const toggleProduct = (id) => setSelected((current) => current.includes(id) ? current.filter((productId) => productId !== id) : current.length < MAX_COMPARE ? [...current, id] : current)
@@ -517,6 +575,7 @@ export default function CompareApp({ initialScan = false }) {
     try {
       const rows = await fetchPricesForProduct(id, { token: accessToken, lat: location?.lat, lng: location?.lng })
       const offers = offersFromPriceRows(rows)
+      void recordTelemetryEvent("price_query_succeeded", { product_id: id, offer_count: offers.length, has_location: Boolean(location) }).catch(() => {})
       setCatalog((items) => items.map((product) => product.id === id ? { ...product, offers } : product))
       setPriceChecked((value) => ({ ...value, [id]: true }))
     } catch (error) {
@@ -551,7 +610,6 @@ export default function CompareApp({ initialScan = false }) {
   const handleSignOut = async () => {
     await signOut()
     setSession(null)
-    setSelected([])
     setCatalog((items) => items.map((product) => ({ ...product, offers: [] })))
   }
 
@@ -636,7 +694,7 @@ export default function CompareApp({ initialScan = false }) {
         </section>
       </main>
 
-      <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 80, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, y: 60, scale: 0.97 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-3xl rounded-2xl border bg-popover/92 p-3 shadow-[0_28px_90px_oklch(0.15_0.04_240_/_0.25)] backdrop-blur-xl sm:bottom-5"><div className="flex items-center gap-3"><div className="hidden size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary sm:grid"><Scale className="size-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold">比较列 {selectedProducts.length}/{MAX_COMPARE}</p><p className="truncate text-xs text-muted-foreground">{selectedProducts.map(({ name }) => name).join(" / ")}</p></div><Button variant="ghost" size="sm" onClick={() => setSelected([])} className="hidden sm:inline-flex">清空</Button><Button onClick={() => setCompareOpen(true)} disabled={selectedProducts.length < 2}>{selectedProducts.length < 2 ? "再选一款" : "开始比较"}<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
+      <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 80, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, y: 60, scale: 0.97 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-3xl rounded-2xl border bg-popover/92 p-3 shadow-[0_28px_90px_oklch(0.15_0.04_240_/_0.25)] backdrop-blur-xl sm:bottom-5"><div className="flex items-center gap-3"><div className="hidden size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary sm:grid"><Scale className="size-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold">比价清单 {selectedProducts.length}/{MAX_COMPARE}</p><p className="truncate text-xs text-muted-foreground">{basketSummary.pricedCount ? `已查价 ${basketSummary.pricedCount}/${basketSummary.totalCount} 件 · 最低合计 ${formatPrice(basketSummary.minimumTotal)}` : selectedProducts.map(({ name }) => name).join(" / ")}</p></div><Button variant="ghost" size="sm" onClick={() => setSelected([])} className="hidden sm:inline-flex">清空</Button><Button onClick={() => setCompareOpen(true)}>查看清单<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
 
       <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} onRemove={toggleProduct} />
       <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} />

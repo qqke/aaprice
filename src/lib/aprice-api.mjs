@@ -55,6 +55,7 @@ async function request(path, { method = "GET", query, body, token, prefer } = {}
 
 const rpc = (name, body = {}, token = "") => request(`rpc/${name}`, { method: "POST", body, token, prefer: "return=representation" })
 const insert = (table, body, token = "") => request(table, { method: "POST", body, token, prefer: "return=representation" })
+const TELEMETRY_SESSION_KEY = "aprice:telemetry-session"
 
 async function requireSession() {
   const session = await getSession()
@@ -142,6 +143,17 @@ export async function fetchPublicPricePreview(productId) {
     storeCount: Number(row.store_count) || 0,
     latestCollectedAt: row.latest_collected_at || null,
   }
+}
+
+export async function recordTelemetryEvent(eventName, properties = {}) {
+  if (!supabaseConfigured || typeof window === "undefined") return
+  let sessionId = sessionStorage.getItem(TELEMETRY_SESSION_KEY)
+  if (!sessionId) {
+    sessionId = crypto.randomUUID()
+    sessionStorage.setItem(TELEMETRY_SESSION_KEY, sessionId)
+  }
+  const session = await getSession().catch(() => null)
+  await rpc("record_telemetry_event", { payload: { event_name: eventName, session_id: sessionId, properties } }, session?.access_token)
 }
 
 export async function getSession() {

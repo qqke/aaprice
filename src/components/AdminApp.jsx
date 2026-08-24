@@ -43,6 +43,22 @@ function Field({ label, children }) {
   return <label className="block"><span className="mb-2 block text-sm font-medium">{label}</span>{children}</label>
 }
 
+function TelemetrySummary({ data = {} }) {
+  const metrics = [
+    ["会话", data.sessions],
+    ["搜索会话", data.search_sessions],
+    ["商品查看", data.product_view_sessions],
+    ["匿名预览", data.preview_sessions],
+    ["完整查价", data.price_query_sessions],
+    ["登录成功", data.login_completed_sessions],
+    ["地图打开", data.map_open_sessions],
+    ["预览 → 登录意图", data.preview_to_login_intent_percent, "%"],
+    ["预览 → 登录成功", data.preview_to_login_percent, "%"],
+    ["查价 → 地图", data.price_to_map_percent, "%"],
+  ]
+  return <div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">{metrics.map(([label, value, suffix = ""]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}{suffix}</p></div>)}</div>
+}
+
 export default function AdminApp() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -146,7 +162,7 @@ export default function AdminApp() {
         {tab === "business" && <div id="admin-panel-business" role="tabpanel" aria-labelledby="admin-tab-business" className="mt-10 grid gap-12 lg:grid-cols-2">
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">调整用户积分</h2><p className="mt-2 text-sm text-muted-foreground">写入积分流水并即时更新余额。</p></div><Coins className="size-5 text-primary" /></div><form onSubmit={adjustCredits} className="mt-6 space-y-4"><Field label="用户"><select value={creditForm.user_id} onChange={(e) => setCreditForm({ ...creditForm, user_id: e.target.value })} className="h-10 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择用户</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.email || item.id}</option>)}</select></Field><Field label="增减积分"><Input type="number" value={creditForm.amount} onChange={(e) => setCreditForm({ ...creditForm, amount: e.target.value })} placeholder="例如 10 或 -10" required /></Field><Field label="调整原因"><Input value={creditForm.note} onChange={(e) => setCreditForm({ ...creditForm, note: e.target.value })} /></Field><Button type="submit">调整积分</Button></form></section>
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">业务参数</h2><p className="mt-2 text-sm text-muted-foreground">仅可更新数据库允许的白名单键。</p></div><ShieldAlert className="size-5 text-primary" /></div><form onSubmit={saveSetting} className="mt-6 space-y-4"><Field label="参数"><select value={settingForm.setting_key} onChange={(e) => setSettingForm({ ...settingForm, setting_key: e.target.value })} className="h-10 w-full rounded-lg border bg-background px-3 text-sm">{["daily_free_searches", "daily_free_price_references", "search_cost_after_free", "price_reference_cost", "approved_contribution_reward", "consensus_required_users", "consensus_window_days", "task_claim_limit_per_day", "task_expiry_hours", "stale_price_days", "low_balance_threshold"].map((key) => <option key={key}>{key}</option>)}</select></Field><Field label="新值"><Input value={settingForm.setting_value} onChange={(e) => setSettingForm({ ...settingForm, setting_value: e.target.value })} required /></Field><Button type="submit">更新参数</Button></form><pre className="mt-6 max-h-56 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(settings, null, 2)}</pre></section>
-          <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">近 7 天</p><h2 className="mt-1 text-2xl font-semibold">遥测概览</h2><pre className="mt-5 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(telemetry, null, 2)}</pre><div className="mt-5 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></section>
+          <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">近 {telemetry.days || 7} 天</p><h2 className="mt-1 text-2xl font-semibold">商业漏斗</h2><p className="mt-2 text-sm text-muted-foreground">按匿名会话聚合，转化率不使用事件次数重复计数。</p><TelemetrySummary data={telemetry} /><div className="mt-8"><h3 className="font-semibold">最近事件</h3><div className="mt-3 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></div></section>
         </div>}
       </section>
     </AppShell>
