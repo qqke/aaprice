@@ -333,7 +333,7 @@ function LoginDialog({ open, onOpenChange, onSignedIn, priceIntent = false }) {
           <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><span className="relative block"><Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="pr-12" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setShowPassword((value) => !value)} className="absolute right-0 top-1/2 -translate-y-1/2" aria-label={showPassword ? "隐藏密码" : "显示密码"}>{showPassword ? <EyeOff /> : <Eye />}</Button></span></label>
           {turnstileEnabled && <div ref={turnstileRef} className="min-h-[65px]" aria-label="人机验证" />}
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-          <Button type="submit" className="w-full" disabled={loading || (turnstileEnabled && !captchaToken)}>
+          <Button type="submit" className="w-full" disabled={loading}>
             {loading ? <LoaderCircle className="animate-spin" /> : <LogIn />}{loading ? "正在登录" : priceIntent ? "登录并继续查价" : "登录"}
           </Button>
         </form>

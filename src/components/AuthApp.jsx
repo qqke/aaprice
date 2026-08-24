@@ -119,7 +119,6 @@ export default function AuthApp() {
     event.preventDefault()
     if (mode !== "resetRequest" && password.length < 8) { setStatusType("error"); setStatus("密码至少需要 8 位。"); return }
     if ((mode === "register" || mode === "reset") && password !== confirm) { setStatusType("error"); setStatus("两次输入的密码不一致。"); return }
-    if (turnstileEnabled && mode !== "reset" && !captchaToken) { setStatusType("error"); setStatus("请先完成人机验证。"); return }
     setLoading(true)
     setStatus("")
     setStatusType("info")
@@ -178,7 +177,7 @@ export default function AuthApp() {
                 {mode !== "reset" && <Turnstile key={mode} onToken={setCaptchaToken} />}
                 {status && <p className={`rounded-xl border px-4 py-3 text-sm ${statusType === "error" ? "border-destructive/25 bg-destructive/5 text-destructive" : statusType === "success" ? "border-primary/25 bg-primary/5 text-foreground" : "bg-muted"}`} role={statusType === "error" ? "alert" : "status"} aria-live="polite">{status}</p>}
               </div>
-              <Button type="submit" className="mt-6 w-full" disabled={loading || (turnstileEnabled && mode !== "reset" && !captchaToken)}>{loading ? <LoaderCircle className="animate-spin" /> : mode === "register" ? <UserPlus /> : <Mail />}{loading ? "正在处理" : submitLabel}</Button>
+              <Button type="submit" className="mt-6 w-full" disabled={loading}>{loading ? <LoaderCircle className="animate-spin" /> : mode === "register" ? <UserPlus /> : <Mail />}{loading ? "正在处理" : submitLabel}</Button>
               <div className="mt-4 flex flex-wrap justify-between gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => switchMode(mode === "login" ? "register" : "login")}>{toggleLabel}</Button>{mode === "login" && <Button type="button" variant="ghost" size="sm" onClick={() => switchMode("resetRequest")}>忘记密码</Button>}</div>
             </form>
           )}
