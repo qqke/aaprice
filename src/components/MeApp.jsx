@@ -180,7 +180,7 @@ export default function MeApp() {
 
             <section className={panelClass}>
               <div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">随机补价任务</h2><p className="mt-1 text-sm text-muted-foreground">提交一致价格可获得积分。</p></div><ListChecks className="size-5 text-primary" /></div>
-              {task ? <div className="mt-5 rounded-2xl bg-muted p-4"><p className="font-medium">{productNames.get(String(task.product_id)) || task.product_id}</p><p className="mt-1 text-sm text-muted-foreground">{storeNames.get(String(task.store_id)) || task.store_id || "任意门店"}</p><div className="mt-4 flex gap-2"><Button asChild size="sm"><a href={appPath(`/product/?id=${encodeURIComponent(task.product_id)}`)}>去补价</a></Button><Button size="sm" variant="outline" onClick={skipTask}><SkipForward /> 跳过</Button></div></div> : <Button className="mt-5" variant="outline" onClick={claimTask}><Sparkles /> 领取随机任务</Button>}
+              {task ? <div className="mt-5 rounded-2xl bg-muted p-4"><p className="font-medium">{productNames.get(String(task.product_id)) || task.product_id}</p><p className="mt-1 text-sm text-muted-foreground">{storeNames.get(String(task.store_id)) || task.store_id || "任意门店"}</p><div className="mt-4 flex gap-2"><Button asChild size="sm"><a href={appPath(`/product/?id=${encodeURIComponent(task.product_id)}&task=1${task.store_id ? `&store=${encodeURIComponent(task.store_id)}` : ""}#record-price`)}>记录这个价格</a></Button><Button size="sm" variant="outline" onClick={skipTask}><SkipForward /> 跳过</Button></div></div> : <Button className="mt-5" variant="outline" onClick={claimTask}><Sparkles /> 领取随机任务</Button>}
             </section>
 
             <details className={panelClass}>

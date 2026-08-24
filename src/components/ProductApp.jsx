@@ -32,6 +32,10 @@ const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateSty
 const COMPARE_SELECTION_KEY = "aprice:compare-selection"
 
 export default function ProductApp() {
+  const pageParams = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search)
+  const productId = pageParams.get("id") || ""
+  const taskFlow = pageParams.get("task") === "1"
+  const requestedStoreId = String(pageParams.get("store") || "").slice(0, 128)
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [product, setProduct] = useState(null)
@@ -49,9 +53,7 @@ export default function ProductApp() {
   const [status, setStatus] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
   const [historyLimit, setHistoryLimit] = useState(12)
-  const [form, setForm] = useState({ store_id: "", price_yen: "", note: "", evidence_url: "", share_to_public: false })
-
-  const productId = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("id") || ""
+  const [form, setForm] = useState({ store_id: requestedStoreId, price_yen: "", note: "", evidence_url: "", share_to_public: taskFlow })
 
   const loadPrivate = async (id, activeSession) => {
     const [storeResult, favoriteResult, logResult, summaryResult] = await Promise.allSettled([
@@ -109,6 +111,10 @@ export default function ProductApp() {
     })()
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    if (!loading && window.location.hash === "#record-price") requestAnimationFrame(() => document.getElementById("record-price")?.scrollIntoView({ block: "start" }))
+  }, [loading])
 
   const offers = useMemo(() => offersFromPriceRows(priceRows).map((offer) => location && Number.isFinite(offer.lat) && Number.isFinite(offer.lng) ? { ...offer, distance: distanceKm(location.lat, location.lng, offer.lat, offer.lng) } : offer), [priceRows, location])
   const newestOffer = offers.toSorted((a, b) => new Date(b.sampledAt || 0) - new Date(a.sampledAt || 0))[0]
@@ -184,7 +190,7 @@ export default function ProductApp() {
       setForm({ store_id: "", price_yen: "", note: "", evidence_url: "", share_to_public: false })
       const refreshedLogs = await fetchPersonalLogs(session.user.id)
       setLogs(refreshedLogs.filter((item) => String(item.product_id) === String(productId)))
-      setStatus(form.share_to_public ? "个人记录已保存，公共价格已提交审核。" : "个人价格记录已保存。")
+      setStatus(taskFlow ? "补价任务已提交审核，审核通过后发放积分。" : form.share_to_public ? "个人记录已保存，公共价格已提交审核。" : "个人价格记录已保存。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setSavingPrice(false) }
   }
 
@@ -223,8 +229,8 @@ export default function ProductApp() {
                 <div className="border-t pt-4"><p className="text-sm text-muted-foreground">门店差价</p><p className="mt-2 font-mono text-2xl font-semibold">{formatPrice(stats.saving)}</p></div>
               </section>}
 
-              <section className="rounded-2xl border bg-card p-6">
-                <div><h2 className="text-xl font-semibold">记录价格</h2><p className="mt-2 text-sm text-muted-foreground">只需选择门店并输入价格。</p></div>
+              <section id="record-price" className="scroll-mt-24 rounded-2xl border bg-card p-6">
+                <div><h2 className="text-xl font-semibold">{taskFlow ? "完成补价任务" : "记录价格"}</h2><p className="mt-2 text-sm text-muted-foreground">{taskFlow ? requestedStoreId ? "任务门店已预选；保存时会同时提交公共价格审核。" : "选择门店并输入价格；保存时会同时提交公共价格审核。" : "只需选择门店并输入价格。"}</p></div>
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
                   <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
                   <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
