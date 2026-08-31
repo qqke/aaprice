@@ -77,3 +77,17 @@ test("commercial offers expose active links only through attributed RPCs", async
   assert.match(sql, /grant execute on function public\.fetch_commercial_offers\(jsonb\) to anon, authenticated/)
   assert.match(sql, /grant execute on function public\.record_commercial_click\(jsonb\) to anon, authenticated/)
 })
+
+test("commercial offer administration stays admin-only and validates destinations", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831163000_commercial_offer_admin.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.admin_fetch_commercial_offers\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /create or replace function public\.admin_upsert_commercial_offer\(payload jsonb\)/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/g)
+  assert.match(sql, /target_url !~\* '\^https:\/\/'/)
+  assert.match(sql, /on conflict \(id\) do update set/)
+  assert.match(sql, /click_count/)
+  assert.match(sql, /set search_path = public, pg_temp/g)
+  assert.match(sql, /grant execute on function public\.admin_fetch_commercial_offers\(jsonb\) to authenticated/)
+  assert.match(sql, /grant execute on function public\.admin_upsert_commercial_offer\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})
