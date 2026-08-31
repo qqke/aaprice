@@ -16,6 +16,7 @@ import {
   fetchActivePriceTask,
   fetchFavorites,
   fetchFavoritePriceChanges,
+  fetchMyPriceAlerts,
   fetchMyProductSubmissions,
   fetchPersonalLogs,
   fetchRecentViews,
@@ -28,6 +29,7 @@ import {
   signOut,
   skipPriceTask,
   toggleFavorite,
+  upsertPriceAlert,
 } from "@/lib/aprice-api.mjs"
 import { formatPrice } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
@@ -41,6 +43,7 @@ const formatDate = (value, withTime = false) => {
 const panelClass = "rounded-2xl border bg-card p-5 sm:p-6"
 const listClass = "mt-5 divide-y border-t"
 const rowClass = "flex items-center justify-between gap-4 py-4 transition-colors hover:bg-muted/35"
+const blankAlert = { product_id: "", target_price_yen: "", is_active: true }
 
 export default function MeApp() {
   const [session, setSession] = useState(null)
@@ -50,6 +53,7 @@ export default function MeApp() {
   const [logs, setLogs] = useState([])
   const [favorites, setFavorites] = useState([])
   const [favoriteChanges, setFavoriteChanges] = useState([])
+  const [priceAlerts, setPriceAlerts] = useState([])
   const [credit, setCredit] = useState(null)
   const [ledger, setLedger] = useState([])
   const [submissions, setSubmissions] = useState([])
@@ -61,10 +65,12 @@ export default function MeApp() {
   const [savingLog, setSavingLog] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [taskBusy, setTaskBusy] = useState(false)
+  const [savingAlert, setSavingAlert] = useState(false)
   const [productSearch, setProductSearch] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
   const [logForm, setLogForm] = useState({ product_id: "", store_id: "", price_yen: "", note: "" })
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" })
+  const [alertForm, setAlertForm] = useState(blankAlert)
 
   const load = async () => {
     setLoading(true)
@@ -74,7 +80,7 @@ export default function MeApp() {
       setSession(activeSession)
       if (!activeSession) return
       const results = await Promise.allSettled([
-        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }),
+        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }), fetchMyPriceAlerts(),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProfile(value(0, { id: activeSession.user.id, email: activeSession.user.email, role: "user" }))
@@ -87,6 +93,7 @@ export default function MeApp() {
       setSubmissions(value(7, []))
       setTask(value(8, null))
       setFavoriteChanges(value(9, { items: [] }).items)
+      setPriceAlerts(value(10, []))
       if (results.some(({ status }) => status === "rejected")) setStatus("部分账户数据暂时无法加载，请刷新页面重试。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setLoading(false) }
   }
@@ -96,6 +103,8 @@ export default function MeApp() {
   const productNames = useMemo(() => new Map(products.map((item) => [String(item.id), item.name])), [products])
   const storeNames = useMemo(() => new Map(stores.map((item) => [String(item.id), item.name])), [stores])
   const favoriteChangeByProduct = useMemo(() => new Map(favoriteChanges.map((item) => [String(item.product_id), item])), [favoriteChanges])
+  const alertByProduct = useMemo(() => new Map(priceAlerts.map((item) => [String(item.product_id), item])), [priceAlerts])
+  const favoriteProducts = useMemo(() => favorites.filter((item) => item.entity_type === "product"), [favorites])
   const filteredProducts = useMemo(() => {
     const needle = productSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
     return needle ? products.filter((item) => [item.name, item.brand, item.barcode].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : products
@@ -119,11 +128,30 @@ export default function MeApp() {
 
   const removeFavorite = async (item) => {
     try {
+      const alert = item.entity_type === "product" ? alertByProduct.get(String(item.entity_id)) : null
+      if (alert?.is_active) await upsertPriceAlert({ product_id: alert.product_id, target_price_yen: alert.target_price_yen, is_active: false })
       await toggleFavorite(item.entity_type, item.entity_id)
       setFavorites((rows) => rows.filter((row) => row.id !== item.id))
-      if (item.entity_type === "product") setFavoriteChanges((rows) => rows.filter((row) => String(row.product_id) !== String(item.entity_id)))
-      setStatus("收藏已移除。")
+      if (item.entity_type === "product") {
+        setFavoriteChanges((rows) => rows.filter((row) => String(row.product_id) !== String(item.entity_id)))
+        setPriceAlerts((rows) => rows.map((row) => String(row.product_id) === String(item.entity_id) ? { ...row, is_active: false } : row))
+      }
+      setStatus(alert?.is_active ? "收藏已移除，关联的降价提醒也已停用。" : "收藏已移除。")
     } catch (error) { setStatus(friendlyApiError(error)) }
+  }
+
+  const saveAlert = async (event) => {
+    event.preventDefault()
+    if (savingAlert) return
+    const targetPrice = Number(alertForm.target_price_yen)
+    if (!alertForm.product_id || !Number.isInteger(targetPrice) || targetPrice <= 0) { setStatus("请选择商品并输入有效的目标价。"); return }
+    setSavingAlert(true)
+    try {
+      await upsertPriceAlert({ ...alertForm, target_price_yen: targetPrice })
+      setPriceAlerts(await fetchMyPriceAlerts())
+      setAlertForm(blankAlert)
+      setStatus(alertForm.is_active ? "降价提醒已保存。" : "降价提醒已停用。")
+    } catch (error) { setStatus(friendlyApiError(error)) } finally { setSavingAlert(false) }
   }
 
   const claimTask = async () => {
@@ -222,7 +250,7 @@ export default function MeApp() {
 
               {dataTab === "logs" && <div className={listClass}>{logs.length ? logs.slice(0, 30).map((log) => <div key={log.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{log.products?.name || productNames.get(String(log.product_id)) || log.product_id}</p><p className="mt-1 truncate text-xs text-muted-foreground">{log.stores?.name || storeNames.get(String(log.store_id)) || "未指定门店"}，{formatDate(log.purchased_at || log.created_at)}{log.note ? `，${log.note}` : ""}</p></div><span className="shrink-0 font-mono font-semibold">{formatPrice(log.price_yen)}</span></div>) : <p className="py-12 text-center text-sm text-muted-foreground">还没有价格记录。</p>}</div>}
               {dataTab === "recent" && <div className={listClass}>{recentViews.length ? recentViews.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"}，{item.pack || "规格未登记"}，{formatDate(item.viewed_at)}</p></div><Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.id)}`)}>打开</a></Button></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无浏览记录。</p>}</div>}
-              {dataTab === "favorites" && <div className={listClass}>{favorites.length ? favorites.map((item) => { const label = item.entity_type === "product" ? productNames.get(String(item.entity_id)) : storeNames.get(String(item.entity_id)); const change = item.entity_type === "product" ? favoriteChangeByProduct.get(String(item.entity_id)) : null; const difference = Math.abs(Number(change?.change_yen) || 0); const changeLabel = change?.change_direction === "down" ? `降 ${formatPrice(difference)}` : change?.change_direction === "up" ? `涨 ${formatPrice(difference)}` : change?.change_direction === "same" ? "价格持平" : change?.change_direction === "new" ? "新增报价" : change ? "近期无报价" : ""; return <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{label || item.entity_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.entity_type === "product" ? "商品" : "门店"}，{change?.latest_collected_at ? `价格更新 ${formatDate(change.latest_collected_at)}` : formatDate(item.created_at)}</p></div><div className="flex shrink-0 items-center gap-1">{change && <div className="mr-2 text-right"><p className="font-mono font-semibold">{change.current_min_price_yen != null && Number.isFinite(Number(change.current_min_price_yen)) ? formatPrice(change.current_min_price_yen) : "—"}</p><p className={`text-xs ${change.change_direction === "down" ? "text-primary" : "text-muted-foreground"}`}>{changeLabel}</p></div>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.entity_id)}`)}>打开</a></Button>}<Button size="sm" variant="ghost" onClick={() => removeFavorite(item)}>移除</Button></div></div> }) : <p className="py-12 text-center text-sm text-muted-foreground">还没有收藏。</p>}</div>}
+              {dataTab === "favorites" && <>{favoriteProducts.length > 0 && <form id="price-alert-form" onSubmit={saveAlert} className="mt-5 grid scroll-mt-24 gap-3 border-y py-4 sm:grid-cols-[minmax(0,1fr)_9rem_auto_auto] sm:items-end"><label><span className="mb-2 block text-sm font-medium">降价提醒商品</span><select value={alertForm.product_id} onChange={(event) => { const productId = event.target.value; const alert = alertByProduct.get(String(productId)); const currentPrice = favoriteChangeByProduct.get(String(productId))?.current_min_price_yen; setAlertForm({ product_id: productId, target_price_yen: alert?.target_price_yen ?? currentPrice ?? "", is_active: alert?.is_active ?? true }) }} className="h-11 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择收藏商品</option>{favoriteProducts.map((item) => <option key={item.id} value={item.entity_id}>{productNames.get(String(item.entity_id)) || item.entity_id}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">目标价（日元）</span><Input type="number" min="1" value={alertForm.target_price_yen} onChange={(event) => setAlertForm({ ...alertForm, target_price_yen: event.target.value })} required /></label><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={alertForm.is_active} onChange={(event) => setAlertForm({ ...alertForm, is_active: event.target.checked })} className="size-4 accent-primary" />启用提醒</label><Button type="submit" disabled={savingAlert}>{savingAlert ? <LoaderCircle className="animate-spin" /> : <Save />}{savingAlert ? "保存中" : "保存提醒"}</Button></form>}<div className={favoriteProducts.length ? "divide-y" : listClass}>{favorites.length ? favorites.map((item) => { const label = item.entity_type === "product" ? productNames.get(String(item.entity_id)) : storeNames.get(String(item.entity_id)); const change = item.entity_type === "product" ? favoriteChangeByProduct.get(String(item.entity_id)) : null; const alert = item.entity_type === "product" ? alertByProduct.get(String(item.entity_id)) : null; const difference = Math.abs(Number(change?.change_yen) || 0); const changeLabel = change?.change_direction === "down" ? `降 ${formatPrice(difference)}` : change?.change_direction === "up" ? `涨 ${formatPrice(difference)}` : change?.change_direction === "same" ? "价格持平" : change?.change_direction === "new" ? "新增报价" : change ? "近期无报价" : ""; return <div key={item.id} className="flex flex-col gap-3 py-4 transition-colors hover:bg-muted/35 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="truncate font-medium">{label || item.entity_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.entity_type === "product" ? "商品" : "门店"}，{change?.latest_collected_at ? `价格更新 ${formatDate(change.latest_collected_at)}` : formatDate(item.created_at)}{alert ? `，提醒 ≤ ${formatPrice(alert.target_price_yen)}（${alert.is_active ? "已启用" : "已停用"}）` : ""}</p></div><div className="flex flex-wrap items-center justify-end gap-1">{change && <div className="mr-auto text-left sm:mr-2 sm:text-right"><p className="font-mono font-semibold">{change.current_min_price_yen != null && Number.isFinite(Number(change.current_min_price_yen)) ? formatPrice(change.current_min_price_yen) : "—"}</p><p className={`text-xs ${change.change_direction === "down" ? "text-primary" : "text-muted-foreground"}`}>{changeLabel}</p></div>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href="#price-alert-form" onClick={() => setAlertForm({ product_id: String(item.entity_id), target_price_yen: alert?.target_price_yen ?? change?.current_min_price_yen ?? "", is_active: alert?.is_active ?? true })}>{alert ? "编辑提醒" : "设提醒"}</a></Button>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.entity_id)}`)}>打开</a></Button>}<Button size="sm" variant="ghost" onClick={() => removeFavorite(item)}>移除</Button></div></div> }) : <p className="py-12 text-center text-sm text-muted-foreground">还没有收藏。</p>}</div></>}
               {dataTab === "credits" && <><div className="mt-5 grid gap-3 sm:grid-cols-3">{[["今日商品检索", `${credit?.searches_today ?? 0}/${credit?.daily_free_searches ?? 0}`, `超出后 ${credit?.search_cost_after_free ?? 0} 分/次`], ["今日价格查询", `${credit?.references_today ?? 0}/${credit?.daily_free_price_references ?? 0}`, `超出后 ${credit?.price_reference_cost ?? 0} 分/次`], ["贡献奖励", `+${credit?.approved_contribution_reward ?? 0}`, "公共价格审核通过后发放"]].map(([label, value, note]) => <div key={label} className="rounded-xl bg-muted p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-mono text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{note}</p></div>)}</div><div className={listClass}>{ledger.length ? ledger.slice(0, 20).map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.reason || "积分变动"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDate(item.created_at)}{item.note ? `，${item.note}` : ""}</p></div><span className={`shrink-0 font-mono font-semibold ${Number(item.amount) > 0 ? "text-primary" : ""}`}>{Number(item.amount) > 0 ? "+" : ""}{item.amount}</span></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无积分流水。</p>}</div></>}
               {dataTab === "submissions" && <div className={listClass}>{submissions.length ? submissions.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 text-xs text-muted-foreground">JAN {item.barcode}，{formatDate(item.created_at)}</p></div><Badge variant={item.review_status === "approved" ? "default" : "outline"}>{reviewLabels[item.review_status] || "状态未知"}</Badge></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无商品补录记录。</p>}</div>}
             </motion.div>

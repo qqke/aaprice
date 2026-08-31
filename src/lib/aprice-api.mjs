@@ -291,6 +291,17 @@ export async function fetchFavoritePriceChanges(payload = {}) {
   return { days: Number(summary?.days) || 7, items: Array.isArray(summary?.items) ? summary.items : [] }
 }
 
+export async function fetchMyPriceAlerts() {
+  const session = await requireSession()
+  const result = await rpc("fetch_my_price_alerts", {}, session.access_token)
+  return Array.isArray(result) ? result : []
+}
+
+export async function upsertPriceAlert(payload) {
+  const session = await requireSession()
+  return rpc("upsert_price_alert", { payload }, session.access_token)
+}
+
 export async function toggleFavorite(entityType, entityId) {
   const session = await requireSession()
   const existing = await request("favorites", {
