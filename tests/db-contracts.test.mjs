@@ -70,6 +70,8 @@ test("commercial offers expose active links only through attributed RPCs", async
   assert.match(sql, /alter table public\.commercial_clicks enable row level security/)
   assert.match(sql, /revoke all on table public\.commercial_offers from anon, authenticated/)
   assert.match(sql, /where is_active = true/)
+  assert.match(sql, /select id, product_id, store_id, partner, campaign, updated_at/)
+  assert.match(sql, /to_jsonb\(offer\) - 'updated_at' order by offer\.product_id, offer\.updated_at desc/)
   assert.match(sql, /insert into public\.commercial_clicks/)
   assert.match(sql, /set search_path = public, pg_temp/g)
   assert.match(sql, /grant execute on function public\.fetch_commercial_offers\(jsonb\) to anon, authenticated/)
