@@ -605,7 +605,10 @@ export default function CompareApp({ initialScan = false }) {
     try {
       const rows = await fetchPricesForProduct(id, { token: accessToken, lat: location?.lat, lng: location?.lng })
       const offers = offersFromPriceRows(rows)
-      void recordTelemetryEvent("price_query_succeeded", { product_id: id, offer_count: offers.length, has_location: Boolean(location) }).catch(() => {})
+      void recordTelemetryEvent(offers.length ? "price_query_succeeded" : "price_query_empty", { product_id: id, offer_count: offers.length, has_location: Boolean(location) }).catch(() => {})
+      if (selected.length > 1 && selected.every((productId) => productId === id || priceChecked[productId])) {
+        void recordTelemetryEvent("compare_completed", { item_count: selected.length }).catch(() => {})
+      }
       setCatalog((items) => items.map((product) => product.id === id ? { ...product, offers } : product))
       setSavedProducts((items) => items.map((product) => product.id === id ? { ...product, offers } : product))
       try {

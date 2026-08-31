@@ -28,6 +28,7 @@ import {
   fetchRecentPrices,
   friendlyApiError,
   getSession,
+  recordTelemetryEvent,
   searchProducts,
   searchStores,
 } from "@/lib/aprice-api.mjs"
@@ -169,7 +170,10 @@ export default function AdminApp() {
     if (!Number.isInteger(price) || price <= 0) { setStatus("请输入大于 0 的整数日元价格。"); return }
     if (await act(() => adminUpsertPrice({ ...priceForm, price_yen: price, collected_at: new Date().toISOString() }), "价格已保存。")) setPriceForm(blankPrice)
   }
-  const reviewPrice = (id, action) => { if (window.confirm(`确认${action === "approve" ? "通过" : "拒绝"}这条价格提交？`)) act(() => adminReviewPriceSubmission(id, action), "价格审核已完成。") }
+  const reviewPrice = async (id, action) => {
+    if (!window.confirm(`确认${action === "approve" ? "通过" : "拒绝"}这条价格提交？`)) return
+    if (await act(() => adminReviewPriceSubmission(id, action), "价格审核已完成。") && action === "approve") void recordTelemetryEvent("task_approved", { submission_type: "price" }).catch(() => {})
+  }
   const reviewProduct = (id, action) => { if (window.confirm(`确认${action === "approve" ? "通过" : "拒绝"}这条商品提交？`)) act(() => adminReviewProductSubmission(id, action), "商品审核已完成。") }
   const remove = (type, id) => {
     if (!window.confirm(`确认删除 ${id}？此操作不可撤销。`)) return

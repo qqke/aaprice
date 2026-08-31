@@ -60,7 +60,10 @@ export default function ProductApp() {
       searchStores("", 300), fetchFavorites(activeSession.user.id), fetchPersonalLogs(activeSession.user.id), fetchCreditSummary(),
     ])
     if (storeResult.status === "fulfilled") setStores(storeResult.value)
-    if (favoriteResult.status === "fulfilled") setFavorites(favoriteResult.value)
+    if (favoriteResult.status === "fulfilled") {
+      setFavorites(favoriteResult.value)
+      if (favoriteResult.value.some((item) => item.entity_type === "product" && String(item.entity_id) === String(id))) void recordTelemetryEvent("favorite_revisited", { entity_type: "product", product_id: id }).catch(() => {})
+    }
     if (logResult.status === "fulfilled") setLogs(logResult.value.filter((item) => String(item.product_id) === String(id)))
     if (summaryResult.status === "fulfilled") setCredit(summaryResult.value)
     const failed = [storeResult, favoriteResult, logResult, summaryResult].find((result) => result.status === "rejected")
@@ -75,7 +78,8 @@ export default function ProductApp() {
       const rows = await fetchPricesForProduct(productId, { token: session.access_token, lat: location?.lat, lng: location?.lng })
       setPriceRows(rows)
       setPricesLoaded(true)
-      void recordTelemetryEvent("price_query_succeeded", { product_id: productId, offer_count: offersFromPriceRows(rows).length, has_location: Boolean(location) }).catch(() => {})
+      const offerCount = offersFromPriceRows(rows).length
+      void recordTelemetryEvent(offerCount ? "price_query_succeeded" : "price_query_empty", { product_id: productId, offer_count: offerCount, has_location: Boolean(location) }).catch(() => {})
       fetchCreditSummary().then(setCredit).catch(() => {})
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setPriceLoading(false) }
   }
@@ -186,7 +190,10 @@ export default function ProductApp() {
     try {
       const entry = { product_id: productId, store_id: form.store_id || null, price_yen: Number(form.price_yen), note: form.note.trim(), purchased_at: new Date().toISOString().slice(0, 10) }
       await savePersonalLog(entry)
-      if (form.share_to_public) await submitStorePrice({ ...entry, store_id: form.store_id, evidence_url: form.evidence_url.trim(), share_to_public: true })
+      if (form.share_to_public) {
+        await submitStorePrice({ ...entry, store_id: form.store_id, evidence_url: form.evidence_url.trim(), share_to_public: true })
+        if (taskFlow) void recordTelemetryEvent("task_submitted", { product_id: productId, has_store: true }).catch(() => {})
+      }
       setForm({ store_id: "", price_yen: "", note: "", evidence_url: "", share_to_public: false })
       const refreshedLogs = await fetchPersonalLogs(session.user.id)
       setLogs(refreshedLogs.filter((item) => String(item.product_id) === String(productId)))

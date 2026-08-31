@@ -23,7 +23,7 @@
 
 - [-] **DB** 扩展遥测事件白名单（迁移已准备，等待执行）
   - 事件：`compare_completed`、`price_query_empty`、`task_claimed`、`task_submitted`、`task_approved`、`commercial_outbound_clicked`、`favorite_revisited`。
-- [ ] **无需 DB** 在现有用户流程埋入新增事件
+- [-] **无需 DB** 在现有用户流程埋入新增事件（现有流程已接入；商业出口事件随 P2 接入）
   - 验收：事件不包含邮箱、搜索词、地址和精确位置。
 - [ ] **DB** 扩展管理员商业汇总 RPC
   - 指标：查价到行动、任务领取到通过、7 日回访、积分发放与消耗。

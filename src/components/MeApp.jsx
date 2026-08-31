@@ -20,6 +20,7 @@ import {
   fetchRecentViews,
   friendlyApiError,
   getSession,
+  recordTelemetryEvent,
   savePersonalLog,
   searchProducts,
   searchStores,
@@ -126,6 +127,7 @@ export default function MeApp() {
     try {
       const nextTask = await claimRandomPriceTask()
       setTask(nextTask)
+      if (nextTask) void recordTelemetryEvent("task_claimed", { product_id: nextTask.product_id, has_store: Boolean(nextTask.store_id) }).catch(() => {})
       setStatus(nextTask ? "已领取补价任务。" : "当前没有可领取的补价任务。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setTaskBusy(false) }
   }
