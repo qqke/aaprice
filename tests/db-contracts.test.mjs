@@ -60,3 +60,18 @@ test("security hardening removes unsafe public execution and table privileges", 
   assert.match(sql, /revoke truncate, references, trigger on all tables in schema public from anon, authenticated/)
   assert.doesNotMatch(sql, /grant execute on function public\.admin_[^(]+\([^;]* to anon/)
 })
+
+test("commercial offers expose active links only through attributed RPCs", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831160000_commercial_offers.sql", import.meta.url), "utf8")
+  assert.match(sql, /create table if not exists public\.commercial_offers/)
+  assert.match(sql, /create table if not exists public\.commercial_clicks/)
+  assert.match(sql, /destination_url text not null check \(destination_url ~\* '\^https:\/\/'\)/)
+  assert.match(sql, /alter table public\.commercial_offers enable row level security/)
+  assert.match(sql, /alter table public\.commercial_clicks enable row level security/)
+  assert.match(sql, /revoke all on table public\.commercial_offers from anon, authenticated/)
+  assert.match(sql, /where is_active = true/)
+  assert.match(sql, /insert into public\.commercial_clicks/)
+  assert.match(sql, /set search_path = public, pg_temp/g)
+  assert.match(sql, /grant execute on function public\.fetch_commercial_offers\(jsonb\) to anon, authenticated/)
+  assert.match(sql, /grant execute on function public\.record_commercial_click\(jsonb\) to anon, authenticated/)
+})
