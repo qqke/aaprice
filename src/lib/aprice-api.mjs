@@ -524,6 +524,17 @@ export async function adminFetchPriceHealth(payload = {}) {
   }
 }
 
+export async function adminFetchPriceAlertSummary(payload = {}) {
+  const session = await requireSession()
+  try {
+    const result = await rpc("admin_fetch_price_alert_summary", { payload }, session.access_token)
+    return Array.isArray(result) ? result[0] || {} : result || {}
+  } catch (error) {
+    if (/admin_fetch_price_alert_summary|PGRST202|schema cache/i.test(String(error?.message || error))) return {}
+    throw error
+  }
+}
+
 export async function adminFetchCommercialOffers(payload = {}) {
   const session = await requireSession()
   const result = await rpc("admin_fetch_commercial_offers", { payload }, session.access_token)

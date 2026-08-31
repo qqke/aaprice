@@ -14,8 +14,10 @@ jobs:
           FUNCTION_URL: ${{ secrets.PRICE_ALERT_FUNCTION_URL }}
           CRON_SECRET: ${{ secrets.PRICE_ALERT_CRON_SECRET }}
         run: |
-          test -n "$FUNCTION_URL"
-          test -n "$CRON_SECRET"
+          if [ -z "$FUNCTION_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::warning::Price alert secrets are not configured; skipping this run."
+            exit 0
+          fi
           curl --fail-with-body --silent --show-error \
             --request POST "$FUNCTION_URL" \
             --header "Authorization: Bearer $CRON_SECRET" \

@@ -152,3 +152,14 @@ test("price alert workers atomically claim and retry deliveries", async () => {
   assert.match(sql, /grant execute on function public\.claim_price_alert_deliveries\(jsonb\) to service_role/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to (anon|authenticated)/)
 })
+
+test("price alert operations are visible only to administrators", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831190000_price_alert_admin_summary.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.admin_fetch_price_alert_summary\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /delivery_success_percent/)
+  assert.match(sql, /attempt_count >= 5/)
+  assert.match(sql, /recent_failures/)
+  assert.match(sql, /grant execute on function public\.admin_fetch_price_alert_summary\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})

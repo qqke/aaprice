@@ -12,6 +12,7 @@ import {
   adminDeleteProduct,
   adminDeleteStore,
   adminFetchCommercialOffers,
+  adminFetchPriceAlertSummary,
   adminFetchPriceHealth,
   adminFetchProfiles,
   adminFetchTelemetryRecent,
@@ -102,6 +103,25 @@ function PriceHealthSummary({ data = {}, onOpenProduct }) {
   </section>
 }
 
+function PriceAlertHealth({ data = {} }) {
+  const enabled = Number.isFinite(Number(data.active_alerts))
+  const failures = Array.isArray(data.recent_failures) ? data.recent_failures : []
+  const metrics = [
+    ["活跃提醒", data.active_alerts],
+    ["等待发送", data.queued_deliveries],
+    ["正在重试", data.retrying_deliveries],
+    [`${data.days || 7} 天已发送`, data.sent_deliveries],
+    ["发送成功率", data.delivery_success_percent, "%"],
+  ]
+
+  return <section className="border-t pt-6 lg:col-span-2">
+    <p className="text-sm text-muted-foreground">通知运营</p>
+    <h2 className="mt-1 text-2xl font-semibold">降价提醒发送健康度</h2>
+    <p className="mt-2 text-sm text-muted-foreground">终止失败 {data.terminal_failures ?? 0} 条；失败任务最多自动尝试 5 次。</p>
+    {enabled ? <><div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-5">{metrics.map(([label, value, suffix = ""]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}{suffix}</p></div>)}</div>{failures.length > 0 && <div className="mt-8"><h3 className="font-semibold">最近失败</h3><div className="mt-3 divide-y border-y">{failures.map((item) => <div key={item.id} className="flex flex-wrap items-start justify-between gap-3 py-4"><div className="min-w-0"><p className="truncate font-medium">{item.product_name || item.product_id}</p><p className="mt-1 max-w-3xl break-words text-xs text-muted-foreground">{item.error_message || "未知发送错误"}</p></div><div className="shrink-0 text-right text-xs text-muted-foreground"><Badge variant="outline">{item.will_retry ? "等待重试" : "已终止"}</Badge><p className="mt-2">第 {item.attempt_count} 次 · {dateText(item.created_at)}</p></div></div>)}</div></div>}</> : <div className="mt-5 border-y py-8"><p className="font-medium">发送健康度尚未启用</p><p className="mt-1 text-sm text-muted-foreground">执行管理员汇总迁移后，这里会显示提醒与失败状态。</p></div>}
+  </section>
+}
+
 export default function AdminApp() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -118,6 +138,7 @@ export default function AdminApp() {
   const [telemetryDays, setTelemetryDays] = useState(7)
   const [telemetryLoading, setTelemetryLoading] = useState(false)
   const [priceHealth, setPriceHealth] = useState({})
+  const [priceAlertHealth, setPriceAlertHealth] = useState({})
   const [commercialOffers, setCommercialOffers] = useState([])
   const [productForm, setProductForm] = useState(blankProduct)
   const [storeForm, setStoreForm] = useState(blankStore)
@@ -141,7 +162,7 @@ export default function AdminApp() {
       setProfile(activeProfile)
       if (activeProfile.role !== "admin") return
       const results = await Promise.allSettled([
-        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }), adminFetchCommercialOffers(),
+        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }), adminFetchCommercialOffers(), adminFetchPriceAlertSummary({ days: 7 }),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProducts(value(0, silent ? products : []))
@@ -155,6 +176,7 @@ export default function AdminApp() {
       setTelemetryRecent(value(8, silent ? telemetryRecent : []))
       setPriceHealth(value(9, silent ? priceHealth : {}))
       setCommercialOffers(value(10, silent ? commercialOffers : []))
+      setPriceAlertHealth(value(11, silent ? priceAlertHealth : {}))
       if (results.some(({ status }) => status === "rejected")) setStatus("部分后台数据加载失败，可刷新重试；已加载的功能仍可使用。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { if (!silent) setLoading(false) }
   }
@@ -241,13 +263,14 @@ export default function AdminApp() {
     ["商品资料缺项", products.filter((item) => !item.brand || !item.pack || !item.image_url).length, "products"],
     ["门店资料缺项", stores.filter((item) => !item.address || !Number.isFinite(Number(item.lat)) || !Number.isFinite(Number(item.lng))).length, "stores"],
     [`近期过期报价（${staleDays} 天）`, prices.filter((item) => { const time = new Date(item.collected_at).getTime(); return !Number.isFinite(time) || time < staleBefore }).length, "prices"],
+    ["通知终止失败", priceAlertHealth.terminal_failures ?? 0, "business"],
   ]
   return (
     <AppShell title="管理工作台" description="审核提交并维护业务数据。" session={session} profile={profile} actions={<Button variant="outline" onClick={() => act(() => Promise.resolve(), "数据已刷新。")} disabled={busy}><RefreshCw className={busy ? "animate-spin" : ""} /> 刷新</Button>}>
       <section className={`mx-auto max-w-[1320px] px-4 pb-24 transition-opacity sm:px-6 lg:px-8 ${busy ? "pointer-events-none opacity-70" : ""}`} aria-busy={busy}>
         <nav className="flex snap-x gap-1 overflow-x-auto rounded-2xl border bg-card p-1.5 shadow-sm" role="tablist" aria-label="管理功能">{tabs.map(([value, label, Icon]) => <Button key={value} id={`admin-tab-${value}`} role="tab" className="shrink-0 snap-start rounded-xl" variant={tab === value ? "default" : "ghost"} onClick={() => setTab(value)} aria-selected={tab === value} aria-controls={`admin-panel-${value}`}><Icon /> {label}</Button>)}</nav>
         {status && <div className="mt-6 rounded-xl border bg-card px-4 py-3 text-sm" role="status">{status}</div>}
-        <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 border-b pb-8 lg:grid-cols-4" aria-label="运营待办概览">{operations.map(([label, value, target]) => <button type="button" key={label} onClick={() => setTab(target)} className="min-h-16 border-t pt-3 text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="block text-xs text-muted-foreground">{label}</span><span className="mt-1 block font-mono text-2xl font-semibold">{value}</span></button>)}</div>
+        <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 border-b pb-8 lg:grid-cols-5" aria-label="运营待办概览">{operations.map(([label, value, target]) => <button type="button" key={label} onClick={() => setTab(target)} className="min-h-16 border-t pt-3 text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="block text-xs text-muted-foreground">{label}</span><span className="mt-1 block font-mono text-2xl font-semibold">{value}</span></button>)}</div>
 
         {tab === "review" && <motion.div id="admin-panel-review" role="tabpanel" aria-labelledby="admin-tab-review" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mt-10 grid gap-12 lg:grid-cols-2">
           <section><div className="flex items-end justify-between"><div><p className="text-sm text-muted-foreground">社区价格</p><h2 className="mt-1 text-2xl font-semibold">待审核价格</h2></div><Badge>{priceReviews.length}</Badge></div><div className="mt-5 divide-y border-y">{priceReviews.length ? priceReviews.map((item) => <div key={item.id} className="py-5"><div className="flex items-start justify-between gap-4"><div><p className="font-medium">{item.products?.name || item.product_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.stores?.name || item.store_id} · {dateText(item.created_at)} · {item.note || "无备注"}</p></div><span className="font-mono font-semibold">{formatPrice(item.price_yen)}</span></div><div className="mt-4 flex gap-2"><Button size="sm" onClick={() => reviewPrice(item.id, "approve")}>通过</Button><Button size="sm" variant="outline" onClick={() => reviewPrice(item.id, "reject")}>拒绝</Button></div></div>) : <p className="py-8 text-center text-sm text-muted-foreground">没有待审核价格。</p>}</div></section>
@@ -265,6 +288,7 @@ export default function AdminApp() {
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">业务参数</h2><p className="mt-2 text-sm text-muted-foreground">仅可更新数据库允许的白名单键。</p></div><ShieldAlert className="size-5 text-primary" /></div><form onSubmit={saveSetting} className="mt-6 space-y-4"><Field label="参数"><select value={settingForm.setting_key} onChange={(e) => setSettingForm({ ...settingForm, setting_key: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm">{settingOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field label="新值"><Input type="number" min="0" step="1" value={settingForm.setting_value} onChange={(e) => setSettingForm({ ...settingForm, setting_value: e.target.value })} required /></Field><Button type="submit">更新参数</Button></form><pre className="mt-6 max-h-56 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(settings, null, 2)}</pre></section>
           <section className="border-t pt-6 lg:col-span-2"><div><p className="text-sm text-muted-foreground">楽天联盟 MVP</p><h2 className="mt-1 text-2xl font-semibold">商业链接</h2><p className="mt-2 text-sm text-muted-foreground">仅启用已核对商品与目标地址的链接；点击数来自服务端归因记录。</p></div><div className="mt-7 grid gap-10 lg:grid-cols-[0.8fr_1.2fr]"><form onSubmit={saveCommercialOffer} className="space-y-4 lg:sticky lg:top-24 lg:self-start"><Field label="商品"><select value={commercialForm.product_id} onChange={(e) => setCommercialForm({ ...commercialForm, product_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择商品</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="门店（可选）"><select value={commercialForm.store_id} onChange={(e) => setCommercialForm({ ...commercialForm, store_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm"><option value="">不限门店</option>{stores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="合作方"><Input value={commercialForm.partner} onChange={(e) => setCommercialForm({ ...commercialForm, partner: e.target.value })} pattern="[a-z0-9_-]{2,40}" required /></Field><Field label="Campaign"><Input value={commercialForm.campaign} onChange={(e) => setCommercialForm({ ...commercialForm, campaign: e.target.value })} maxLength={100} /></Field></div><Field label="HTTPS 跳转地址"><Input type="url" value={commercialForm.destination_url} onChange={(e) => setCommercialForm({ ...commercialForm, destination_url: e.target.value })} pattern="https://.*" required /></Field><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={commercialForm.is_active} onChange={(e) => setCommercialForm({ ...commercialForm, is_active: e.target.checked })} /> 保存后立即启用</label><div className="flex gap-2"><Button type="submit"><Save />{commercialForm.id ? "保存修改" : "新增链接"}</Button>{commercialForm.id && <Button type="button" variant="outline" onClick={() => setCommercialForm(blankCommercialOffer)}>取消编辑</Button>}</div></form><div className="divide-y border-y">{commercialOffers.length ? commercialOffers.map((offer) => <div key={offer.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{offer.product_name || offer.product_id}</p><Badge variant={offer.is_active ? "default" : "outline"}>{offer.is_active ? "已启用" : "已停用"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{offer.partner} · {offer.campaign || "无 campaign"} · {offer.store_name || "不限门店"}</p><p className="mt-1 font-mono text-xs text-muted-foreground">点击 {offer.click_count ?? 0}</p></div><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setCommercialForm({ ...blankCommercialOffer, ...offer })}>编辑</Button><Button size="sm" variant="outline" onClick={() => toggleCommercialOffer(offer)}>{offer.is_active ? "停用" : "启用"}</Button></div></div></div>) : <p className="py-10 text-center text-sm text-muted-foreground">还没有商业链接。</p>}</div></div></section>
           <PriceHealthSummary data={priceHealth} onOpenProduct={openProduct} />
+          <PriceAlertHealth data={priceAlertHealth} />
           <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 {telemetry.days || telemetryDays} 天</p><h2 className="mt-1 text-2xl font-semibold">商业与供给漏斗</h2><p className="mt-2 text-sm text-muted-foreground">会话转化按匿名会话去重，任务与积分按窗口内业务流水统计。</p></div><div className="flex gap-1" aria-label="商业漏斗统计窗口">{[7, 30, 90].map((days) => <Button key={days} size="sm" variant={telemetryDays === days ? "default" : "ghost"} aria-pressed={telemetryDays === days} disabled={telemetryLoading} onClick={() => changeTelemetryWindow(days)}>{days} 天</Button>)}</div></div><TelemetrySummary data={telemetry} /><div className="mt-10"><h3 className="font-semibold">最近事件</h3><div className="mt-3 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></div></section>
         </div>}
       </section>
