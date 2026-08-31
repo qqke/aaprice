@@ -48,3 +48,15 @@ test("price health summary is admin-only and measures fresh coverage", async () 
   assert.match(sql, /grant execute on function public\.admin_fetch_price_health\(jsonb\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("security hardening removes unsafe public execution and table privileges", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831113000_security_hardening.sql", import.meta.url), "utf8")
+  for (const name of ["admin_adjust_credits", "claim_random_price_task", "fetch_credit_summary", "fetch_product_prices", "handle_new_user", "rls_auto_enable", "submit_store_price"]) {
+    assert.match(sql, new RegExp(`alter function public\\.${name}\\([^;]*set search_path = public, pg_temp`))
+    assert.match(sql, new RegExp(`revoke execute on function public\\.${name}\\([^;]*from public`))
+  }
+  assert.match(sql, /grant execute on function public\.fetch_app_settings\(\) to anon, authenticated/)
+  assert.match(sql, /grant execute on function public\.fetch_product_prices\(jsonb\) to authenticated/)
+  assert.match(sql, /revoke truncate, references, trigger on all tables in schema public from anon, authenticated/)
+  assert.doesNotMatch(sql, /grant execute on function public\.admin_[^(]+\([^;]* to anon/)
+})
