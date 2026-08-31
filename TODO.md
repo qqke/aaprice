@@ -6,13 +6,13 @@
 
 ## P0：生产安全与数据基线
 
-- [-] **DB** 在 Supabase 执行并验证 `supabase/migrations/20260824161000_active_price_task.sql`（等待执行）
+- [!] **DB** 在 Supabase 执行并验证 `supabase/migrations/20260824161000_active_price_task.sql`（等待执行结果）
   - 验收：刷新个人中心后，未过期的进行中补价任务仍能恢复。
 - [!] **外部配置** 修复 Cloudflare Turnstile 域名与密钥配置（按要求暂缓）
   - 验收：生产登录、注册和重置密码均可完成验证，且登录按钮不会锁死。
 - [!] **无需 DB** Turnstile 验证通过后，将生产部署默认值从禁用改为启用（按要求暂缓）
   - 验收：部署产物使用 `PUBLIC_DISABLE_TURNSTILE=0`，本地仍可显式禁用。
-- [ ] **DB** 审计 Supabase RLS、授权和所有 `SECURITY DEFINER` RPC
+- [-] **只读 DB 检查** 审计 Supabase RLS、授权和所有 `SECURITY DEFINER` RPC（脚本已准备，等待结果）
   - 验收：匿名、普通用户和管理员权限边界有可重复执行的 SQL 检查。
 - [ ] **DB** 增加价格覆盖健康度 RPC
   - 指标：近期报价覆盖率、查价无结果率、过期比例、每商品有效门店数。

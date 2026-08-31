@@ -24,3 +24,13 @@ test("active price tasks are restored only for the current user", async () => {
   assert.match(sql, /grant execute on function public\.get_active_price_task\(\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("security audit stays read-only and covers critical boundaries", async () => {
+  const sql = await readFile(new URL("../supabase/checks/security_audit.sql", import.meta.url), "utf8")
+  assert.match(sql, /tables_without_rls/)
+  assert.match(sql, /rls_tables_without_policies_review/)
+  assert.match(sql, /definer_functions_without_safe_search_path/)
+  assert.match(sql, /definer_functions_executable_by_public/)
+  assert.match(sql, /client_table_access_review/)
+  assert.doesNotMatch(sql, /\b(create|alter|drop|insert|update|delete|grant|revoke|truncate)\b/i)
+})
