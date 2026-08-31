@@ -1,5 +1,5 @@
 import { motion } from "motion/react"
-import { ListChecks, LoaderCircle, LogOut, Save, SkipForward, Sparkles } from "lucide-react"
+import { Download, ListChecks, LoaderCircle, LogOut, Save, SkipForward, Sparkles } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
@@ -184,6 +184,18 @@ export default function MeApp() {
   }
 
   const logout = async () => { await signOut(); window.location.assign(appPath("/")) }
+  const exportAccountData = () => {
+    const content = JSON.stringify({ exported_at: new Date().toISOString(), profile, price_logs: logs, favorites, favorite_price_changes: favoriteChanges, price_alerts: priceAlerts, credit, credit_ledger: ledger, product_submissions: submissions, recent_views: recentViews }, null, 2)
+    const url = URL.createObjectURL(new Blob([content], { type: "application/json" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `aprice-account-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.append(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+    setStatus("账户数据已导出。")
+  }
 
   const dataTabs = [
     ["logs", "价格记录", logs.length],
@@ -209,7 +221,7 @@ export default function MeApp() {
   if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务会同步到你的 AAPRICE 账号。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/me/"))}`)}>登录或注册</a></Button></div></AppShell>
 
   return (
-    <AppShell title={profile?.full_name || "我的账户"} description={session.user.email} session={session} profile={profile} actions={<Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button>}>
+    <AppShell title={profile?.full_name || "我的账户"} description={session.user.email} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportAccountData}><Download /> 导出数据</Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>}>
       <section className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6 lg:px-8">
         {status && <div className="mb-6 rounded-2xl border bg-card px-4 py-3 text-sm shadow-sm" role="status">{status}</div>}
 
