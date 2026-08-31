@@ -475,6 +475,17 @@ export async function adminFetchTelemetryRecent(payload = {}) {
   return Array.isArray(rows?.items) ? rows.items : []
 }
 
+export async function adminFetchPriceHealth(payload = {}) {
+  const session = await requireSession()
+  try {
+    const result = await rpc("admin_fetch_price_health", { payload }, session.access_token)
+    return Array.isArray(result) ? result[0] || {} : result || {}
+  } catch (error) {
+    if (/admin_fetch_price_health|PGRST202|schema cache/i.test(String(error?.message || error))) return {}
+    throw error
+  }
+}
+
 const RECENT_VIEWS_KEY = "aprice:recent-views"
 
 export function fetchRecentViews() {

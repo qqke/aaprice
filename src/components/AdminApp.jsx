@@ -11,6 +11,7 @@ import {
   adminDeletePrice,
   adminDeleteProduct,
   adminDeleteStore,
+  adminFetchPriceHealth,
   adminFetchProfiles,
   adminFetchTelemetryRecent,
   adminFetchTelemetrySummary,
@@ -71,6 +72,28 @@ function TelemetrySummary({ data = {} }) {
   return <div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">{metrics.map(([label, value, suffix = ""]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}{suffix}</p></div>)}</div>
 }
 
+function PriceHealthSummary({ data = {}, onOpenProduct }) {
+  const enabled = Number.isFinite(Number(data.total_products))
+  const metrics = [
+    ["近期报价覆盖率", data.fresh_coverage_percent, "%"],
+    ["有近期价格", data.products_with_fresh_price],
+    ["无近期价格", data.products_without_fresh_price],
+    ["过期门店报价", data.stale_store_price_percent, "%"],
+    ["每商品有效门店", data.average_fresh_stores_per_priced_product],
+  ]
+  const needsPrices = Array.isArray(data.products_needing_prices) ? data.products_needing_prices : []
+
+  return <section className="border-t pt-6 lg:col-span-2">
+    <p className="text-sm text-muted-foreground">近 {data.days || 30} 天 · 普通店头价</p>
+    <h2 className="mt-1 text-2xl font-semibold">价格覆盖健康度</h2>
+    <p className="mt-2 text-sm text-muted-foreground">优先补齐没有有效报价的商品，并持续降低过期报价比例。</p>
+    {enabled ? <>
+      <div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-5">{metrics.map(([label, value, suffix = ""]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}{suffix}</p></div>)}</div>
+      <div className="mt-8"><div className="flex items-end justify-between gap-4"><div><h3 className="font-semibold">优先补价商品</h3><p className="mt-1 text-xs text-muted-foreground">按当前窗口没有任何有效门店报价</p></div><span className="font-mono text-sm text-muted-foreground">{data.products_without_fresh_price ?? 0} 件</span></div><div className="mt-3 divide-y border-y">{needsPrices.length ? needsPrices.map((item) => <button type="button" key={item.id} onClick={() => onOpenProduct(item)} className="flex min-h-14 w-full items-center justify-between gap-4 py-3 text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="min-w-0"><span className="block truncate font-medium">{item.name || item.id}</span><span className="mt-1 block truncate text-xs text-muted-foreground">JAN {item.barcode || "未登记"}</span></span><span className="shrink-0 text-xs text-muted-foreground">查看商品</span></button>) : <p className="py-8 text-center text-sm text-muted-foreground">当前窗口内所有商品均有有效报价。</p>}</div></div>
+    </> : <div className="mt-5 border-y py-8"><p className="font-medium">价格健康度尚未启用</p><p className="mt-1 text-sm text-muted-foreground">执行已准备的数据库迁移后，这里会自动显示覆盖指标。</p></div>}
+  </section>
+}
+
 export default function AdminApp() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -84,6 +107,7 @@ export default function AdminApp() {
   const [settings, setSettings] = useState({})
   const [telemetry, setTelemetry] = useState({})
   const [telemetryRecent, setTelemetryRecent] = useState([])
+  const [priceHealth, setPriceHealth] = useState({})
   const [productForm, setProductForm] = useState(blankProduct)
   const [storeForm, setStoreForm] = useState(blankStore)
   const [priceForm, setPriceForm] = useState(blankPrice)
@@ -105,7 +129,7 @@ export default function AdminApp() {
       setProfile(activeProfile)
       if (activeProfile.role !== "admin") return
       const results = await Promise.allSettled([
-        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: 7 }), adminFetchTelemetryRecent({ limit: 30 }),
+        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: 7 }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProducts(value(0, silent ? products : []))
@@ -117,6 +141,7 @@ export default function AdminApp() {
       setSettings(value(6, silent ? settings : {}))
       setTelemetry(value(7, silent ? telemetry : {}))
       setTelemetryRecent(value(8, silent ? telemetryRecent : []))
+      setPriceHealth(value(9, silent ? priceHealth : {}))
       if (results.some(({ status }) => status === "rejected")) setStatus("部分后台数据加载失败，可刷新重试；已加载的功能仍可使用。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { if (!silent) setLoading(false) }
   }
@@ -171,6 +196,12 @@ export default function AdminApp() {
     event.preventDefault()
     try { setStores(await searchStores(storeQuery, 500)); setStatus(storeQuery ? "门店搜索已更新。" : "已显示最近门店。") } catch (error) { setStatus(friendlyApiError(error)) }
   }
+  const openProduct = async (item) => {
+    const query = item.barcode || item.name || item.id
+    setProductQuery(query)
+    setTab("products")
+    try { setProducts(await searchProducts(query, 500, { curated: false })) } catch (error) { setStatus(friendlyApiError(error)) }
+  }
 
   if (loading) return <AppShell title="管理后台"><AppLoading label="正在核验管理员权限" /></AppShell>
   if (!session) return <AppShell eyebrow="管理后台" title="需要登录" description="请使用管理员账号继续。"><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/admin/"))}`)}>登录</a></Button></div></AppShell>
@@ -206,6 +237,7 @@ export default function AdminApp() {
         {tab === "business" && <div id="admin-panel-business" role="tabpanel" aria-labelledby="admin-tab-business" className="mt-10 grid gap-12 lg:grid-cols-2">
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">调整用户积分</h2><p className="mt-2 text-sm text-muted-foreground">写入积分流水并即时更新余额。</p></div><Coins className="size-5 text-primary" /></div><form onSubmit={adjustCredits} className="mt-6 space-y-4"><Field label="用户"><select value={creditForm.user_id} onChange={(e) => setCreditForm({ ...creditForm, user_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择用户</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.email || item.id}</option>)}</select></Field><Field label="增减积分"><Input type="number" step="1" value={creditForm.amount} onChange={(e) => setCreditForm({ ...creditForm, amount: e.target.value })} placeholder="例如 10 或 -10" required /></Field><Field label="调整原因"><Input value={creditForm.note} onChange={(e) => setCreditForm({ ...creditForm, note: e.target.value })} placeholder="必填，写入积分流水" required /></Field><Button type="submit">调整积分</Button></form></section>
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">业务参数</h2><p className="mt-2 text-sm text-muted-foreground">仅可更新数据库允许的白名单键。</p></div><ShieldAlert className="size-5 text-primary" /></div><form onSubmit={saveSetting} className="mt-6 space-y-4"><Field label="参数"><select value={settingForm.setting_key} onChange={(e) => setSettingForm({ ...settingForm, setting_key: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm">{settingOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field label="新值"><Input type="number" min="0" step="1" value={settingForm.setting_value} onChange={(e) => setSettingForm({ ...settingForm, setting_value: e.target.value })} required /></Field><Button type="submit">更新参数</Button></form><pre className="mt-6 max-h-56 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(settings, null, 2)}</pre></section>
+          <PriceHealthSummary data={priceHealth} onOpenProduct={openProduct} />
           <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">近 {telemetry.days || 7} 天</p><h2 className="mt-1 text-2xl font-semibold">商业漏斗</h2><p className="mt-2 text-sm text-muted-foreground">按匿名会话聚合，转化率不使用事件次数重复计数。</p><TelemetrySummary data={telemetry} /><div className="mt-8"><h3 className="font-semibold">最近事件</h3><div className="mt-3 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></div></section>
         </div>}
       </section>
