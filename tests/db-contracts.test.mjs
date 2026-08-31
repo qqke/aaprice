@@ -176,3 +176,15 @@ test("membership work stays gated on measured retention and repeat usage", async
   assert.match(sql, /grant execute on function public\.admin_fetch_membership_readiness\(jsonb\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("affiliate report summaries are admin-only and idempotent by period", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831200000_affiliate_report_snapshots.sql", import.meta.url), "utf8")
+  assert.match(sql, /create table if not exists public\.affiliate_report_snapshots/)
+  assert.match(sql, /unique \(partner, period_start, period_end, result_status\)/)
+  assert.match(sql, /result_status in \('pending', 'confirmed', 'discarded'\)/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/g)
+  assert.match(sql, /on conflict \(partner, period_start, period_end, result_status\) do update set/)
+  assert.match(sql, /confirmed_commission_yen/)
+  assert.match(sql, /revoke all on table public\.affiliate_report_snapshots from anon, authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})

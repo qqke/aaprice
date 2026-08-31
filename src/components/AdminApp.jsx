@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   adminAdjustCredits,
+  adminFetchAffiliateReports,
   adminDeletePrice,
   adminDeleteProduct,
   adminDeleteStore,
@@ -25,6 +26,7 @@ import {
   adminUpsertProduct,
   adminUpsertStore,
   adminUpsertCommercialOffer,
+  adminUpsertAffiliateReport,
   fetchAppSettings,
   fetchCurrentProfile,
   fetchPendingPriceSubmissions,
@@ -43,6 +45,7 @@ const blankProduct = { id: "", barcode: "", name: "", brand: "", pack: "", categ
 const blankStore = { id: "", name: "", chain_name: "", pref: "", city: "", address: "", lat: "", lng: "", hours: "" }
 const blankPrice = { id: "", product_id: "", store_id: "", price_yen: "", is_member_price: false, source: "manual", note: "" }
 const blankCommercialOffer = { id: "", product_id: "", store_id: "", partner: "rakuten", campaign: "", destination_url: "", is_active: false }
+const blankAffiliateReport = { partner: "rakuten", period_start: "", period_end: "", result_status: "pending", clicks: "0", orders: "0", sales_yen: "0", commission_yen: "0", note: "" }
 const settingOptions = [
   ["daily_free_searches", "每日免费商品检索"], ["daily_free_price_references", "每日免费价格查询"],
   ["search_cost_after_free", "超额检索积分"], ["price_reference_cost", "价格查询积分"],
@@ -143,6 +146,14 @@ function MembershipReadiness({ data = {} }) {
   return <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 {data.days || 30} 天</p><h2 className="mt-1 text-2xl font-semibold">会员功能决策门槛</h2><p className="mt-2 text-sm text-muted-foreground">重复查价指登录用户在至少两个不同日期成功查询价格。</p></div>{enabled && <Badge variant={data.membership_ready ? "default" : "outline"}>{data.membership_ready ? "可以进入方案设计" : "继续验证留存"}</Badge>}</div>{enabled ? <div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-3">{metrics.map(([label, value, target]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}{label.includes("率") || label.includes("占比") ? "%" : ""}</p><p className="mt-1 text-xs text-muted-foreground">门槛 {target}</p></div>)}</div> : <div className="mt-5 border-y py-8"><p className="font-medium">会员决策指标尚未启用</p><p className="mt-1 text-sm text-muted-foreground">执行准备好的数据库迁移后再判断，不提前建设支付系统。</p></div>}</section>
 }
 
+function AffiliateReportWorkspace({ data = {}, form, setForm, onSave }) {
+  const items = Array.isArray(data.items) ? data.items : []
+  const statusLabel = { pending: "未确定", confirmed: "已确定", discarded: "已作废" }
+  const metrics = [["确定订单", data.confirmed_orders], ["确定销售额", formatPrice(data.confirmed_sales_yen || 0)], ["确定佣金", formatPrice(data.confirmed_commission_yen || 0)], ["待确定佣金", formatPrice(data.pending_commission_yen || 0)]]
+
+  return <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">楽天官方成果报表</p><h2 className="mt-1 text-2xl font-semibold">成交与佣金</h2><p className="mt-2 text-sm text-muted-foreground">按报表周期录入汇总值；相同合作方、周期和状态会直接更新。</p><div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">{metrics.map(([label, value]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}</p></div>)}</div><div className="mt-8 grid gap-10 lg:grid-cols-[0.8fr_1.2fr]"><form onSubmit={onSave} className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><Field label="开始日期"><Input type="date" value={form.period_start} onChange={(event) => setForm({ ...form, period_start: event.target.value })} required /></Field><Field label="结束日期"><Input type="date" value={form.period_end} onChange={(event) => setForm({ ...form, period_end: event.target.value })} required /></Field></div><div className="grid gap-4 sm:grid-cols-2"><Field label="合作方"><Input value={form.partner} onChange={(event) => setForm({ ...form, partner: event.target.value })} pattern="[a-z0-9_-]{2,40}" required /></Field><Field label="成果状态"><select value={form.result_status} onChange={(event) => setForm({ ...form, result_status: event.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm"><option value="pending">未确定</option><option value="confirmed">已确定</option><option value="discarded">已作废</option></select></Field></div><div className="grid grid-cols-2 gap-4">{[["点击", "clicks"], ["订单", "orders"], ["销售额（日元）", "sales_yen"], ["佣金（日元）", "commission_yen"]].map(([label, key]) => <Field key={key} label={label}><Input type="number" min="0" step="1" value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} required /></Field>)}</div><Field label="备注"><Input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} maxLength={500} /></Field><Button type="submit"><Save /> 保存周期汇总</Button></form><div className="divide-y border-y">{items.length ? items.map((item) => <button type="button" key={item.id} onClick={() => setForm({ partner: item.partner, period_start: item.period_start, period_end: item.period_end, result_status: item.result_status, clicks: String(item.clicks), orders: String(item.orders), sales_yen: String(item.sales_yen), commission_yen: String(item.commission_yen), note: item.note || "" })} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left transition-colors hover:text-primary"><span className="min-w-0"><span className="block font-medium">{item.period_start} ～ {item.period_end}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{item.partner} · {statusLabel[item.result_status] || item.result_status} · {item.orders} 单</span></span><span className="shrink-0 text-right"><span className="block font-mono font-semibold">{formatPrice(item.commission_yen)}</span><span className="mt-1 block text-xs text-muted-foreground">佣金</span></span></button>) : <p className="py-10 text-center text-sm text-muted-foreground">尚未录入成果报表。</p>}</div></div></section>
+}
+
 export default function AdminApp() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -161,11 +172,13 @@ export default function AdminApp() {
   const [priceHealth, setPriceHealth] = useState({})
   const [priceAlertHealth, setPriceAlertHealth] = useState({})
   const [membershipReadiness, setMembershipReadiness] = useState({})
+  const [affiliateReports, setAffiliateReports] = useState({})
   const [commercialOffers, setCommercialOffers] = useState([])
   const [productForm, setProductForm] = useState(blankProduct)
   const [storeForm, setStoreForm] = useState(blankStore)
   const [priceForm, setPriceForm] = useState(blankPrice)
   const [commercialForm, setCommercialForm] = useState(blankCommercialOffer)
+  const [affiliateReportForm, setAffiliateReportForm] = useState(blankAffiliateReport)
   const [creditForm, setCreditForm] = useState({ user_id: "", amount: "", note: "" })
   const [settingForm, setSettingForm] = useState({ setting_key: "daily_free_price_references", setting_value: "" })
   const [loading, setLoading] = useState(true)
@@ -184,7 +197,7 @@ export default function AdminApp() {
       setProfile(activeProfile)
       if (activeProfile.role !== "admin") return
       const results = await Promise.allSettled([
-        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }), adminFetchCommercialOffers(), adminFetchPriceAlertSummary({ days: 7 }), adminFetchMembershipReadiness({ days: 30 }),
+        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }), adminFetchCommercialOffers(), adminFetchPriceAlertSummary({ days: 7 }), adminFetchMembershipReadiness({ days: 30 }), adminFetchAffiliateReports({ days: 180 }),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProducts(value(0, silent ? products : []))
@@ -200,6 +213,7 @@ export default function AdminApp() {
       setCommercialOffers(value(10, silent ? commercialOffers : []))
       setPriceAlertHealth(value(11, silent ? priceAlertHealth : {}))
       setMembershipReadiness(value(12, silent ? membershipReadiness : {}))
+      setAffiliateReports(value(13, silent ? affiliateReports : {}))
       if (results.some(({ status }) => status === "rejected")) setStatus("部分后台数据加载失败，可刷新重试；已加载的功能仍可使用。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { if (!silent) setLoading(false) }
   }
@@ -252,6 +266,12 @@ export default function AdminApp() {
   const saveCommercialOffer = async (event) => {
     event.preventDefault()
     if (await act(() => adminUpsertCommercialOffer(commercialForm), "商业链接已保存。")) setCommercialForm(blankCommercialOffer)
+  }
+  const saveAffiliateReport = async (event) => {
+    event.preventDefault()
+    const numeric = Object.fromEntries(["clicks", "orders", "sales_yen", "commission_yen"].map((key) => [key, Number(affiliateReportForm[key])]))
+    if (affiliateReportForm.period_end < affiliateReportForm.period_start || Object.values(numeric).some((value) => !Number.isInteger(value) || value < 0)) { setStatus("请检查报表周期与非负整数金额。"); return }
+    if (await act(() => adminUpsertAffiliateReport({ ...affiliateReportForm, ...numeric }), "联盟成果汇总已保存。")) setAffiliateReportForm(blankAffiliateReport)
   }
   const toggleCommercialOffer = (offer) => act(() => adminUpsertCommercialOffer({ ...offer, is_active: !offer.is_active }), offer.is_active ? "商业链接已停用。" : "商业链接已启用。")
   const findProducts = async (event) => {
@@ -312,6 +332,7 @@ export default function AdminApp() {
           <CommercialCoverageSummary offers={commercialOffers} />
           <section className="border-t pt-6 lg:col-span-2"><div><p className="text-sm text-muted-foreground">楽天联盟 MVP</p><h2 className="mt-1 text-2xl font-semibold">商业链接</h2><p className="mt-2 text-sm text-muted-foreground">仅启用已核对商品与目标地址的链接；点击数来自服务端归因记录。</p></div><div className="mt-7 grid gap-10 lg:grid-cols-[0.8fr_1.2fr]"><form onSubmit={saveCommercialOffer} className="space-y-4 lg:sticky lg:top-24 lg:self-start"><Field label="商品"><select value={commercialForm.product_id} onChange={(e) => setCommercialForm({ ...commercialForm, product_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择商品</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="门店（可选）"><select value={commercialForm.store_id} onChange={(e) => setCommercialForm({ ...commercialForm, store_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm"><option value="">不限门店</option>{stores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="合作方"><Input value={commercialForm.partner} onChange={(e) => setCommercialForm({ ...commercialForm, partner: e.target.value })} pattern="[a-z0-9_-]{2,40}" required /></Field><Field label="Campaign"><Input value={commercialForm.campaign} onChange={(e) => setCommercialForm({ ...commercialForm, campaign: e.target.value })} maxLength={100} /></Field></div><Field label="HTTPS 跳转地址"><Input type="url" value={commercialForm.destination_url} onChange={(e) => setCommercialForm({ ...commercialForm, destination_url: e.target.value })} pattern="https://.*" required /></Field><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={commercialForm.is_active} onChange={(e) => setCommercialForm({ ...commercialForm, is_active: e.target.checked })} /> 保存后立即启用</label><div className="flex gap-2"><Button type="submit"><Save />{commercialForm.id ? "保存修改" : "新增链接"}</Button>{commercialForm.id && <Button type="button" variant="outline" onClick={() => setCommercialForm(blankCommercialOffer)}>取消编辑</Button>}</div></form><div className="divide-y border-y">{commercialOffers.length ? commercialOffers.map((offer) => <div key={offer.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{offer.product_name || offer.product_id}</p><Badge variant={offer.is_active ? "default" : "outline"}>{offer.is_active ? "已启用" : "已停用"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{offer.partner} · {offer.campaign || "无 campaign"} · {offer.store_name || "不限门店"}</p><p className="mt-1 font-mono text-xs text-muted-foreground">点击 {offer.click_count ?? 0}</p></div><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setCommercialForm({ ...blankCommercialOffer, ...offer })}>编辑</Button><Button size="sm" variant="outline" onClick={() => toggleCommercialOffer(offer)}>{offer.is_active ? "停用" : "启用"}</Button></div></div></div>) : <p className="py-10 text-center text-sm text-muted-foreground">还没有商业链接。</p>}</div></div></section>
           <PriceHealthSummary data={priceHealth} onOpenProduct={openProduct} />
+          <AffiliateReportWorkspace data={affiliateReports} form={affiliateReportForm} setForm={setAffiliateReportForm} onSave={saveAffiliateReport} />
           <PriceAlertHealth data={priceAlertHealth} />
           <MembershipReadiness data={membershipReadiness} />
           <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 {telemetry.days || telemetryDays} 天</p><h2 className="mt-1 text-2xl font-semibold">商业与供给漏斗</h2><p className="mt-2 text-sm text-muted-foreground">会话转化按匿名会话去重，任务与积分按窗口内业务流水统计。</p></div><div className="flex gap-1" aria-label="商业漏斗统计窗口">{[7, 30, 90].map((days) => <Button key={days} size="sm" variant={telemetryDays === days ? "default" : "ghost"} aria-pressed={telemetryDays === days} disabled={telemetryLoading} onClick={() => changeTelemetryWindow(days)}>{days} 天</Button>)}</div></div><TelemetrySummary data={telemetry} /><div className="mt-10"><h3 className="font-semibold">最近事件</h3><div className="mt-3 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></div></section>

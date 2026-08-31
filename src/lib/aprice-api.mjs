@@ -557,6 +557,22 @@ export async function adminUpsertCommercialOffer(payload) {
   return rpc("admin_upsert_commercial_offer", { payload }, session.access_token)
 }
 
+export async function adminFetchAffiliateReports(payload = {}) {
+  const session = await requireSession()
+  try {
+    const result = await rpc("admin_fetch_affiliate_reports", { payload }, session.access_token)
+    return Array.isArray(result) ? result[0] || {} : result || {}
+  } catch (error) {
+    if (/admin_fetch_affiliate_reports|PGRST202|schema cache/i.test(String(error?.message || error))) return {}
+    throw error
+  }
+}
+
+export async function adminUpsertAffiliateReport(payload) {
+  const session = await requireSession()
+  return rpc("admin_upsert_affiliate_report", { payload }, session.access_token)
+}
+
 const RECENT_VIEWS_KEY = "aprice:recent-views"
 
 export function fetchRecentViews() {
