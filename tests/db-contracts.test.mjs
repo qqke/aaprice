@@ -125,3 +125,16 @@ test("price alerts keep private preferences and idempotent delivery records", as
   assert.match(sql, /grant execute on function public\.upsert_price_alert\(jsonb\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("price alert queue only emits fresh threshold matches once", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831180000_enqueue_price_alert_deliveries.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.enqueue_price_alert_deliveries\(\)/)
+  assert.match(sql, /coalesce\(price\.is_member_price, false\) = false/)
+  assert.match(sql, /price\.collected_at >= now\(\) - interval '30 days'/)
+  assert.match(sql, /current\.price_yen <= alert\.target_price_yen/)
+  assert.match(sql, /prior\.price_yen <= current\.price_yen/)
+  assert.match(sql, /on conflict \(idempotency_key\) do nothing/)
+  assert.match(sql, /set search_path = public, pg_temp/)
+  assert.match(sql, /grant execute on function public\.enqueue_price_alert_deliveries\(\) to service_role/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to (anon|authenticated)/)
+})
