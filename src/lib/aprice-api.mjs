@@ -535,6 +535,17 @@ export async function adminFetchPriceAlertSummary(payload = {}) {
   }
 }
 
+export async function adminFetchMembershipReadiness(payload = {}) {
+  const session = await requireSession()
+  try {
+    const result = await rpc("admin_fetch_membership_readiness", { payload }, session.access_token)
+    return Array.isArray(result) ? result[0] || {} : result || {}
+  } catch (error) {
+    if (/admin_fetch_membership_readiness|PGRST202|schema cache/i.test(String(error?.message || error))) return {}
+    throw error
+  }
+}
+
 export async function adminFetchCommercialOffers(payload = {}) {
   const session = await requireSession()
   const result = await rpc("admin_fetch_commercial_offers", { payload }, session.access_token)

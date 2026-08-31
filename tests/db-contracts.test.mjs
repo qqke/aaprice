@@ -163,3 +163,16 @@ test("price alert operations are visible only to administrators", async () => {
   assert.match(sql, /grant execute on function public\.admin_fetch_price_alert_summary\(jsonb\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("membership work stays gated on measured retention and repeat usage", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831193000_membership_readiness.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.admin_fetch_membership_readiness\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /event_name = 'price_query_succeeded'/)
+  assert.match(sql, /query_days >= 2/)
+  assert.match(sql, /returning_users \/ nullif\(active_users, 0\) >= 15/)
+  assert.match(sql, /repeat_price_query_users >= 10/)
+  assert.match(sql, /repeat_price_query_users \/ nullif\(price_query_users, 0\) >= 20/)
+  assert.match(sql, /grant execute on function public\.admin_fetch_membership_readiness\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})
