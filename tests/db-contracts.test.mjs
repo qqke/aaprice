@@ -34,3 +34,17 @@ test("security audit stays read-only and covers critical boundaries", async () =
   assert.match(sql, /client_table_access_review/)
   assert.doesNotMatch(sql, /\b(create|alter|drop|insert|update|delete|grant|revoke|truncate)\b/i)
 })
+
+test("price health summary is admin-only and measures fresh coverage", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831100000_price_health_summary.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.admin_fetch_price_health\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /distinct on \(price\.product_id, price\.store_id\)/)
+  assert.match(sql, /fresh_coverage_percent/)
+  assert.match(sql, /stale_store_price_percent/)
+  assert.match(sql, /products_needing_prices/)
+  assert.match(sql, /set search_path = public, pg_temp/)
+  assert.match(sql, /revoke all on function public\.admin_fetch_price_health\(jsonb\) from public/)
+  assert.match(sql, /grant execute on function public\.admin_fetch_price_health\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})
