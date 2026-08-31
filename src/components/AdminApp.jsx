@@ -11,6 +11,7 @@ import {
   adminDeletePrice,
   adminDeleteProduct,
   adminDeleteStore,
+  adminFetchCommercialOffers,
   adminFetchPriceHealth,
   adminFetchProfiles,
   adminFetchTelemetryRecent,
@@ -21,6 +22,7 @@ import {
   adminUpsertPrice,
   adminUpsertProduct,
   adminUpsertStore,
+  adminUpsertCommercialOffer,
   fetchAppSettings,
   fetchCurrentProfile,
   fetchPendingPriceSubmissions,
@@ -38,6 +40,7 @@ import { appPath } from "@/lib/paths.mjs"
 const blankProduct = { id: "", barcode: "", name: "", brand: "", pack: "", category: "", tone: "sunset", description: "", image_url: "" }
 const blankStore = { id: "", name: "", chain_name: "", pref: "", city: "", address: "", lat: "", lng: "", hours: "" }
 const blankPrice = { id: "", product_id: "", store_id: "", price_yen: "", is_member_price: false, source: "manual", note: "" }
+const blankCommercialOffer = { id: "", product_id: "", store_id: "", partner: "rakuten", campaign: "", destination_url: "", is_active: false }
 const settingOptions = [
   ["daily_free_searches", "每日免费商品检索"], ["daily_free_price_references", "每日免费价格查询"],
   ["search_cost_after_free", "超额检索积分"], ["price_reference_cost", "价格查询积分"],
@@ -115,9 +118,11 @@ export default function AdminApp() {
   const [telemetryDays, setTelemetryDays] = useState(7)
   const [telemetryLoading, setTelemetryLoading] = useState(false)
   const [priceHealth, setPriceHealth] = useState({})
+  const [commercialOffers, setCommercialOffers] = useState([])
   const [productForm, setProductForm] = useState(blankProduct)
   const [storeForm, setStoreForm] = useState(blankStore)
   const [priceForm, setPriceForm] = useState(blankPrice)
+  const [commercialForm, setCommercialForm] = useState(blankCommercialOffer)
   const [creditForm, setCreditForm] = useState({ user_id: "", amount: "", note: "" })
   const [settingForm, setSettingForm] = useState({ setting_key: "daily_free_price_references", setting_value: "" })
   const [loading, setLoading] = useState(true)
@@ -136,7 +141,7 @@ export default function AdminApp() {
       setProfile(activeProfile)
       if (activeProfile.role !== "admin") return
       const results = await Promise.allSettled([
-        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }),
+        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }), adminFetchCommercialOffers(),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProducts(value(0, silent ? products : []))
@@ -149,6 +154,7 @@ export default function AdminApp() {
       setTelemetry(value(7, silent ? telemetry : {}))
       setTelemetryRecent(value(8, silent ? telemetryRecent : []))
       setPriceHealth(value(9, silent ? priceHealth : {}))
+      setCommercialOffers(value(10, silent ? commercialOffers : []))
       if (results.some(({ status }) => status === "rejected")) setStatus("部分后台数据加载失败，可刷新重试；已加载的功能仍可使用。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { if (!silent) setLoading(false) }
   }
@@ -198,6 +204,11 @@ export default function AdminApp() {
     if (!Number.isInteger(numeric) || numeric < 0) { setStatus("业务参数必须是大于或等于 0 的整数。"); return }
     act(() => adminUpdateAppSetting({ setting_key: settingForm.setting_key, setting_value: numeric }), "业务参数已更新。")
   }
+  const saveCommercialOffer = async (event) => {
+    event.preventDefault()
+    if (await act(() => adminUpsertCommercialOffer(commercialForm), "商业链接已保存。")) setCommercialForm(blankCommercialOffer)
+  }
+  const toggleCommercialOffer = (offer) => act(() => adminUpsertCommercialOffer({ ...offer, is_active: !offer.is_active }), offer.is_active ? "商业链接已停用。" : "商业链接已启用。")
   const findProducts = async (event) => {
     event.preventDefault()
     try { setProducts(await searchProducts(productQuery, 500, { curated: false })); setStatus(productQuery ? "商品搜索已更新。" : "已显示最近商品。") } catch (error) { setStatus(friendlyApiError(error)) }
@@ -252,6 +263,7 @@ export default function AdminApp() {
         {tab === "business" && <div id="admin-panel-business" role="tabpanel" aria-labelledby="admin-tab-business" className="mt-10 grid gap-12 lg:grid-cols-2">
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">调整用户积分</h2><p className="mt-2 text-sm text-muted-foreground">写入积分流水并即时更新余额。</p></div><Coins className="size-5 text-primary" /></div><form onSubmit={adjustCredits} className="mt-6 space-y-4"><Field label="用户"><select value={creditForm.user_id} onChange={(e) => setCreditForm({ ...creditForm, user_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择用户</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.email || item.id}</option>)}</select></Field><Field label="增减积分"><Input type="number" step="1" value={creditForm.amount} onChange={(e) => setCreditForm({ ...creditForm, amount: e.target.value })} placeholder="例如 10 或 -10" required /></Field><Field label="调整原因"><Input value={creditForm.note} onChange={(e) => setCreditForm({ ...creditForm, note: e.target.value })} placeholder="必填，写入积分流水" required /></Field><Button type="submit">调整积分</Button></form></section>
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">业务参数</h2><p className="mt-2 text-sm text-muted-foreground">仅可更新数据库允许的白名单键。</p></div><ShieldAlert className="size-5 text-primary" /></div><form onSubmit={saveSetting} className="mt-6 space-y-4"><Field label="参数"><select value={settingForm.setting_key} onChange={(e) => setSettingForm({ ...settingForm, setting_key: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm">{settingOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field label="新值"><Input type="number" min="0" step="1" value={settingForm.setting_value} onChange={(e) => setSettingForm({ ...settingForm, setting_value: e.target.value })} required /></Field><Button type="submit">更新参数</Button></form><pre className="mt-6 max-h-56 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(settings, null, 2)}</pre></section>
+          <section className="border-t pt-6 lg:col-span-2"><div><p className="text-sm text-muted-foreground">楽天联盟 MVP</p><h2 className="mt-1 text-2xl font-semibold">商业链接</h2><p className="mt-2 text-sm text-muted-foreground">仅启用已核对商品与目标地址的链接；点击数来自服务端归因记录。</p></div><div className="mt-7 grid gap-10 lg:grid-cols-[0.8fr_1.2fr]"><form onSubmit={saveCommercialOffer} className="space-y-4 lg:sticky lg:top-24 lg:self-start"><Field label="商品"><select value={commercialForm.product_id} onChange={(e) => setCommercialForm({ ...commercialForm, product_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择商品</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="门店（可选）"><select value={commercialForm.store_id} onChange={(e) => setCommercialForm({ ...commercialForm, store_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm"><option value="">不限门店</option>{stores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="合作方"><Input value={commercialForm.partner} onChange={(e) => setCommercialForm({ ...commercialForm, partner: e.target.value })} pattern="[a-z0-9_-]{2,40}" required /></Field><Field label="Campaign"><Input value={commercialForm.campaign} onChange={(e) => setCommercialForm({ ...commercialForm, campaign: e.target.value })} maxLength={100} /></Field></div><Field label="HTTPS 跳转地址"><Input type="url" value={commercialForm.destination_url} onChange={(e) => setCommercialForm({ ...commercialForm, destination_url: e.target.value })} pattern="https://.*" required /></Field><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={commercialForm.is_active} onChange={(e) => setCommercialForm({ ...commercialForm, is_active: e.target.checked })} /> 保存后立即启用</label><div className="flex gap-2"><Button type="submit"><Save />{commercialForm.id ? "保存修改" : "新增链接"}</Button>{commercialForm.id && <Button type="button" variant="outline" onClick={() => setCommercialForm(blankCommercialOffer)}>取消编辑</Button>}</div></form><div className="divide-y border-y">{commercialOffers.length ? commercialOffers.map((offer) => <div key={offer.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{offer.product_name || offer.product_id}</p><Badge variant={offer.is_active ? "default" : "outline"}>{offer.is_active ? "已启用" : "已停用"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{offer.partner} · {offer.campaign || "无 campaign"} · {offer.store_name || "不限门店"}</p><p className="mt-1 font-mono text-xs text-muted-foreground">点击 {offer.click_count ?? 0}</p></div><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setCommercialForm({ ...blankCommercialOffer, ...offer })}>编辑</Button><Button size="sm" variant="outline" onClick={() => toggleCommercialOffer(offer)}>{offer.is_active ? "停用" : "启用"}</Button></div></div></div>) : <p className="py-10 text-center text-sm text-muted-foreground">还没有商业链接。</p>}</div></div></section>
           <PriceHealthSummary data={priceHealth} onOpenProduct={openProduct} />
           <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 {telemetry.days || telemetryDays} 天</p><h2 className="mt-1 text-2xl font-semibold">商业与供给漏斗</h2><p className="mt-2 text-sm text-muted-foreground">会话转化按匿名会话去重，任务与积分按窗口内业务流水统计。</p></div><div className="flex gap-1" aria-label="商业漏斗统计窗口">{[7, 30, 90].map((days) => <Button key={days} size="sm" variant={telemetryDays === days ? "default" : "ghost"} aria-pressed={telemetryDays === days} disabled={telemetryLoading} onClick={() => changeTelemetryWindow(days)}>{days} 天</Button>)}</div></div><TelemetrySummary data={telemetry} /><div className="mt-10"><h3 className="font-semibold">最近事件</h3><div className="mt-3 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></div></section>
         </div>}
