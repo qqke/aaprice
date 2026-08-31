@@ -15,6 +15,7 @@ import {
   fetchCurrentProfile,
   fetchActivePriceTask,
   fetchFavorites,
+  fetchFavoritePriceChanges,
   fetchMyProductSubmissions,
   fetchPersonalLogs,
   fetchRecentViews,
@@ -48,6 +49,7 @@ export default function MeApp() {
   const [stores, setStores] = useState([])
   const [logs, setLogs] = useState([])
   const [favorites, setFavorites] = useState([])
+  const [favoriteChanges, setFavoriteChanges] = useState([])
   const [credit, setCredit] = useState(null)
   const [ledger, setLedger] = useState([])
   const [submissions, setSubmissions] = useState([])
@@ -72,7 +74,7 @@ export default function MeApp() {
       setSession(activeSession)
       if (!activeSession) return
       const results = await Promise.allSettled([
-        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(),
+        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProfile(value(0, { id: activeSession.user.id, email: activeSession.user.email, role: "user" }))
@@ -84,6 +86,7 @@ export default function MeApp() {
       setLedger(value(6, []))
       setSubmissions(value(7, []))
       setTask(value(8, null))
+      setFavoriteChanges(value(9, { items: [] }).items)
       if (results.some(({ status }) => status === "rejected")) setStatus("部分账户数据暂时无法加载，请刷新页面重试。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setLoading(false) }
   }
@@ -92,6 +95,7 @@ export default function MeApp() {
 
   const productNames = useMemo(() => new Map(products.map((item) => [String(item.id), item.name])), [products])
   const storeNames = useMemo(() => new Map(stores.map((item) => [String(item.id), item.name])), [stores])
+  const favoriteChangeByProduct = useMemo(() => new Map(favoriteChanges.map((item) => [String(item.product_id), item])), [favoriteChanges])
   const filteredProducts = useMemo(() => {
     const needle = productSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
     return needle ? products.filter((item) => [item.name, item.brand, item.barcode].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : products
@@ -117,6 +121,7 @@ export default function MeApp() {
     try {
       await toggleFavorite(item.entity_type, item.entity_id)
       setFavorites((rows) => rows.filter((row) => row.id !== item.id))
+      if (item.entity_type === "product") setFavoriteChanges((rows) => rows.filter((row) => String(row.product_id) !== String(item.entity_id)))
       setStatus("收藏已移除。")
     } catch (error) { setStatus(friendlyApiError(error)) }
   }
@@ -217,7 +222,7 @@ export default function MeApp() {
 
               {dataTab === "logs" && <div className={listClass}>{logs.length ? logs.slice(0, 30).map((log) => <div key={log.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{log.products?.name || productNames.get(String(log.product_id)) || log.product_id}</p><p className="mt-1 truncate text-xs text-muted-foreground">{log.stores?.name || storeNames.get(String(log.store_id)) || "未指定门店"}，{formatDate(log.purchased_at || log.created_at)}{log.note ? `，${log.note}` : ""}</p></div><span className="shrink-0 font-mono font-semibold">{formatPrice(log.price_yen)}</span></div>) : <p className="py-12 text-center text-sm text-muted-foreground">还没有价格记录。</p>}</div>}
               {dataTab === "recent" && <div className={listClass}>{recentViews.length ? recentViews.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"}，{item.pack || "规格未登记"}，{formatDate(item.viewed_at)}</p></div><Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.id)}`)}>打开</a></Button></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无浏览记录。</p>}</div>}
-              {dataTab === "favorites" && <div className={listClass}>{favorites.length ? favorites.map((item) => { const label = item.entity_type === "product" ? productNames.get(String(item.entity_id)) : storeNames.get(String(item.entity_id)); return <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{label || item.entity_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.entity_type === "product" ? "商品" : "门店"}，{formatDate(item.created_at)}</p></div><div className="flex gap-1">{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.entity_id)}`)}>打开</a></Button>}<Button size="sm" variant="ghost" onClick={() => removeFavorite(item)}>移除</Button></div></div> }) : <p className="py-12 text-center text-sm text-muted-foreground">还没有收藏。</p>}</div>}
+              {dataTab === "favorites" && <div className={listClass}>{favorites.length ? favorites.map((item) => { const label = item.entity_type === "product" ? productNames.get(String(item.entity_id)) : storeNames.get(String(item.entity_id)); const change = item.entity_type === "product" ? favoriteChangeByProduct.get(String(item.entity_id)) : null; const difference = Math.abs(Number(change?.change_yen) || 0); const changeLabel = change?.change_direction === "down" ? `降 ${formatPrice(difference)}` : change?.change_direction === "up" ? `涨 ${formatPrice(difference)}` : change?.change_direction === "same" ? "价格持平" : change?.change_direction === "new" ? "新增报价" : change ? "近期无报价" : ""; return <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{label || item.entity_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.entity_type === "product" ? "商品" : "门店"}，{change?.latest_collected_at ? `价格更新 ${formatDate(change.latest_collected_at)}` : formatDate(item.created_at)}</p></div><div className="flex shrink-0 items-center gap-1">{change && <div className="mr-2 text-right"><p className="font-mono font-semibold">{change.current_min_price_yen != null && Number.isFinite(Number(change.current_min_price_yen)) ? formatPrice(change.current_min_price_yen) : "—"}</p><p className={`text-xs ${change.change_direction === "down" ? "text-primary" : "text-muted-foreground"}`}>{changeLabel}</p></div>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.entity_id)}`)}>打开</a></Button>}<Button size="sm" variant="ghost" onClick={() => removeFavorite(item)}>移除</Button></div></div> }) : <p className="py-12 text-center text-sm text-muted-foreground">还没有收藏。</p>}</div>}
               {dataTab === "credits" && <><div className="mt-5 grid gap-3 sm:grid-cols-3">{[["今日商品检索", `${credit?.searches_today ?? 0}/${credit?.daily_free_searches ?? 0}`, `超出后 ${credit?.search_cost_after_free ?? 0} 分/次`], ["今日价格查询", `${credit?.references_today ?? 0}/${credit?.daily_free_price_references ?? 0}`, `超出后 ${credit?.price_reference_cost ?? 0} 分/次`], ["贡献奖励", `+${credit?.approved_contribution_reward ?? 0}`, "公共价格审核通过后发放"]].map(([label, value, note]) => <div key={label} className="rounded-xl bg-muted p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-mono text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{note}</p></div>)}</div><div className={listClass}>{ledger.length ? ledger.slice(0, 20).map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.reason || "积分变动"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDate(item.created_at)}{item.note ? `，${item.note}` : ""}</p></div><span className={`shrink-0 font-mono font-semibold ${Number(item.amount) > 0 ? "text-primary" : ""}`}>{Number(item.amount) > 0 ? "+" : ""}{item.amount}</span></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无积分流水。</p>}</div></>}
               {dataTab === "submissions" && <div className={listClass}>{submissions.length ? submissions.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 text-xs text-muted-foreground">JAN {item.barcode}，{formatDate(item.created_at)}</p></div><Badge variant={item.review_status === "approved" ? "default" : "outline"}>{reviewLabels[item.review_status] || "状态未知"}</Badge></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无商品补录记录。</p>}</div>}
             </motion.div>

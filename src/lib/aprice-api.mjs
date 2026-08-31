@@ -284,6 +284,13 @@ export async function fetchFavorites(userId) {
   })
 }
 
+export async function fetchFavoritePriceChanges(payload = {}) {
+  const session = await requireSession()
+  const result = await rpc("fetch_favorite_price_changes", { payload }, session.access_token)
+  const summary = Array.isArray(result) ? result[0] : result
+  return { days: Number(summary?.days) || 7, items: Array.isArray(summary?.items) ? summary.items : [] }
+}
+
 export async function toggleFavorite(entityType, entityId) {
   const session = await requireSession()
   const existing = await request("favorites", {
