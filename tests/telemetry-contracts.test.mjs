@@ -32,3 +32,15 @@ test("commercial telemetry events reject direct identifiers and exact location",
   assert.match(sql, /revoke all on function public\.record_telemetry_event\(jsonb\) from public/)
   assert.match(sql, /grant execute on function public\.record_telemetry_event\(jsonb\) to anon, authenticated/)
 })
+
+test("commercial funnel summary supports operating windows and credit flow", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831153000_commercial_funnel_summary.sql", import.meta.url), "utf8")
+  assert.match(sql, /admin_fetch_telemetry_summary\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /least\(90, greatest\(1,/)
+  for (const metric of ["price_query_empty_percent", "price_to_action_percent", "task_claim_to_submit_percent", "task_claim_to_approval_percent", "seven_day_return_percent", "credits_issued", "credits_spent"]) assert.match(sql, new RegExp(`'${metric}'`))
+  assert.match(sql, /from public\.credit_ledger/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /set search_path = public, pg_temp/)
+  assert.match(sql, /revoke all on function public\.admin_fetch_telemetry_summary\(jsonb\) from public/)
+  assert.match(sql, /grant execute on function public\.admin_fetch_telemetry_summary\(jsonb\) to authenticated/)
+})
