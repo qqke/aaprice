@@ -49,7 +49,7 @@ stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select coalesce(jsonb_agg(to_jsonb(offer) - 'updated_at' order by offer.product_id, offer.updated_at desc), '[]'::jsonb)
+  select coalesce(jsonb_agg((to_jsonb(offer) - 'updated_at') order by offer.product_id, offer.updated_at desc), '[]'::jsonb)
   from (
     select id, product_id, store_id, partner, campaign, updated_at
     from public.commercial_offers
