@@ -138,3 +138,17 @@ test("price alert queue only emits fresh threshold matches once", async () => {
   assert.match(sql, /grant execute on function public\.enqueue_price_alert_deliveries\(\) to service_role/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to (anon|authenticated)/)
 })
+
+test("price alert workers atomically claim and retry deliveries", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831183000_price_alert_delivery_retries.sql", import.meta.url), "utf8")
+  assert.match(sql, /status in \('pending', 'processing', 'sent', 'failed'\)/)
+  assert.match(sql, /attempt_count integer not null default 0/)
+  assert.match(sql, /create or replace function public\.claim_price_alert_deliveries\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /for update skip locked/)
+  assert.match(sql, /perform public\.enqueue_price_alert_deliveries\(\)/)
+  assert.match(sql, /join auth\.users account/)
+  assert.match(sql, /create or replace function public\.complete_price_alert_delivery\(payload jsonb\)/)
+  assert.match(sql, /delivery\.attempt_count < 5/)
+  assert.match(sql, /grant execute on function public\.claim_price_alert_deliveries\(jsonb\) to service_role/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to (anon|authenticated)/)
+})

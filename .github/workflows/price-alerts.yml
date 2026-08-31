@@ -1,0 +1,23 @@
+name: Send price alerts
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger alert worker
+        env:
+          FUNCTION_URL: ${{ secrets.PRICE_ALERT_FUNCTION_URL }}
+          CRON_SECRET: ${{ secrets.PRICE_ALERT_CRON_SECRET }}
+        run: |
+          test -n "$FUNCTION_URL"
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --request POST "$FUNCTION_URL" \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{}'

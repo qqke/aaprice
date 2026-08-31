@@ -111,3 +111,21 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(api, /rpc\("upsert_price_alert"/)
   assert.match(api, /try \{ sessionId = sessionStorage\.getItem/)
 })
+
+test("price alert worker keeps secrets server-side and records every outcome", async () => {
+  const [worker, workflow, config] = await Promise.all([
+    readSource("supabase/functions/send-price-alerts/index.ts"),
+    readSource(".github/workflows/price-alerts.yml"),
+    readSource("supabase/config.toml"),
+  ])
+  assert.match(worker, /PRICE_ALERT_CRON_SECRET/)
+  assert.match(worker, /RESEND_API_KEY/)
+  assert.match(worker, /rpc\("claim_price_alert_deliveries"/)
+  assert.match(worker, /rpc\("complete_price_alert_delivery"/)
+  assert.match(worker, /"idempotency-key": String\(delivery\.idempotency_key\)/)
+  assert.match(worker, /"user-agent": "aaprice-price-alerts\/1\.0"/)
+  assert.doesNotMatch(worker, /PUBLIC_/)
+  assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/)
+  assert.match(workflow, /PRICE_ALERT_FUNCTION_URL/)
+  assert.match(config, /\[functions\.send-price-alerts\][\s\S]*verify_jwt = false/)
+})
