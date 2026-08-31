@@ -38,5 +38,14 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   <body>
     <a href="#main-content" class="fixed left-3 top-3 z-50 inline-flex min-h-11 -translate-y-20 items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform focus:translate-y-0">跳至主要内容</a>
     <slot />
+    <footer class="border-t bg-background">
+      <div class="mx-auto flex max-w-[1320px] flex-col gap-3 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <p>© 2026 AAPRICE · 价格仅供参考，请以商家结算页面为准。</p>
+        <nav class="flex flex-wrap gap-x-5 gap-y-2" aria-label="站点说明">
+          <a href={`${base}/privacy/`} class="min-h-11 content-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">隐私与数据</a>
+          <a href={`${base}/disclosure/`} class="min-h-11 content-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">联盟与服务说明</a>
+        </nav>
+      </div>
+    </footer>
   </body>
 </html>

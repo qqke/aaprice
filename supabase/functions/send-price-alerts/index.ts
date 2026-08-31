@@ -23,9 +23,13 @@ const rpc = async (name: string, body: unknown) => {
   return response.json()
 }
 
-const productUrl = (productId: string) => {
+const siteUrl = (path: string) => {
   const base = requiredEnv("PRICE_ALERT_APP_URL").replace(/\/?$/, "/")
-  const url = new URL("product/", base)
+  return new URL(path.replace(/^\//, ""), base)
+}
+
+const productUrl = (productId: string) => {
+  const url = siteUrl("product/")
   url.searchParams.set("id", productId)
   return url.toString()
 }
@@ -45,7 +49,7 @@ const sendEmail = async (delivery: Record<string, unknown>) => {
       from: requiredEnv("PRICE_ALERT_FROM_EMAIL"),
       to: [delivery.email],
       subject: `AAPRICE 降价提醒：${delivery.product_name}`,
-      text: `${delivery.product_name} 当前最低价为 ¥${price}，已达到你设置的 ¥${target} 目标价。\n\n查看商品：${productUrl(String(delivery.product_id))}\n\n你可以在 AAPRICE 个人中心停用或修改提醒。`,
+      text: `${delivery.product_name} 当前最低价为 ¥${price}，已达到你设置的 ¥${target} 目标价。\n\n查看商品：${productUrl(String(delivery.product_id))}\n管理或停用提醒：${siteUrl("me/")}\n\n价格可能发生变化，请以商家结算页面为准。`,
       tags: [{ name: "type", value: "price_alert" }],
     }),
   })
