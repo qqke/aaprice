@@ -14,14 +14,14 @@
   - 验收：部署产物使用 `PUBLIC_DISABLE_TURNSTILE=0`，本地仍可显式禁用。
 - [x] **DB** 修复权限审计发现的 `SECURITY DEFINER` 与多余表权限
   - 验收：匿名、普通用户和管理员权限边界有可重复执行的 SQL 检查。
-- [-] **DB** 增加价格覆盖健康度 RPC（迁移已准备，等待执行）
+- [x] **DB** 增加价格覆盖健康度 RPC
   - 指标：近期报价覆盖率、查价无结果率、过期比例、每商品有效门店数。
 - [x] **无需 DB** 在管理后台展示价格覆盖健康度
   - 验收：运营人员能定位缺价商品和过期报价。
 
 ## P1：商业漏斗与供给效率
 
-- [ ] **DB** 扩展遥测事件白名单
+- [-] **DB** 扩展遥测事件白名单（迁移已准备，等待执行）
   - 事件：`compare_completed`、`price_query_empty`、`task_claimed`、`task_submitted`、`task_approved`、`commercial_outbound_clicked`、`favorite_revisited`。
 - [ ] **无需 DB** 在现有用户流程埋入新增事件
   - 验收：事件不包含邮箱、搜索词、地址和精确位置。

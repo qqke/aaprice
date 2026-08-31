@@ -23,3 +23,12 @@ test("business telemetry is allowlisted and strips direct identifiers", async ()
   assert.match(shareSql, /'shared_list_open_sessions'/)
   assert.match(shareSql, /admin_fetch_telemetry_summary\(payload jsonb default '\{\}'::jsonb\)/)
 })
+
+test("commercial telemetry events reject direct identifiers and exact location", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831150000_expand_commercial_telemetry_events.sql", import.meta.url), "utf8")
+  for (const event of ["compare_completed", "price_query_empty", "task_claimed", "task_submitted", "task_approved", "commercial_outbound_clicked", "favorite_revisited"]) assert.match(sql, new RegExp(`'${event}'`))
+  for (const property of ["email", "query", "search_query", "search_term", "address", "location", "latitude", "longitude", "lat", "lng"]) assert.match(sql, new RegExp(`'${property}'`))
+  assert.match(sql, /set search_path = public, pg_temp/)
+  assert.match(sql, /revoke all on function public\.record_telemetry_event\(jsonb\) from public/)
+  assert.match(sql, /grant execute on function public\.record_telemetry_event\(jsonb\) to anon, authenticated/)
+})
