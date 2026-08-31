@@ -91,3 +91,18 @@ test("commercial offer administration stays admin-only and validates destination
   assert.match(sql, /grant execute on function public\.admin_upsert_commercial_offer\(jsonb\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("favorite price changes stay scoped to the current user and comparable windows", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260831170000_favorite_price_changes.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.fetch_favorite_price_changes\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /favorite\.user_id = auth\.uid\(\)/)
+  assert.match(sql, /favorite\.entity_type = 'product'/)
+  assert.match(sql, /coalesce\(price\.is_member_price, false\) = false/)
+  assert.match(sql, /now\(\) - make_interval\(days => target_days \* 2\)/)
+  assert.match(sql, /current_min_price_yen - previous\.previous_min_price_yen as change_yen/)
+  assert.match(sql, /when current\.current_min_price_yen < previous\.previous_min_price_yen then 'down'/)
+  assert.match(sql, /perform public\.require_authenticated_user\(\)/)
+  assert.match(sql, /set search_path = public, pg_temp/)
+  assert.match(sql, /grant execute on function public\.fetch_favorite_price_changes\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})
