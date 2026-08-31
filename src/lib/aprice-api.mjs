@@ -57,6 +57,15 @@ const rpc = (name, body = {}, token = "") => request(`rpc/${name}`, { method: "P
 const insert = (table, body, token = "") => request(table, { method: "POST", body, token, prefer: "return=representation" })
 const TELEMETRY_SESSION_KEY = "aprice:telemetry-session"
 
+function getTelemetrySessionId() {
+  if (typeof window === "undefined") return ""
+  let sessionId
+  try { sessionId = sessionStorage.getItem(TELEMETRY_SESSION_KEY) } catch {}
+  sessionId ||= crypto.randomUUID()
+  try { sessionStorage.setItem(TELEMETRY_SESSION_KEY, sessionId) } catch {}
+  return sessionId
+}
+
 async function requireSession() {
   const session = await getSession()
   if (!session?.user) throw new Error("请先登录后再操作")
@@ -147,12 +156,23 @@ export async function fetchPublicPricePreview(productId) {
 
 export async function recordTelemetryEvent(eventName, properties = {}) {
   if (!supabaseConfigured || typeof window === "undefined") return
-  let sessionId
-  try { sessionId = sessionStorage.getItem(TELEMETRY_SESSION_KEY) } catch {}
-  sessionId ||= crypto.randomUUID()
-  try { sessionStorage.setItem(TELEMETRY_SESSION_KEY, sessionId) } catch {}
   const session = await getSession().catch(() => null)
-  await rpc("record_telemetry_event", { payload: { event_name: eventName, session_id: sessionId, properties } }, session?.access_token)
+  await rpc("record_telemetry_event", { payload: { event_name: eventName, session_id: getTelemetrySessionId(), properties } }, session?.access_token)
+}
+
+export async function fetchCommercialOffers(productIds = []) {
+  if (!supabaseConfigured) return []
+  const result = await rpc("fetch_commercial_offers", { payload: { product_ids: productIds.map(String).filter(Boolean).slice(0, 100) } })
+  return Array.isArray(result) ? result : []
+}
+
+export async function recordCommercialClick(offerId, source) {
+  if (!offerId || !["product", "compare"].includes(source)) throw new Error("商业链接参数无效")
+  const session = await getSession().catch(() => null)
+  const url = await rpc("record_commercial_click", { payload: { offer_id: offerId, session_id: getTelemetrySessionId(), source } }, session?.access_token)
+  if (typeof url !== "string" || !url.startsWith("https://")) throw new Error("商业链接暂不可用")
+  void recordTelemetryEvent("commercial_outbound_clicked", { offer_id: offerId, source }).catch(() => {})
+  return url
 }
 
 export async function getSession() {

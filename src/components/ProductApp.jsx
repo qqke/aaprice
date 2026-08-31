@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   fetchCreditSummary,
+  fetchCommercialOffers,
   fetchCurrentProfile,
   fetchFavorites,
   fetchPersonalLogs,
@@ -19,6 +20,7 @@ import {
   mapProductRow,
   offersFromPriceRows,
   recordRecentView,
+  recordCommercialClick,
   recordTelemetryEvent,
   savePersonalLog,
   searchStores,
@@ -45,6 +47,9 @@ export default function ProductApp() {
   const [logs, setLogs] = useState([])
   const [credit, setCredit] = useState(null)
   const [pricePreview, setPricePreview] = useState(null)
+  const [commercialOffer, setCommercialOffer] = useState(null)
+  const [commercialBusy, setCommercialBusy] = useState(false)
+  const [commercialStatus, setCommercialStatus] = useState("")
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
@@ -96,6 +101,7 @@ export default function ProductApp() {
         setProduct(mappedProduct)
         recordRecentView(mappedProduct)
         void recordTelemetryEvent("product_viewed", { product_id: productId }).catch(() => {})
+        fetchCommercialOffers([productId]).then((rows) => { if (active) setCommercialOffer(rows[0] || null) }).catch(() => {})
         const activeSession = await getSession()
         if (!active) return
         setSession(activeSession)
@@ -173,6 +179,13 @@ export default function ProductApp() {
     window.location.assign(appPath(`/?compare=${ids.map((id) => encodeURIComponent(id)).join(",")}&compare_source=product`))
   }
 
+  const openCommercialOffer = async () => {
+    if (!commercialOffer || commercialBusy) return
+    setCommercialBusy(true)
+    setCommercialStatus("正在前往合作商店…")
+    try { window.location.assign(await recordCommercialClick(commercialOffer.id, "product")) } catch (error) { setCommercialStatus(friendlyApiError(error)); setCommercialBusy(false) }
+  }
+
   const favoriteStore = async (storeId) => {
     try {
       const result = await toggleFavorite("store", storeId)
@@ -213,6 +226,7 @@ export default function ProductApp() {
             <div className="p-6"><div className="flex flex-wrap gap-2"><Badge>{product.category}</Badge>{product.pack !== "规格未登记" && <Badge variant="outline">{product.pack}</Badge>}</div>{product.active !== "商品说明未登记" && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{product.active}</p>}</div>
           </motion.div>
           {credit && <div className="mt-4 flex items-center justify-between rounded-xl border px-4 py-3 text-sm"><span>价格查询额度</span><span className="font-mono">积分 {credit.balance ?? 0}</span></div>}
+          {commercialOffer && <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 border-y py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs text-muted-foreground">合作链接 · 购买可能为 AAPRICE 带来收益</p><h2 className="mt-1 font-semibold">楽天市场购买</h2></div><Button variant="outline" onClick={openCommercialOffer} disabled={commercialBusy}>{commercialBusy ? <LoaderCircle className="animate-spin" /> : <ArrowLeft className="rotate-180" />}{commercialBusy ? "跳转中" : "合作购买"}</Button></div>{commercialStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{commercialStatus}</p>}</motion.section>}
         </div>
 
         <div className="space-y-10">
