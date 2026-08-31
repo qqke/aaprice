@@ -56,21 +56,25 @@ function Field({ label, children }) {
 }
 
 function TelemetrySummary({ data = {} }) {
-  const metrics = [
-    ["会话", data.sessions],
-    ["搜索会话", data.search_sessions],
-    ["商品查看", data.product_view_sessions],
-    ["匿名预览", data.preview_sessions],
-    ["完整查价", data.price_query_sessions],
-    ["登录成功", data.login_completed_sessions],
-    ["地图打开", data.map_open_sessions],
-    ["清单分享", data.share_sessions],
-    ["分享落地", data.shared_list_open_sessions],
-    ["预览 → 登录意图", data.preview_to_login_intent_percent, "%"],
-    ["预览 → 登录成功", data.preview_to_login_percent, "%"],
-    ["查价 → 地图", data.price_to_map_percent, "%"],
+  const groups = [
+    ["查价与行动", [
+      ["会话", data.sessions], ["完整查价", data.price_query_sessions], ["空查价率", data.price_query_empty_percent, "%"],
+      ["查价 → 行动", data.price_to_action_percent, "%"], ["完成比价", data.compare_completed_sessions], ["商业出口", data.commercial_outbound_sessions],
+    ]],
+    ["供给效率", [
+      ["领取任务", data.tasks_claimed], ["提交任务", data.tasks_submitted], ["通过任务", data.tasks_approved],
+      ["领取 → 提交", data.task_claim_to_submit_percent, "%"], ["领取 → 通过", data.task_claim_to_approval_percent, "%"],
+    ]],
+    ["留存与积分", [
+      ["活跃用户", data.active_users], ["7 日内回访", data.seven_day_return_percent, "%"], ["收藏回访", data.favorite_revisits],
+      ["积分发放", data.credits_issued], ["积分消耗", data.credits_spent],
+    ]],
+    ["登录转化", [
+      ["匿名预览", data.preview_sessions], ["登录成功", data.login_completed_sessions],
+      ["预览 → 登录意图", data.preview_to_login_intent_percent, "%"], ["预览 → 登录成功", data.preview_to_login_percent, "%"],
+    ]],
   ]
-  return <div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">{metrics.map(([label, value, suffix = ""]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}{suffix}</p></div>)}</div>
+  return <motion.div key={data.days || 7} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-7 space-y-8">{groups.map(([title, metrics]) => <section key={title}><h3 className="text-sm font-semibold">{title}</h3><div className="mt-3 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-5">{metrics.map(([label, value, suffix = ""]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}{suffix}</p></div>)}</div></section>)}</motion.div>
 }
 
 function PriceHealthSummary({ data = {}, onOpenProduct }) {
@@ -108,6 +112,8 @@ export default function AdminApp() {
   const [settings, setSettings] = useState({})
   const [telemetry, setTelemetry] = useState({})
   const [telemetryRecent, setTelemetryRecent] = useState([])
+  const [telemetryDays, setTelemetryDays] = useState(7)
+  const [telemetryLoading, setTelemetryLoading] = useState(false)
   const [priceHealth, setPriceHealth] = useState({})
   const [productForm, setProductForm] = useState(blankProduct)
   const [storeForm, setStoreForm] = useState(blankStore)
@@ -130,7 +136,7 @@ export default function AdminApp() {
       setProfile(activeProfile)
       if (activeProfile.role !== "admin") return
       const results = await Promise.allSettled([
-        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: 7 }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }),
+        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProducts(value(0, silent ? products : []))
@@ -206,6 +212,11 @@ export default function AdminApp() {
     setTab("products")
     try { setProducts(await searchProducts(query, 500, { curated: false })) } catch (error) { setStatus(friendlyApiError(error)) }
   }
+  const changeTelemetryWindow = async (days) => {
+    if (telemetryLoading || days === telemetryDays) return
+    setTelemetryLoading(true)
+    try { setTelemetry(await adminFetchTelemetrySummary({ days })); setTelemetryDays(days) } catch (error) { setStatus(friendlyApiError(error)) } finally { setTelemetryLoading(false) }
+  }
 
   if (loading) return <AppShell title="管理后台"><AppLoading label="正在核验管理员权限" /></AppShell>
   if (!session) return <AppShell eyebrow="管理后台" title="需要登录" description="请使用管理员账号继续。"><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/admin/"))}`)}>登录</a></Button></div></AppShell>
@@ -242,7 +253,7 @@ export default function AdminApp() {
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">调整用户积分</h2><p className="mt-2 text-sm text-muted-foreground">写入积分流水并即时更新余额。</p></div><Coins className="size-5 text-primary" /></div><form onSubmit={adjustCredits} className="mt-6 space-y-4"><Field label="用户"><select value={creditForm.user_id} onChange={(e) => setCreditForm({ ...creditForm, user_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择用户</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.email || item.id}</option>)}</select></Field><Field label="增减积分"><Input type="number" step="1" value={creditForm.amount} onChange={(e) => setCreditForm({ ...creditForm, amount: e.target.value })} placeholder="例如 10 或 -10" required /></Field><Field label="调整原因"><Input value={creditForm.note} onChange={(e) => setCreditForm({ ...creditForm, note: e.target.value })} placeholder="必填，写入积分流水" required /></Field><Button type="submit">调整积分</Button></form></section>
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">业务参数</h2><p className="mt-2 text-sm text-muted-foreground">仅可更新数据库允许的白名单键。</p></div><ShieldAlert className="size-5 text-primary" /></div><form onSubmit={saveSetting} className="mt-6 space-y-4"><Field label="参数"><select value={settingForm.setting_key} onChange={(e) => setSettingForm({ ...settingForm, setting_key: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm">{settingOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field label="新值"><Input type="number" min="0" step="1" value={settingForm.setting_value} onChange={(e) => setSettingForm({ ...settingForm, setting_value: e.target.value })} required /></Field><Button type="submit">更新参数</Button></form><pre className="mt-6 max-h-56 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(settings, null, 2)}</pre></section>
           <PriceHealthSummary data={priceHealth} onOpenProduct={openProduct} />
-          <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">近 {telemetry.days || 7} 天</p><h2 className="mt-1 text-2xl font-semibold">商业漏斗</h2><p className="mt-2 text-sm text-muted-foreground">按匿名会话聚合，转化率不使用事件次数重复计数。</p><TelemetrySummary data={telemetry} /><div className="mt-8"><h3 className="font-semibold">最近事件</h3><div className="mt-3 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></div></section>
+          <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 {telemetry.days || telemetryDays} 天</p><h2 className="mt-1 text-2xl font-semibold">商业与供给漏斗</h2><p className="mt-2 text-sm text-muted-foreground">会话转化按匿名会话去重，任务与积分按窗口内业务流水统计。</p></div><div className="flex gap-1" aria-label="商业漏斗统计窗口">{[7, 30, 90].map((days) => <Button key={days} size="sm" variant={telemetryDays === days ? "default" : "ghost"} aria-pressed={telemetryDays === days} disabled={telemetryLoading} onClick={() => changeTelemetryWindow(days)}>{days} 天</Button>)}</div></div><TelemetrySummary data={telemetry} /><div className="mt-10"><h3 className="font-semibold">最近事件</h3><div className="mt-3 divide-y border-y">{telemetryRecent.length ? telemetryRecent.slice(0, 12).map((item, index) => <div key={item.id || `${item.event_name}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="font-medium">{item.event_name || "unknown"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.email || item.user_id || "anonymous"} · {dateText(item.occurred_at)}</p></div><code className="max-w-full truncate text-xs text-muted-foreground">{JSON.stringify(item.payload || {})}</code></div>) : <p className="py-8 text-center text-sm text-muted-foreground">暂无最近事件。</p>}</div></div></section>
         </div>}
       </section>
     </AppShell>

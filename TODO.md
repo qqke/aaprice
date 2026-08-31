@@ -25,11 +25,11 @@
   - 事件：`compare_completed`、`price_query_empty`、`task_claimed`、`task_submitted`、`task_approved`、`commercial_outbound_clicked`、`favorite_revisited`。
 - [-] **无需 DB** 在现有用户流程埋入新增事件（现有流程已接入；商业出口事件随 P2 接入）
   - 验收：事件不包含邮箱、搜索词、地址和精确位置。
-- [-] **DB** 扩展管理员商业汇总 RPC（迁移已准备，等待执行）
+- [x] **DB** 扩展管理员商业汇总 RPC
   - 指标：查价到行动、任务领取到通过、7 日回访、积分发放与消耗。
-- [ ] **无需 DB** 在后台展示商业与供给漏斗
+- [x] **无需 DB** 在后台展示商业与供给漏斗
   - 验收：可以按 7/30/90 天查看，不用手工导出。
-- [ ] **运营** 建立每周指标复盘
+- [x] **运营** 建立每周指标复盘（见 `docs/weekly-commercial-review.md`）
   - 门槛：热门商品近期报价覆盖率 ≥70%，查价无结果率 ≤30%，查价后行动率 ≥15%。
 
 ## P2：联盟导流 MVP
