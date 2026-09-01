@@ -178,6 +178,7 @@ export default function AuthApp() {
                 {status && <p className={`rounded-xl border px-4 py-3 text-sm ${statusType === "error" ? "border-destructive/25 bg-destructive/5 text-destructive" : statusType === "success" ? "border-primary/25 bg-primary/5 text-foreground" : "bg-muted"}`} role={statusType === "error" ? "alert" : "status"} aria-live="polite">{status}</p>}
               </div>
               <Button type="submit" className="mt-6 w-full" disabled={loading}>{loading ? <LoaderCircle className="animate-spin" /> : mode === "register" ? <UserPlus /> : <Mail />}{loading ? "正在处理" : submitLabel}</Button>
+              {mode === "register" && <p className="mt-3 text-xs leading-5 text-muted-foreground">注册即表示你已阅读<a className="mx-1 font-medium text-foreground underline underline-offset-4" href={appPath("/privacy/")}>隐私与数据说明</a>及<a className="ml-1 font-medium text-foreground underline underline-offset-4" href={appPath("/disclosure/")}>服务说明</a>。</p>}
               <div className="mt-4 flex flex-wrap justify-between gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => switchMode(mode === "login" ? "register" : "login")}>{toggleLabel}</Button>{mode === "login" && <Button type="button" variant="ghost" size="sm" onClick={() => switchMode("resetRequest")}>忘记密码</Button>}</div>
             </form>
           )}

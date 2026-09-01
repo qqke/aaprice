@@ -1,6 +1,12 @@
 name: Deploy Supabase functions
 
 on:
+  push:
+    branches: [main, master]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-functions.yml"
   workflow_dispatch:
 
 permissions:
@@ -29,12 +35,23 @@ jobs:
           fi
       - name: Deploy price alert worker
         run: supabase functions deploy send-price-alerts --project-ref "$PROJECT_ID" --use-api
+      - name: Deploy account deletion worker
+        run: supabase functions deploy delete-account --project-ref "$PROJECT_ID" --use-api
       - name: Verify worker and cron secret
         run: |
           function_url="https://${PROJECT_ID}.supabase.co/functions/v1/send-price-alerts"
           status=$(curl --silent --show-error --output response.json --write-out "%{http_code}" "$function_url")
           if [ "$status" != "401" ]; then
             echo "::error::Expected the deployed worker to reject an unauthenticated request with 401, received $status"
+            cat response.json
+            exit 1
+          fi
+      - name: Verify account deletion authentication
+        run: |
+          function_url="https://${PROJECT_ID}.supabase.co/functions/v1/delete-account"
+          status=$(curl --silent --show-error --output response.json --write-out "%{http_code}" --request POST "$function_url" --header "Content-Type: application/json" --data '{"confirmation":"DELETE"}')
+          if [ "$status" != "401" ]; then
+            echo "::error::Expected account deletion worker to reject an unauthenticated request with 401, received $status"
             cat response.json
             exit 1
           fi

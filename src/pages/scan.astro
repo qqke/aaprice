@@ -3,6 +3,6 @@ import CompareApp from '@/components/CompareApp.jsx';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="AAPRICE | 扫码检索" description="扫描 JAN/EAN 条码检索日本药妆商品。">
+<BaseLayout title="AAPRICE | 扫码检索" description="扫描 JAN/EAN 条码检索日本药妆商品。" noindex>
   <CompareApp client:load initialScan={true} />
 </BaseLayout>

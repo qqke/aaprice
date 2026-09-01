@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /login/
+Disallow: /me/
+Disallow: /product/
+Disallow: /scan/
+
+Sitemap: https://prices.stbf.online/sitemap.xml

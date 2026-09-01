@@ -278,6 +278,19 @@ export async function fetchCurrentProfile() {
   return rows?.[0] || { id: session.user.id, email: session.user.email, role: "user" }
 }
 
+export async function deleteAccount() {
+  const session = await requireSession()
+  const response = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/delete-account`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation: "DELETE" }),
+  })
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}))
+    throw new Error(result.error || "账户删除失败")
+  }
+}
+
 export async function fetchPersonalLogs(userId) {
   const session = await requireSession()
   return request("user_price_logs", {

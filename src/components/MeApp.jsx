@@ -1,5 +1,5 @@
 import { motion } from "motion/react"
-import { Download, ListChecks, LoaderCircle, LogOut, Save, SkipForward, Sparkles } from "lucide-react"
+import { Download, ListChecks, LoaderCircle, LogOut, Save, SkipForward, Sparkles, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
@@ -10,6 +10,7 @@ import {
   changePassword,
   claimRandomPriceTask,
   clearRecentViews,
+  deleteAccount,
   fetchCreditLedger,
   fetchCreditSummary,
   fetchCurrentProfile,
@@ -66,6 +67,8 @@ export default function MeApp() {
   const [savingPassword, setSavingPassword] = useState(false)
   const [taskBusy, setTaskBusy] = useState(false)
   const [savingAlert, setSavingAlert] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState("")
   const [productSearch, setProductSearch] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
   const [logForm, setLogForm] = useState({ product_id: "", store_id: "", price_yen: "", note: "" })
@@ -184,6 +187,22 @@ export default function MeApp() {
   }
 
   const logout = async () => { await signOut(); window.location.assign(appPath("/")) }
+  const removeAccount = async () => {
+    if (deleteConfirmation !== "删除账户" || deletingAccount) return
+    setDeletingAccount(true)
+    setStatus("正在删除账户…")
+    try {
+      await deleteAccount()
+      clearRecentViews()
+      localStorage.removeItem("aprice:compare-selection")
+      localStorage.removeItem("aprice:compare-price-snapshots")
+      await signOut().catch(() => {})
+      window.location.assign(appPath("/"))
+    } catch (error) {
+      setStatus(friendlyApiError(error))
+      setDeletingAccount(false)
+    }
+  }
   const exportAccountData = () => {
     const content = JSON.stringify({ exported_at: new Date().toISOString(), profile, price_logs: logs, favorites, favorite_price_changes: favoriteChanges, price_alerts: priceAlerts, credit, credit_ledger: ledger, product_submissions: submissions, recent_views: recentViews }, null, 2)
     const url = URL.createObjectURL(new Blob([content], { type: "application/json" }))
@@ -252,6 +271,11 @@ export default function MeApp() {
             <details className={panelClass}>
               <summary className="cursor-pointer font-semibold">修改密码</summary>
               <form onSubmit={updateAccountPassword} className="mt-5 space-y-3">{[["当前密码", "current"], ["新密码", "next"], ["确认新密码", "confirm"]].map(([label, key]) => <label key={key}><span className="mb-2 block text-sm font-medium">{label}</span><Input type="password" value={passwordForm[key]} onChange={(event) => setPasswordForm({ ...passwordForm, [key]: event.target.value })} required disabled={savingPassword} /></label>)}<Button type="submit" variant="outline" className="w-full" disabled={savingPassword}>{savingPassword && <LoaderCircle className="animate-spin" />}{savingPassword ? "正在更新" : "更新密码"}</Button></form>
+            </details>
+
+            <details className={`${panelClass} border-destructive/30`}>
+              <summary className="cursor-pointer font-semibold text-destructive">删除账户</summary>
+              <div className="mt-5 space-y-3"><p className="text-sm leading-6 text-muted-foreground">这会永久删除账户、个人价格记录、收藏、积分和提醒，且无法恢复。遥测和运营记录中的账户标识将解除关联。</p><label><span className="mb-2 block text-sm font-medium">输入“删除账户”确认</span><Input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} disabled={deletingAccount} /></label><Button variant="destructive" className="w-full" onClick={removeAccount} disabled={deleteConfirmation !== "删除账户" || deletingAccount}>{deletingAccount ? <LoaderCircle className="animate-spin" /> : <Trash2 />}{deletingAccount ? "正在删除" : "永久删除账户"}</Button></div>
             </details>
           </div>
 

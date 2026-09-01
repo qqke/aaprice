@@ -92,12 +92,19 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(account, /exportAccountData/)
   assert.match(account, /aprice-account-/)
   assert.match(account, /> 导出数据<\/Button>/)
+  assert.match(account, /deleteConfirmation !== "删除账户"/)
+  assert.match(account, /await deleteAccount\(\)/)
+  assert.match(account, /永久删除账户/)
   assert.match(account, /role="tablist"/)
   assert.match(await readSource(".github/workflows/deploy.yml"), /PUBLIC_DISABLE_TURNSTILE:.*\|\| '1'/)
   assert.match(layout, /\/privacy\//)
   assert.match(layout, /\/disclosure\//)
   assert.match(layout, /价格仅供参考/)
+  assert.match(layout, /rel="canonical"/)
+  assert.match(layout, /property="og:url"/)
+  assert.match(layout, /property="og:image"/)
   assert.match(auth, /subscribeAuthState[\s\S]*?\.catch\(\(error\) =>/)
+  assert.match(auth, /注册即表示你已阅读/)
   assert.match(auth, /\["register", "resetRequest", "reset"\]\.includes\(initialMode\)/)
   assert.doesNotMatch(auth, /请先完成人机验证。/)
   assert.doesNotMatch(auth, /disabled=\{loading \|\| \(turnstileEnabled/)
@@ -171,8 +178,9 @@ test("keeps production UI interaction contracts", async () => {
 })
 
 test("price alert worker keeps secrets server-side and records every outcome", async () => {
-  const [worker, workflow, config] = await Promise.all([
+  const [worker, deletionWorker, workflow, config] = await Promise.all([
     readSource("supabase/functions/send-price-alerts/index.ts"),
+    readSource("supabase/functions/delete-account/index.ts"),
     readSource(".github/workflows/price-alerts.yml"),
     readSource("supabase/config.toml"),
   ])
@@ -187,22 +195,35 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/)
   assert.match(workflow, /https:\/\/tplkpguxlvrhxassyjfm\.supabase\.co\/functions\/v1\/send-price-alerts/)
   assert.match(config, /\[functions\.send-price-alerts\][\s\S]*verify_jwt = false/)
+  assert.match(config, /\[functions\.delete-account\][\s\S]*verify_jwt = true/)
+  assert.match(deletionWorker, /body\?\.confirmation !== "DELETE"/)
+  assert.match(deletionWorker, /\/auth\/v1\/user/)
+  assert.match(deletionWorker, /\/auth\/v1\/admin\/users\//)
+  assert.match(deletionWorker, /encodeURIComponent\(user\.id\)/)
+  assert.doesNotMatch(deletionWorker, /PUBLIC_/)
   const deployWorkflow = await readSource(".github/workflows/deploy-functions.yml")
   assert.match(deployWorkflow, /supabase\/setup-cli@v1/)
   assert.match(deployWorkflow, /version: 2\.116\.0/)
   assert.match(deployWorkflow, /functions deploy send-price-alerts/)
+  assert.match(deployWorkflow, /functions deploy delete-account/)
+  assert.match(deployWorkflow, /Verify account deletion authentication/)
   assert.match(deployWorkflow, /Expected the deployed worker to reject an unauthenticated request with 401/)
   assert.match(deployWorkflow, /SUPABASE_ACCESS_TOKEN is not configured/)
   assert.match(deployWorkflow, /PROJECT_ID: tplkpguxlvrhxassyjfm/)
 })
 
 test("publishes concise privacy and affiliate disclosures", async () => {
-  const [privacy, disclosure] = await Promise.all([readSource("src/pages/privacy.astro"), readSource("src/pages/disclosure.astro")])
+  const [privacy, disclosure, header, robots, sitemap] = await Promise.all([readSource("src/pages/privacy.astro"), readSource("src/pages/disclosure.astro"), readSource("src/components/LegalHeader.astro"), readSource("public/robots.txt"), readSource("public/sitemap.xml")])
   assert.match(privacy, /账户与个人数据/)
   assert.match(privacy, /事件属性会移除邮箱、搜索词、地址、IP、精确位置/)
   assert.match(privacy, /个人中心导出自己的账户数据/)
-  assert.match(privacy, /账户自助删除尚未开放/)
+  assert.match(privacy, /永久删除账户/)
   assert.match(disclosure, /合作关系不改变价格排序/)
   assert.match(disclosure, /购买可能为 AAPRICE 带来收益/)
   assert.match(disclosure, /不构成医疗建议/)
+  assert.match(privacy, /<LegalHeader/)
+  assert.match(disclosure, /<LegalHeader/)
+  assert.match(header, /返回商品比较/)
+  assert.match(robots, /Sitemap: https:\/\/prices\.stbf\.online\/sitemap\.xml/)
+  assert.match(sitemap, /https:\/\/prices\.stbf\.online\/privacy\//)
 })

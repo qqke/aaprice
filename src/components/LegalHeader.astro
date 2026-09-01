@@ -1,0 +1,10 @@
+---
+import { appPath } from '@/lib/paths.mjs';
+---
+
+<header class="border-b bg-background/90 backdrop-blur-xl">
+  <div class="mx-auto flex h-16 max-w-[1040px] items-center justify-between px-4 sm:px-6 lg:px-8">
+    <a href={appPath('/')} class="flex min-h-11 items-center gap-3" aria-label="AAPRICE 首页"><span class="grid size-9 place-items-center rounded-xl bg-primary font-mono text-sm font-bold text-primary-foreground">AA</span><span class="font-semibold tracking-[-0.04em]">AAPRICE</span></a>
+    <a href={appPath('/#catalog')} class="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">返回商品比较</a>
+  </div>
+</header>

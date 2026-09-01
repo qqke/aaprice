@@ -113,11 +113,11 @@
 
 ## P6：可信度、SEO 与页面完整度
 
-- [ ] **无需 DB** 为隐私与联盟披露页补齐品牌页头和返回导航
-- [ ] **无需 DB** 在注册表单附近展示隐私政策与服务说明入口
-- [ ] **无需 DB** 补齐 canonical、Open Graph、robots.txt 与 sitemap
-- [ ] **服务端/权限** 提供账户自助删除能力
-  - 需要先确定 Edge Function 身份校验与数据保留策略；执行前提示。
+- [x] **无需 DB** 为隐私与联盟披露页补齐品牌页头和返回导航
+- [x] **无需 DB** 在注册表单附近展示隐私政策与服务说明入口
+- [x] **无需 DB** 补齐 canonical、Open Graph、robots.txt 与 sitemap
+- [-] **服务端/权限** 提供账户自助删除能力（代码已完成，等待自动部署验证）
+  - Edge Function 验证本人 JWT；账户关联数据级联删除，去标识化运营记录保留。
 - [ ] **外部配置** 为生产域名补齐 CSP、HSTS、X-Content-Type-Options、frame 与 Permissions-Policy
   - 不触碰 Turnstile；需要 Cloudflare 或托管层配置时先提示。
 
