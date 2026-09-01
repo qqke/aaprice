@@ -118,8 +118,9 @@
 - [x] **无需 DB** 补齐 canonical、Open Graph、robots.txt 与 sitemap
 - [x] **服务端/权限** 提供账户自助删除能力
   - Edge Function 验证本人 JWT；账户关联数据级联删除，去标识化运营记录保留。
-- [!] **外部配置** 为生产域名补齐 CSP、HSTS、X-Content-Type-Options、frame 与 Permissions-Policy（Cloudflare 控制台未登录）
-  - 不触碰 Turnstile；需要 Cloudflare 或托管层配置时先提示。
+- [!] **外部配置** 为生产域名补齐 CSP、HSTS、X-Content-Type-Options、frame 与 Permissions-Policy
+  - 已确认 `stbf.online` 的权威 DNS 仍由 GMO（`ns-rs1/ns-rs2.gmoserver.jp`）管理，当前 Cloudflare 账户没有该域名。
+  - 启用 Cloudflare 代理前需要迁移整站权威 DNS；不触碰 Turnstile，迁移 nameserver 前必须单独确认并核对全部 DNS 记录。
 
 ## P7：工程可靠性与性能
 
@@ -127,4 +128,5 @@
 - [x] **无需 DB** 清理未使用的直接依赖并复核生产依赖审计
 - [x] **无需 DB** 增加关键认证与商业路径的浏览器级回归检查
 - [x] **无需 DB** 优化首页图片响应式加载与首屏资源体积
-- [ ] **运营** 在 2026-10-01 前轮换价格提醒工作流使用的访问令牌
+- [x] **运营** 在 2026-10-01 前轮换价格提醒工作流使用的访问令牌
+  - 2026-09-01 已创建新 Supabase Access Token、更新 GitHub `SUPABASE_ACCESS_TOKEN`，并由部署工作流 #5 验证成功。
