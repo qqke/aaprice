@@ -150,7 +150,6 @@ export default function ProductApp() {
     if (!needle) return physicalStores
     return physicalStores.filter((store) => [store.name, store.chain_name, store.pref, store.city, store.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle))
   }, [storeSearch, stores])
-
   const locate = () => {
     if (!navigator.geolocation) { setStatus("当前浏览器不支持定位，请手动搜索门店。"); return }
     setStatus("正在定位附近门店…")
@@ -191,6 +190,7 @@ export default function ProductApp() {
     setCommercialStatus("正在前往合作商店…")
     try { window.location.assign(await recordCommercialClick(commercialOffer.id, "product")) } catch (error) { setCommercialStatus(friendlyApiError(error)); setCommercialBusy(false) }
   }
+  const commercialSection = commercialOffer && <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="border-y py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs text-muted-foreground">合作链接 · 购买可能为 AAPRICE 带来收益</p><h2 className="mt-1 font-semibold">楽天市场购买</h2></div><Button variant="outline" onClick={openCommercialOffer} disabled={commercialBusy}>{commercialBusy ? <LoaderCircle className="animate-spin" /> : <ArrowLeft className="rotate-180" />}{commercialBusy ? "跳转中" : "合作购买"}</Button></div>{commercialStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{commercialStatus}</p>}</motion.section>
 
   const favoriteStore = async (storeId) => {
     try {
@@ -232,12 +232,11 @@ export default function ProductApp() {
             <div className="p-6"><div className="flex flex-wrap gap-2"><Badge>{product.category}</Badge>{product.pack !== "规格未登记" && <Badge variant="outline">{product.pack}</Badge>}</div>{product.active !== "商品说明未登记" && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{product.active}</p>}</div>
           </motion.div>
           {credit && <div className="mt-4 flex items-center justify-between rounded-xl border px-4 py-3 text-sm"><span>价格查询额度</span><span className="font-mono">积分 {credit.balance ?? 0}</span></div>}
-          {commercialOffer && <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 border-y py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs text-muted-foreground">合作链接 · 购买可能为 AAPRICE 带来收益</p><h2 className="mt-1 font-semibold">楽天市场购买</h2></div><Button variant="outline" onClick={openCommercialOffer} disabled={commercialBusy}>{commercialBusy ? <LoaderCircle className="animate-spin" /> : <ArrowLeft className="rotate-180" />}{commercialBusy ? "跳转中" : "合作购买"}</Button></div>{commercialStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{commercialStatus}</p>}</motion.section>}
         </div>
 
         <div className="space-y-10">
           {!session ? (
-            <div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">{pricePreview ? <><p className="text-sm text-muted-foreground">匿名价格预览</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-3xl font-semibold">{formatPrice(pricePreview.minPrice)}</p><p className="mt-2 text-sm text-muted-foreground">{pricePreview.storeCount} 个报价来源 · {getPriceFreshness(pricePreview.latestCollectedAt).label}</p></div><Button asChild className="hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "price_preview", product_id: productId }).catch(() => {})}>登录查看报价</a></Button></div><p className="mt-5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">仅展示近期最低价概览。登录后可查看报价来源、采集时间和完整记录。</p></> : <><h2 className="text-xl font-semibold">登录后查看价格</h2><p className="mt-2 text-sm text-muted-foreground">登录后可以查询价格、收藏商品并保存记录。</p><Button asChild className="mt-5 hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "product_gate", product_id: productId }).catch(() => {})}>登录继续</a></Button></>}</div>
+            <><div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">{pricePreview ? <><p className="text-sm text-muted-foreground">匿名价格预览</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-3xl font-semibold">{formatPrice(pricePreview.minPrice)}</p><p className="mt-2 text-sm text-muted-foreground">{pricePreview.storeCount} 个报价来源 · {getPriceFreshness(pricePreview.latestCollectedAt).label}</p></div><Button asChild className="hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "price_preview", product_id: productId }).catch(() => {})}>登录查看报价</a></Button></div><p className="mt-5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">仅展示近期最低价概览。登录后可查看报价来源、采集时间和完整记录。</p></> : <><h2 className="text-xl font-semibold">登录后查看价格</h2><p className="mt-2 text-sm text-muted-foreground">登录后可以查询价格、收藏商品并保存记录。</p><Button asChild className="mt-5 hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "product_gate", product_id: productId }).catch(() => {})}>登录继续</a></Button></>}</div>{commercialSection}</>
           ) : (
             <>
               <section id="store-prices">
@@ -256,6 +255,8 @@ export default function ProductApp() {
                 <div className="border-t pt-4"><p className="text-sm text-muted-foreground">单位价格</p><p className="mt-2 font-mono text-2xl font-semibold">{formatUnitPrice(pricedProduct)}</p></div>
                 <div className="border-t pt-4"><p className="text-sm text-muted-foreground">可见差价</p><p className="mt-2 font-mono text-2xl font-semibold">{formatPrice(stats.saving)}</p></div>
               </section>}
+
+              {commercialSection}
 
               <section id="record-price" className="scroll-mt-24 rounded-2xl border bg-card p-6">
                 <div><h2 className="text-xl font-semibold">{taskFlow ? "完成补价任务" : "记录价格"}</h2><p className="mt-2 text-sm text-muted-foreground">{taskFlow ? requestedStoreId ? "任务门店已预选；保存时会同时提交公共价格审核。" : "选择门店并输入价格；保存时会同时提交公共价格审核。" : "只需选择门店并输入价格。"}</p></div>
