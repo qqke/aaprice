@@ -549,7 +549,10 @@ export default function CompareApp({ initialScan = false }) {
     if (!selectionReady) return
     try { localStorage.setItem(COMPARE_SELECTION_KEY, JSON.stringify(sanitizeCompareSelection(selected))) } catch {}
     if (!selected.length) { setCommercialOffers([]); return }
-    fetchCommercialOffers(selected).then(setCommercialOffers).catch(() => setCommercialOffers([]))
+    fetchCommercialOffers(selected).then((offers) => {
+      setCommercialOffers(offers)
+      if (offers.length) void recordTelemetryEvent("commercial_offer_seen", { offer_count: offers.length, source: "compare" }).catch(() => {})
+    }).catch(() => setCommercialOffers([]))
   }, [selected, selectionReady])
 
   useEffect(() => {

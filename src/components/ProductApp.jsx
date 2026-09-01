@@ -101,7 +101,12 @@ export default function ProductApp() {
         setProduct(mappedProduct)
         recordRecentView(mappedProduct)
         void recordTelemetryEvent("product_viewed", { product_id: productId }).catch(() => {})
-        fetchCommercialOffers([productId]).then((rows) => { if (active) setCommercialOffer(rows[0] || null) }).catch(() => {})
+        fetchCommercialOffers([productId]).then((rows) => {
+          if (!active) return
+          const offer = rows[0] || null
+          setCommercialOffer(offer)
+          if (offer) void recordTelemetryEvent("commercial_offer_seen", { offer_id: offer.id, product_id: productId, source: "product" }).catch(() => {})
+        }).catch(() => {})
         const activeSession = await getSession()
         if (!active) return
         setSession(activeSession)

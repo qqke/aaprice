@@ -578,6 +578,17 @@ export async function adminFetchCommercialCandidates(payload = {}) {
   }
 }
 
+export async function adminFetchCommercialValidation(payload = {}) {
+  const session = await requireSession()
+  try {
+    const result = await rpc("admin_fetch_commercial_validation", { payload }, session.access_token)
+    return Array.isArray(result) ? result[0] || {} : result || {}
+  } catch (error) {
+    if (/admin_fetch_commercial_validation|PGRST202|schema cache/i.test(String(error?.message || error))) return {}
+    throw error
+  }
+}
+
 export async function adminUpsertCommercialOffer(payload) {
   const session = await requireSession()
   return rpc("admin_upsert_commercial_offer", { payload }, session.access_token)
