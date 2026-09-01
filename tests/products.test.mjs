@@ -65,6 +65,9 @@ test("infers useful drugstore categories when imported rows have none", () => {
   assert.equal(mapProductRow({ id: "1", name: "【第3類医薬品】ハイシーL 40錠" }).category, "医药品")
   assert.equal(mapProductRow({ id: "2", name: "コーセー 薬用雪肌精 乳液" }).category, "护肤美妆")
   assert.equal(mapProductRow({ id: "3", name: "マルチビタミンサプリ" }).category, "营养保健")
+  assert.equal(mapProductRow({ id: "4", name: "ビタミンC UV美容液 日焼け止め" }).category, "护肤美妆")
+  assert.equal(mapProductRow({ id: "5", name: "薬用クレンジング 洗顔フォーム" }).category, "护肤美妆")
+  assert.match(mapProductRow({ id: "6", name: "画像なし" }).image, /^https:\/\/images\.unsplash\.com\//)
 })
 
 test("rejects JANCODE upstream error pages", () => {

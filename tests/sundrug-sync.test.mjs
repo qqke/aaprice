@@ -7,10 +7,13 @@ test("normalizes priced Sandrug variants without inventing identifiers", () => {
     title: "テスト\n商品",
     vendor: "テスト製薬",
     product_type: "医薬品",
+    tags: ["常温", "医薬品・医薬部外品", "目薬"],
+    body_html: "<p>乾いた目に&nbsp;うるおい。</p>",
     images: [{ src: "https://cdn.example/product.jpg" }],
     variants: [
       { barcode: "0012345678901", title: "Default Title", price: "1,280", available: true },
       { sku: "4901234567890", title: "2個セット", price: "2400", available: false },
+      { sku: "4901234567891", title: "1", price: "980", available: true },
       { sku: "not-a-jan", title: "無効", price: "100", available: true },
     ],
   })
@@ -22,6 +25,7 @@ test("normalizes priced Sandrug variants without inventing identifiers", () => {
       brand: "テスト製薬",
       pack: "",
       category: "医薬品",
+      description: "乾いた目に うるおい。",
       imageUrl: "https://cdn.example/product.jpg",
       priceYen: 1280,
       available: true,
@@ -32,9 +36,21 @@ test("normalizes priced Sandrug variants without inventing identifiers", () => {
       brand: "テスト製薬",
       pack: "2個セット",
       category: "医薬品",
+      description: "乾いた目に うるおい。",
       imageUrl: "https://cdn.example/product.jpg",
       priceYen: 2400,
       available: false,
+    },
+    {
+      barcode: "4901234567891",
+      name: "テスト 商品",
+      brand: "テスト製薬",
+      pack: "",
+      category: "医薬品",
+      description: "乾いた目に うるおい。",
+      imageUrl: "https://cdn.example/product.jpg",
+      priceYen: 980,
+      available: true,
     },
   ])
 })
@@ -51,6 +67,7 @@ test("writes catalog changes and fresh prices atomically", () => {
     brand: "品牌",
     pack: "",
     category: "",
+    description: "",
     imageUrl: "",
     priceYen: 980,
     available: true,
@@ -59,6 +76,8 @@ test("writes catalog changes and fresh prices atomically", () => {
   assert.match(sql, /begin;/)
   assert.match(sql, /is distinct from/)
   assert.match(sql, /catalog_source = 'sundrug'/)
+  assert.match(sql, /product\.pack ~ '\^\\d\+\$'/)
+  assert.match(sql, /description = coalesce\(nullif\(stage\.description, ''\), product\.description\)/)
   assert.match(sql, /last_seen_at = now\(\)/)
   assert.match(sql, /recent\.collected_at >= now\(\) - interval '20 hours'/)
   assert.match(sql, /select public\.enqueue_price_alert_deliveries\(\) as alerts_queued/)

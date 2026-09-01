@@ -666,10 +666,10 @@ export function mapProductRow(row) {
   const sourceCategory = String(row?.category || "").trim()
   const productText = `${row?.name || ""} ${sourceCategory}`
   const category = sourceCategory || (
-    /医薬|目薬|点眼|錠|カプセル|軟膏|鎮痛|鼻炎|胃腸|かぜ|風邪/.test(productText) ? "医药品"
-      : /化粧|コスメ|美容|乳液|化粧水|ファンデ|リップ|ネイル|日焼け/.test(productText) ? "护肤美妆"
-        : /サプリ|ビタミン|健康食品/.test(productText) ? "营养保健"
-          : /シャンプー|コンディショナー|ボディソープ|歯磨|ハミガキ/.test(productText) ? "日常护理"
+    /化粧|コスメ|美容|乳液|化粧水|ファンデ|リップ|ネイル|日焼け|UV|クレンジング|洗顔|美容液|スキンケア/.test(productText) ? "护肤美妆"
+      : /シャンプー|コンディショナー|ボディソープ|歯磨|ハミガキ/.test(productText) ? "日常护理"
+        : /医薬|目薬|点眼|カプセル|軟膏|鎮痛|鼻炎|胃腸|かぜ|風邪/.test(productText) ? "医药品"
+          : /サプリ|ビタミン|健康食品|プロテイン/.test(productText) ? "营养保健"
             : "其他"
   )
   const imageKey = category.includes("医薬") || category.includes("药") ? "医薬品" : category.includes("化粧") || category.includes("护") ? "化粧品" : "default"

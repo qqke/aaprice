@@ -10,6 +10,12 @@ const MAX_PAGE = 100
 const MINIMUM_CATALOG_SIZE = 10_000
 
 const text = (value) => String(value ?? "").replace(/\s+/g, " ").trim()
+const variantPack = (value) => /^(?:Default Title|\d+)$/i.test(text(value)) ? "" : text(value)
+const sourceCategory = (product) => {
+  const ignored = /^(?:NEW|常温|メーカー直送|【セルフメディケーション税制対象】)$/
+  return text(product?.product_type) || (Array.isArray(product?.tags) ? product.tags.map(text).filter((tag) => tag && !ignored.test(tag)).at(-1) : "") || ""
+}
+const plainDescription = (value) => text(String(value || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ")).slice(0, 2000)
 
 const barcodeOf = (variant, product) => {
   const candidates = [variant?.barcode, variant?.sku, product?.handle]
@@ -19,7 +25,8 @@ const barcodeOf = (variant, product) => {
 export function normalizeProduct(product) {
   const name = text(product?.title)
   const brand = text(product?.vendor)
-  const category = text(product?.product_type)
+  const category = sourceCategory(product)
+  const description = plainDescription(product?.body_html)
   const imageUrl = text(product?.images?.[0]?.src)
 
   if (!name) return []
@@ -29,13 +36,13 @@ export function normalizeProduct(product) {
     const priceYen = Number.parseInt(text(variant?.price).replaceAll(",", ""), 10)
     if (!barcode || !Number.isInteger(priceYen) || priceYen <= 0) return []
 
-    const variantTitle = text(variant?.title)
     return [{
       barcode,
       name,
       brand,
-      pack: variantTitle === "Default Title" ? "" : variantTitle,
+      pack: variantPack(variant?.title),
       category,
+      description,
       imageUrl: /^https?:\/\//i.test(imageUrl) ? imageUrl : "",
       priceYen,
       available: variant?.available !== false,
@@ -149,13 +156,14 @@ function databaseProcess(databaseUrl, input) {
 }
 
 export function syncSql(rows) {
-  const header = "barcode,name,brand,pack,category,image_url,price_yen,available"
+  const header = "barcode,name,brand,pack,category,description,image_url,price_yen,available"
   const csv = rows.map((row) => [
     row.barcode,
     row.name,
     row.brand,
     row.pack,
     row.category,
+    row.description,
     row.imageUrl,
     row.priceYen,
     row.available,
@@ -178,12 +186,13 @@ create temp table sundrug_sync_stage (
   brand text not null,
   pack text not null,
   category text not null,
+  description text not null,
   image_url text not null,
   price_yen integer not null,
   available boolean not null
 ) on commit drop;
 
-copy sundrug_sync_stage (barcode, name, brand, pack, category, image_url, price_yen, available)
+copy sundrug_sync_stage (barcode, name, brand, pack, category, description, image_url, price_yen, available)
 from stdin with (format csv, header true);
 ${header}
 ${csv}
@@ -193,8 +202,9 @@ update public.products as product
 set
   name = stage.name,
   brand = coalesce(nullif(stage.brand, ''), product.brand),
-  pack = coalesce(nullif(stage.pack, ''), product.pack),
+  pack = case when stage.pack <> '' then stage.pack when product.pack ~ '^\\d+$' then '' else product.pack end,
   category = coalesce(nullif(stage.category, ''), product.category),
+  description = coalesce(nullif(stage.description, ''), product.description),
   image_url = coalesce(nullif(stage.image_url, ''), product.image_url),
   catalog_source = 'sundrug',
   last_seen_at = now()
@@ -203,18 +213,19 @@ where product.barcode = stage.barcode
   and (
     product.last_seen_at is null
     or product.last_seen_at < now() - interval '20 hours'
-    or row(product.name, product.brand, product.pack, product.category, product.image_url, product.catalog_source) is distinct from row(
+    or row(product.name, product.brand, product.pack, product.category, product.description, product.image_url, product.catalog_source) is distinct from row(
       stage.name,
       coalesce(nullif(stage.brand, ''), product.brand),
-      coalesce(nullif(stage.pack, ''), product.pack),
+      case when stage.pack <> '' then stage.pack when product.pack ~ '^\\d+$' then '' else product.pack end,
       coalesce(nullif(stage.category, ''), product.category),
+      coalesce(nullif(stage.description, ''), product.description),
       coalesce(nullif(stage.image_url, ''), product.image_url),
       'sundrug'
     )
   );
 
-insert into public.products (id, barcode, name, brand, pack, category, image_url, catalog_source, last_seen_at)
-select barcode, barcode, name, brand, pack, category, image_url, 'sundrug', now()
+insert into public.products (id, barcode, name, brand, pack, category, description, image_url, catalog_source, last_seen_at)
+select barcode, barcode, name, brand, pack, category, description, image_url, 'sundrug', now()
 from sundrug_sync_stage as stage
 where not exists (
   select 1 from public.products as product where product.barcode = stage.barcode
