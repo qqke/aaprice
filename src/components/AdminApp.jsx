@@ -12,6 +12,7 @@ import {
   adminDeletePrice,
   adminDeleteProduct,
   adminDeleteStore,
+  adminFetchCommercialCandidates,
   adminFetchCommercialOffers,
   adminFetchMembershipReadiness,
   adminFetchPriceAlertSummary,
@@ -137,6 +138,10 @@ function CommercialCoverageSummary({ offers = [] }) {
   return <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">商业验收</p><h2 className="mt-1 text-2xl font-semibold">联盟验证进度</h2><p className="mt-2 text-sm text-muted-foreground">先覆盖 50 件热门商品，再根据归因点击判断是否继续扩大。</p><div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-3">{metrics.map(([label, value]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value}</p></div>)}</div></section>
 }
 
+function CommercialCandidates({ items = [], onSelect }) {
+  return <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 90 天行为优先 + 近期有价核心品类补足</p><h2 className="mt-1 text-2xl font-semibold">商业商品候选</h2><p className="mt-2 text-sm text-muted-foreground">先处理真实浏览、查价和收藏商品；0 个价格来源表示需要先补价。</p></div><span className="font-mono text-sm text-muted-foreground">{items.length}/50 件</span></div><div className="mt-5 max-h-[34rem] divide-y overflow-auto border-y">{items.length ? items.map((item, index) => <div key={item.product_id} className="flex flex-wrap items-center gap-4 py-4"><span className="w-7 shrink-0 font-mono text-sm text-muted-foreground">{index + 1}</span><div className="min-w-48 flex-1"><p className="truncate font-medium">{item.product_name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"} · JAN {item.barcode || "未登记"}</p></div><div className="text-right text-xs text-muted-foreground"><p><span className="font-mono font-semibold text-foreground">{item.interest_score ?? 0}</span> 意向分</p><p className="mt-1">浏览 {item.product_views ?? 0} · 查价 {item.price_queries ?? 0} · 收藏 {item.favorite_count ?? 0}</p></div><div className="w-24 text-right"><p className="font-mono font-semibold">{formatPrice(item.minimum_price_yen)}</p><p className="mt-1 text-xs text-muted-foreground">{item.price_source_count ?? 0} 个来源</p></div><Button size="sm" variant="outline" onClick={() => onSelect(item)}>配置链接</Button></div>) : <p className="py-10 text-center text-sm text-muted-foreground">暂无符合条件的候选商品。</p>}</div></section>
+}
+
 function MembershipReadiness({ data = {} }) {
   const enabled = Number.isFinite(Number(data.active_users))
   const metrics = [
@@ -176,6 +181,7 @@ export default function AdminApp() {
   const [membershipReadiness, setMembershipReadiness] = useState({})
   const [affiliateReports, setAffiliateReports] = useState({})
   const [commercialOffers, setCommercialOffers] = useState([])
+  const [commercialCandidates, setCommercialCandidates] = useState([])
   const [productForm, setProductForm] = useState(blankProduct)
   const [storeForm, setStoreForm] = useState(blankStore)
   const [priceForm, setPriceForm] = useState(blankPrice)
@@ -199,7 +205,7 @@ export default function AdminApp() {
       setProfile(activeProfile)
       if (activeProfile.role !== "admin") return
       const results = await Promise.allSettled([
-        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }), adminFetchCommercialOffers(), adminFetchPriceAlertSummary({ days: 7 }), adminFetchMembershipReadiness({ days: 30 }), adminFetchAffiliateReports({ days: 180 }),
+        searchProducts("", 500, { curated: false }), searchStores("", 500), fetchRecentPrices(100), fetchPendingPriceSubmissions(100), fetchProductSubmissions(100), adminFetchProfiles(100), fetchAppSettings(), adminFetchTelemetrySummary({ days: telemetryDays }), adminFetchTelemetryRecent({ limit: 30 }), adminFetchPriceHealth({ days: 30, limit: 20 }), adminFetchCommercialOffers(), adminFetchPriceAlertSummary({ days: 7 }), adminFetchMembershipReadiness({ days: 30 }), adminFetchAffiliateReports({ days: 180 }), adminFetchCommercialCandidates({ days: 90, limit: 50 }),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProducts(value(0, silent ? products : []))
@@ -216,6 +222,7 @@ export default function AdminApp() {
       setPriceAlertHealth(value(11, silent ? priceAlertHealth : {}))
       setMembershipReadiness(value(12, silent ? membershipReadiness : {}))
       setAffiliateReports(value(13, silent ? affiliateReports : {}))
+      setCommercialCandidates(value(14, silent ? commercialCandidates : []))
       if (results.some(({ status }) => status === "rejected")) setStatus("部分后台数据加载失败，可刷新重试；已加载的功能仍可使用。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { if (!silent) setLoading(false) }
   }
@@ -276,6 +283,10 @@ export default function AdminApp() {
     if (await act(() => adminUpsertAffiliateReport({ ...affiliateReportForm, ...numeric }), "联盟成果汇总已保存。")) setAffiliateReportForm(blankAffiliateReport)
   }
   const toggleCommercialOffer = (offer) => act(() => adminUpsertCommercialOffer({ ...offer, is_active: !offer.is_active }), offer.is_active ? "商业链接已停用。" : "商业链接已启用。")
+  const selectCommercialCandidate = (candidate) => {
+    setProducts((items) => items.some((item) => item.id === candidate.product_id) ? items : [{ id: candidate.product_id, name: candidate.product_name }, ...items])
+    setCommercialForm({ ...blankCommercialOffer, product_id: candidate.product_id })
+  }
   const findProducts = async (event) => {
     event.preventDefault()
     try { setProducts(await searchProducts(productQuery, 500, { curated: false })); setStatus(productQuery ? "商品搜索已更新。" : "已显示最近商品。") } catch (error) { setStatus(friendlyApiError(error)) }
@@ -332,6 +343,7 @@ export default function AdminApp() {
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">调整用户积分</h2><p className="mt-2 text-sm text-muted-foreground">写入积分流水并即时更新余额。</p></div><Coins className="size-5 text-primary" /></div><form onSubmit={adjustCredits} className="mt-6 space-y-4"><Field label="用户"><select value={creditForm.user_id} onChange={(e) => setCreditForm({ ...creditForm, user_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择用户</option>{profiles.map((item) => <option key={item.id} value={item.id}>{item.email || item.id}</option>)}</select></Field><Field label="增减积分"><Input type="number" step="1" value={creditForm.amount} onChange={(e) => setCreditForm({ ...creditForm, amount: e.target.value })} placeholder="例如 10 或 -10" required /></Field><Field label="调整原因"><Input value={creditForm.note} onChange={(e) => setCreditForm({ ...creditForm, note: e.target.value })} placeholder="必填，写入积分流水" required /></Field><Button type="submit">调整积分</Button></form></section>
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">业务参数</h2><p className="mt-2 text-sm text-muted-foreground">仅可更新数据库允许的白名单键。</p></div><ShieldAlert className="size-5 text-primary" /></div><form onSubmit={saveSetting} className="mt-6 space-y-4"><Field label="参数"><select value={settingForm.setting_key} onChange={(e) => setSettingForm({ ...settingForm, setting_key: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm">{settingOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field label="新值"><Input type="number" min="0" step="1" value={settingForm.setting_value} onChange={(e) => setSettingForm({ ...settingForm, setting_value: e.target.value })} required /></Field><Button type="submit">更新参数</Button></form><pre className="mt-6 max-h-56 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(settings, null, 2)}</pre></section>
           <CommercialCoverageSummary offers={commercialOffers} />
+          <CommercialCandidates items={commercialCandidates} onSelect={selectCommercialCandidate} />
           <section className="border-t pt-6 lg:col-span-2"><div><p className="text-sm text-muted-foreground">楽天联盟 MVP</p><h2 className="mt-1 text-2xl font-semibold">商业链接</h2><p className="mt-2 text-sm text-muted-foreground">仅启用已核对商品与目标地址的链接；点击数来自服务端归因记录。</p></div><div className="mt-7 grid gap-10 lg:grid-cols-[0.8fr_1.2fr]"><form onSubmit={saveCommercialOffer} className="space-y-4 lg:sticky lg:top-24 lg:self-start"><Field label="商品"><select value={commercialForm.product_id} onChange={(e) => setCommercialForm({ ...commercialForm, product_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择商品</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="门店（可选）"><select value={commercialForm.store_id} onChange={(e) => setCommercialForm({ ...commercialForm, store_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm"><option value="">不限门店</option>{stores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="合作方"><Input value={commercialForm.partner} onChange={(e) => setCommercialForm({ ...commercialForm, partner: e.target.value })} pattern="[a-z0-9_-]{2,40}" required /></Field><Field label="Campaign"><Input value={commercialForm.campaign} onChange={(e) => setCommercialForm({ ...commercialForm, campaign: e.target.value })} maxLength={100} /></Field></div><Field label="HTTPS 跳转地址"><Input type="url" value={commercialForm.destination_url} onChange={(e) => setCommercialForm({ ...commercialForm, destination_url: e.target.value })} pattern="https://.*" required /></Field><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={commercialForm.is_active} onChange={(e) => setCommercialForm({ ...commercialForm, is_active: e.target.checked })} /> 保存后立即启用</label><div className="flex gap-2"><Button type="submit"><Save />{commercialForm.id ? "保存修改" : "新增链接"}</Button>{commercialForm.id && <Button type="button" variant="outline" onClick={() => setCommercialForm(blankCommercialOffer)}>取消编辑</Button>}</div></form><div className="divide-y border-y">{commercialOffers.length ? commercialOffers.map((offer) => <div key={offer.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{offer.product_name || offer.product_id}</p><Badge variant={offer.is_active ? "default" : "outline"}>{offer.is_active ? "已启用" : "已停用"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{offer.partner} · {offer.campaign || "无 campaign"} · {offer.store_name || "不限门店"}</p><p className="mt-1 font-mono text-xs text-muted-foreground">点击 {offer.click_count ?? 0}</p></div><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setCommercialForm({ ...blankCommercialOffer, ...offer })}>编辑</Button><Button size="sm" variant="outline" onClick={() => toggleCommercialOffer(offer)}>{offer.is_active ? "停用" : "启用"}</Button></div></div></div>) : <p className="py-10 text-center text-sm text-muted-foreground">还没有商业链接。</p>}</div></div></section>
           <PriceHealthSummary data={priceHealth} onOpenProduct={openProduct} />
           <AffiliateReportWorkspace data={affiliateReports} form={affiliateReportForm} setForm={setAffiliateReportForm} onSave={saveAffiliateReport} />

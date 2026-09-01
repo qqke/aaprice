@@ -208,3 +208,17 @@ test("affiliate report summaries are admin-only and idempotent by period", async
   assert.match(sql, /revoke all on table public\.affiliate_report_snapshots from anon, authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("commercial candidates rank fresh products without existing offers", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260901110000_commercial_candidates.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.admin_fetch_commercial_candidates/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /event\.event_name = 'price_query_succeeded'/)
+  assert.match(sql, /price\.collected_at >= now\(\) - interval '30 days'/)
+  assert.match(sql, /not exists \(select 1 from public\.commercial_offers/)
+  assert.match(sql, /current\.minimum_price_yen between 100 and 10000/)
+  assert.match(sql, /医薬\|薬用\|化粧/)
+  assert.match(sql, /limit target_limit/)
+  assert.match(sql, /grant execute on function public\.admin_fetch_commercial_candidates\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})
