@@ -13,6 +13,17 @@ test("public price preview exposes aggregates only", async () => {
   assert.match(sql, /coalesce\(p\.is_member_price, false\) = false/)
 })
 
+test("public catalog price previews batch aggregate without exposing stores", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260901160000_public_catalog_price_previews.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.fetch_public_catalog_price_previews\(payload jsonb\)/)
+  assert.match(sql, /jsonb_array_length[\s\S]*> 100/)
+  assert.match(sql, /distinct on \(price\.product_id, price\.store_id\)/)
+  assert.match(sql, /price\.collected_at >= now\(\) - interval '30 days'/)
+  assert.match(sql, /returns table \(\s*product_id text,\s*min_price_yen integer,\s*store_count integer,\s*latest_collected_at timestamptz/)
+  assert.match(sql, /grant execute on function public\.fetch_public_catalog_price_previews\(jsonb\) to anon, authenticated/)
+  assert.doesNotMatch(sql, /returns table \([^)]*\bstore_id\b/)
+})
+
 test("active price tasks are restored only for the current user", async () => {
   const sql = await readFile(new URL("../supabase/migrations/20260824161000_active_price_task.sql", import.meta.url), "utf8")
   assert.match(sql, /create or replace function public\.get_active_price_task\(\)/)

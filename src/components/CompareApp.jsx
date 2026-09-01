@@ -48,6 +48,7 @@ import { Slider } from "@/components/ui/slider"
 import {
   fetchPricesForProduct,
   fetchCommercialOffers,
+  fetchPublicCatalogPricePreviews,
   fetchJancodeProductDraft,
   fetchProductByBarcode,
   fetchProductById,
@@ -360,7 +361,10 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
   const stats = getPriceStats(product)
   const closest = getClosestOffer(product, location)
   const offers = product.offers.toSorted((a, b) => a.price - b.price)
-  const hasPrices = stats.storeCount > 0
+  const preview = product.pricePreview
+  const hasPrices = stats.storeCount > 0 || Boolean(preview)
+  const sourceCount = stats.storeCount || preview?.storeCount || 0
+  const minimumPrice = stats.storeCount ? stats.min : preview?.minPrice
 
   return (
     <motion.article
@@ -385,7 +389,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
                 <p className="text-sm text-muted-foreground">{product.maker}</p>
                 <h3 className={`mt-1 font-semibold tracking-tight ${featured ? "text-xl md:text-3xl" : "text-xl"}`}><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} className="inline-flex min-h-11 items-center outline-none transition hover:text-primary focus-visible:ring-2">{product.name}</a></h3>
               </div>
-              <Badge className="shrink-0 gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Store className="size-3" /> {hasPrices ? `${stats.storeCount} 源` : "待查价"}</Badge>
+              <Badge className="shrink-0 gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Store className="size-3" /> {hasPrices ? `${sourceCount} 源` : "待查价"}</Badge>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2 md:mt-5">
@@ -399,7 +403,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
               {featured && <div className="col-span-2"><p className="text-muted-foreground">商品说明</p><p className="mt-1 line-clamp-3 font-medium">{product.active}</p></div>}
             </div>
 
-            {featured && hasPrices && (
+            {featured && stats.storeCount > 0 && (
               <div className="mt-7 hidden overflow-hidden rounded-xl border bg-muted/35 md:block">
                 {offers.slice(0, 3).map((item, index) => {
                   const nearby = getClosestOffer({ offers: [item] }, location)
@@ -411,14 +415,15 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
               </div>
             )}
 
-            {!featured && hasPrices && <p className="mt-3 truncate text-xs text-muted-foreground md:mt-5">最低 {stats.bestOffer.name} · {formatDate(stats.bestOffer.sampledAt)}{closest && ` · 最近 ${closest.name} ${formatDistance(closest.distance)}`}</p>}
+            {!featured && stats.storeCount > 0 && <p className="mt-3 truncate text-xs text-muted-foreground md:mt-5">最低 {stats.bestOffer.name} · {formatDate(stats.bestOffer.sampledAt)}{closest && ` · 最近 ${closest.name} ${formatDistance(closest.distance)}`}</p>}
+            {!featured && preview && stats.storeCount === 0 && <p className="mt-3 truncate text-xs text-muted-foreground md:mt-5">近期最低价 · {formatDate(preview.latestCollectedAt)}</p>}
             {!hasPrices && <p className="mt-3 text-xs text-muted-foreground md:mt-5">{priceError || (priceChecked ? "该商品暂无近期报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
           </div>
 
           <div className={`flex items-end justify-between gap-4 ${featured ? "mt-5 md:mt-8" : "mt-auto"}`}>
             <div>
-              <p className="text-xs text-muted-foreground">{hasPrices ? `报价最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : "同一后台实时返回"}</p>
-              <p className="font-mono text-2xl font-semibold tracking-tight">{formatPrice(stats.min)}</p>
+              <p className="text-xs text-muted-foreground">{stats.storeCount ? `报价最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : preview ? `${sourceCount} 个近期报价来源` : "同一后台实时返回"}</p>
+              <p className="font-mono text-2xl font-semibold tracking-tight">{formatPrice(minimumPrice)}</p>
             </div>
             <div className="flex shrink-0 gap-1">
               <Button asChild variant="ghost" className="px-2.5"><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)}>详情<ChevronRight /></a></Button>
@@ -588,7 +593,10 @@ export default function CompareApp({ initialScan = false }) {
         const rows = await searchProducts(query)
         void recordTelemetryEvent("search_completed", { query_present: Boolean(query.trim()), result_count: rows.length }).catch(() => {})
         if (active) {
-          setCatalog(rows.map(mapProductRow))
+          const products = rows.map(mapProductRow)
+          const previews = await fetchPublicCatalogPricePreviews(products.map(({ id }) => id)).catch(() => ({}))
+          if (!active) return
+          setCatalog(products.map((product) => previews[product.id] ? { ...product, pricePreview: previews[product.id] } : product))
           setCatalogHasMore(rows.length === 30)
         }
       } catch (error) {
@@ -700,7 +708,9 @@ export default function CompareApp({ initialScan = false }) {
     setCatalogError("")
     try {
       const rows = await searchProducts(query, 30, { offset: catalog.length })
-      setCatalog((items) => [...items, ...rows.map(mapProductRow).filter((row) => !items.some((item) => item.id === row.id))])
+      const products = rows.map(mapProductRow)
+      const previews = await fetchPublicCatalogPricePreviews(products.map(({ id }) => id)).catch(() => ({}))
+      setCatalog((items) => [...items, ...products.map((product) => previews[product.id] ? { ...product, pricePreview: previews[product.id] } : product).filter((row) => !items.some((item) => item.id === row.id))])
       setCatalogHasMore(rows.length === 30)
     } catch (error) {
       setCatalogError(friendlyApiError(error))

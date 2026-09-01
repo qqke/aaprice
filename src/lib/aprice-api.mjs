@@ -169,6 +169,17 @@ export async function fetchPublicPricePreview(productId) {
   }
 }
 
+export async function fetchPublicCatalogPricePreviews(productIds = []) {
+  const ids = [...new Set(productIds.map(String).filter(Boolean))].slice(0, 100)
+  if (!ids.length) return {}
+  const rows = await rpc("fetch_public_catalog_price_previews", { payload: { product_ids: ids } })
+  return Object.fromEntries((Array.isArray(rows) ? rows : []).map((row) => [String(row.product_id), {
+    minPrice: Number(row.min_price_yen),
+    storeCount: Number(row.store_count) || 0,
+    latestCollectedAt: row.latest_collected_at || null,
+  }]))
+}
+
 export async function recordTelemetryEvent(eventName, properties = {}) {
   if (!supabaseConfigured || typeof window === "undefined") return
   const session = await getSession().catch(() => null)
