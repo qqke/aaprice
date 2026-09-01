@@ -222,3 +222,14 @@ test("commercial candidates rank fresh products without existing offers", async 
   assert.match(sql, /grant execute on function public\.admin_fetch_commercial_candidates\(jsonb\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
+
+test("commercial links support idempotent transactional bulk imports", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260901113000_bulk_commercial_offers.sql", import.meta.url), "utf8")
+  assert.match(sql, /commercial_offers_product_partner_idx/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /jsonb_array_length\(target_items\) not between 1 and 100/)
+  assert.match(sql, /duplicate commercial product/)
+  assert.match(sql, /on conflict \(product_id, partner\) do update set/)
+  assert.match(sql, /grant execute on function public\.admin_bulk_upsert_commercial_offers\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})

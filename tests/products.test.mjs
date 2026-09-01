@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
-import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
+import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseCommercialOfferRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
   const originalOrder = products.map(({ id }) => id)
@@ -69,6 +69,15 @@ test("infers useful drugstore categories when imported rows have none", () => {
 
 test("rejects JANCODE upstream error pages", () => {
   assert.equal(parseJancodeProductDraft("Warning: Target URL returned error 403\n## アクセスしようとしたページは表示できませんでした。", "4999999999999"), null)
+})
+
+test("parses bulk commercial links without accepting duplicates or unsafe URLs", () => {
+  assert.deepEqual(parseCommercialOfferRows("p1\thttps://example.com/1\np2 https://example.com/2"), [
+    { product_id: "p1", destination_url: "https://example.com/1" },
+    { product_id: "p2", destination_url: "https://example.com/2" },
+  ])
+  assert.throws(() => parseCommercialOfferRows("p1 http://example.com"), /HTTPS/)
+  assert.throws(() => parseCommercialOfferRows("p1 https://example.com/1\np1 https://example.com/2"), /不重复/)
 })
 
 test("translates price task empty and daily limit states", () => {

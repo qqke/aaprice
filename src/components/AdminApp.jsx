@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   adminAdjustCredits,
+  adminBulkUpsertCommercialOffers,
   adminFetchAffiliateReports,
   adminDeletePrice,
   adminDeleteProduct,
@@ -35,6 +36,7 @@ import {
   fetchRecentPrices,
   friendlyApiError,
   getSession,
+  parseCommercialOfferRows,
   recordTelemetryEvent,
   searchProducts,
   searchStores,
@@ -140,6 +142,24 @@ function CommercialCoverageSummary({ offers = [] }) {
 
 function CommercialCandidates({ items = [], onSelect }) {
   return <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 90 天行为优先 + 近期有价核心品类补足</p><h2 className="mt-1 text-2xl font-semibold">商业商品候选</h2><p className="mt-2 text-sm text-muted-foreground">先处理真实浏览、查价和收藏商品；0 个价格来源表示需要先补价。</p></div><span className="font-mono text-sm text-muted-foreground">{items.length}/50 件</span></div><div className="mt-5 max-h-[34rem] divide-y overflow-auto border-y">{items.length ? items.map((item, index) => <div key={item.product_id} className="flex flex-wrap items-center gap-4 py-4"><span className="w-7 shrink-0 font-mono text-sm text-muted-foreground">{index + 1}</span><div className="min-w-48 flex-1"><p className="truncate font-medium">{item.product_name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"} · JAN {item.barcode || "未登记"}</p></div><div className="text-right text-xs text-muted-foreground"><p><span className="font-mono font-semibold text-foreground">{item.interest_score ?? 0}</span> 意向分</p><p className="mt-1">浏览 {item.product_views ?? 0} · 查价 {item.price_queries ?? 0} · 收藏 {item.favorite_count ?? 0}</p></div><div className="w-24 text-right"><p className="font-mono font-semibold">{formatPrice(item.minimum_price_yen)}</p><p className="mt-1 text-xs text-muted-foreground">{item.price_source_count ?? 0} 个来源</p></div><Button size="sm" variant="outline" onClick={() => onSelect(item)}>配置链接</Button></div>) : <p className="py-10 text-center text-sm text-muted-foreground">暂无符合条件的候选商品。</p>}</div></section>
+}
+
+function CommercialBulkImport({ onImport }) {
+  const [partner, setPartner] = useState("rakuten")
+  const [campaign, setCampaign] = useState("")
+  const [rows, setRows] = useState("")
+  const [isActive, setIsActive] = useState(false)
+  const [error, setError] = useState("")
+
+  const submit = async (event) => {
+    event.preventDefault()
+    let items
+    try { items = parseCommercialOfferRows(rows) } catch (parseError) { setError(parseError.message); return }
+    setError("")
+    if (await onImport({ partner, campaign, is_active: isActive, items })) setRows("")
+  }
+
+  return <details className="border-t pt-6 lg:col-span-2"><summary className="cursor-pointer font-semibold">批量导入商业链接</summary><p className="mt-2 text-sm text-muted-foreground">每行粘贴“商品 ID + 空格或 Tab + HTTPS 联盟链接”；相同商品和合作方会更新。</p><form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="合作方"><Input value={partner} onChange={(event) => setPartner(event.target.value)} pattern="[a-z0-9_-]{2,40}" required /></Field><Field label="Campaign"><Input value={campaign} onChange={(event) => setCampaign(event.target.value)} maxLength={100} /></Field><label className="sm:col-span-2"><span className="mb-2 block text-sm font-medium">商品 ID 与链接</span><textarea value={rows} onChange={(event) => setRows(event.target.value)} className="min-h-40 w-full rounded-lg border bg-background px-3 py-2 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" placeholder={"4987240210535\thttps://affiliate.example/item\n4560309833212\thttps://affiliate.example/item-2"} required /></label><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> 导入后立即启用</label><div className="flex items-center justify-end"><Button type="submit"><Save />批量保存</Button></div>{error && <p className="text-sm text-destructive sm:col-span-2" role="alert">{error}</p>}</form></details>
 }
 
 function MembershipReadiness({ data = {} }) {
@@ -276,6 +296,7 @@ export default function AdminApp() {
     event.preventDefault()
     if (await act(() => adminUpsertCommercialOffer(commercialForm), "商业链接已保存。")) setCommercialForm(blankCommercialOffer)
   }
+  const importCommercialOffers = (payload) => act(() => adminBulkUpsertCommercialOffers(payload), `已批量保存 ${payload.items.length} 条商业链接。`)
   const saveAffiliateReport = async (event) => {
     event.preventDefault()
     const numeric = Object.fromEntries(["clicks", "orders", "sales_yen", "commission_yen"].map((key) => [key, Number(affiliateReportForm[key])]))
@@ -344,6 +365,7 @@ export default function AdminApp() {
           <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">业务参数</h2><p className="mt-2 text-sm text-muted-foreground">仅可更新数据库允许的白名单键。</p></div><ShieldAlert className="size-5 text-primary" /></div><form onSubmit={saveSetting} className="mt-6 space-y-4"><Field label="参数"><select value={settingForm.setting_key} onChange={(e) => setSettingForm({ ...settingForm, setting_key: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm">{settingOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field><Field label="新值"><Input type="number" min="0" step="1" value={settingForm.setting_value} onChange={(e) => setSettingForm({ ...settingForm, setting_value: e.target.value })} required /></Field><Button type="submit">更新参数</Button></form><pre className="mt-6 max-h-56 overflow-auto rounded-xl bg-muted p-4 text-xs">{JSON.stringify(settings, null, 2)}</pre></section>
           <CommercialCoverageSummary offers={commercialOffers} />
           <CommercialCandidates items={commercialCandidates} onSelect={selectCommercialCandidate} />
+          <CommercialBulkImport onImport={importCommercialOffers} />
           <section className="border-t pt-6 lg:col-span-2"><div><p className="text-sm text-muted-foreground">楽天联盟 MVP</p><h2 className="mt-1 text-2xl font-semibold">商业链接</h2><p className="mt-2 text-sm text-muted-foreground">仅启用已核对商品与目标地址的链接；点击数来自服务端归因记录。</p></div><div className="mt-7 grid gap-10 lg:grid-cols-[0.8fr_1.2fr]"><form onSubmit={saveCommercialOffer} className="space-y-4 lg:sticky lg:top-24 lg:self-start"><Field label="商品"><select value={commercialForm.product_id} onChange={(e) => setCommercialForm({ ...commercialForm, product_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm" required><option value="">选择商品</option>{products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="门店（可选）"><select value={commercialForm.store_id} onChange={(e) => setCommercialForm({ ...commercialForm, store_id: e.target.value })} className="h-11 w-full rounded-lg border bg-background px-3 text-sm"><option value="">不限门店</option>{stores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="合作方"><Input value={commercialForm.partner} onChange={(e) => setCommercialForm({ ...commercialForm, partner: e.target.value })} pattern="[a-z0-9_-]{2,40}" required /></Field><Field label="Campaign"><Input value={commercialForm.campaign} onChange={(e) => setCommercialForm({ ...commercialForm, campaign: e.target.value })} maxLength={100} /></Field></div><Field label="HTTPS 跳转地址"><Input type="url" value={commercialForm.destination_url} onChange={(e) => setCommercialForm({ ...commercialForm, destination_url: e.target.value })} pattern="https://.*" required /></Field><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={commercialForm.is_active} onChange={(e) => setCommercialForm({ ...commercialForm, is_active: e.target.checked })} /> 保存后立即启用</label><div className="flex gap-2"><Button type="submit"><Save />{commercialForm.id ? "保存修改" : "新增链接"}</Button>{commercialForm.id && <Button type="button" variant="outline" onClick={() => setCommercialForm(blankCommercialOffer)}>取消编辑</Button>}</div></form><div className="divide-y border-y">{commercialOffers.length ? commercialOffers.map((offer) => <div key={offer.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{offer.product_name || offer.product_id}</p><Badge variant={offer.is_active ? "default" : "outline"}>{offer.is_active ? "已启用" : "已停用"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{offer.partner} · {offer.campaign || "无 campaign"} · {offer.store_name || "不限门店"}</p><p className="mt-1 font-mono text-xs text-muted-foreground">点击 {offer.click_count ?? 0}</p></div><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setCommercialForm({ ...blankCommercialOffer, ...offer })}>编辑</Button><Button size="sm" variant="outline" onClick={() => toggleCommercialOffer(offer)}>{offer.is_active ? "停用" : "启用"}</Button></div></div></div>) : <p className="py-10 text-center text-sm text-muted-foreground">还没有商业链接。</p>}</div></div></section>
           <PriceHealthSummary data={priceHealth} onOpenProduct={openProduct} />
           <AffiliateReportWorkspace data={affiliateReports} form={affiliateReportForm} setForm={setAffiliateReportForm} onSave={saveAffiliateReport} />

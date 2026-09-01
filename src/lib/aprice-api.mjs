@@ -78,6 +78,21 @@ const escapeIlike = (value) => String(value || "")
   .replace(/_/g, "\\_")
   .replace(/'/g, "''")
 
+export function parseCommercialOfferRows(value) {
+  const lines = String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const items = lines.map((line) => {
+    const [product_id = "", destination_url = ""] = line.split(/\s+/, 2)
+    try {
+      if (!product_id || new URL(destination_url).protocol !== "https:") throw new Error()
+    } catch { throw new Error("每行填写商品 ID 和 HTTPS 链接，最多 100 行。") }
+    return { product_id, destination_url }
+  })
+  if (!items.length || items.length > 100 || new Set(items.map((item) => item.product_id)).size !== items.length) {
+    throw new Error("每行填写不重复的商品 ID 和 HTTPS 链接，最多 100 行。")
+  }
+  return items
+}
+
 export async function searchProducts(term = "", limit = 30, { offset = 0, curated = true } = {}) {
   const query = {
     select: "*",
@@ -566,6 +581,11 @@ export async function adminFetchCommercialCandidates(payload = {}) {
 export async function adminUpsertCommercialOffer(payload) {
   const session = await requireSession()
   return rpc("admin_upsert_commercial_offer", { payload }, session.access_token)
+}
+
+export async function adminBulkUpsertCommercialOffers(payload) {
+  const session = await requireSession()
+  return rpc("admin_bulk_upsert_commercial_offers", { payload }, session.access_token)
 }
 
 export async function adminFetchAffiliateReports(payload = {}) {
