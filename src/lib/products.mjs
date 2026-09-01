@@ -168,6 +168,10 @@ export const segments = ["全部", "止痛退热", "眼部护理", "防晒", "�
 
 export const cleanJanCode = (value = "") => String(value).replace(/\D/g, "")
 
+export function isOnlineStore(store = {}) {
+  return String(store.id || "") === "sundrug-00000" || /オンライン|online/i.test(String(store.name || ""))
+}
+
 export function distanceKm(lat1, lng1, lat2, lng2) {
   const toRad = (value) => value * Math.PI / 180
   const dLat = toRad(lat2 - lat1)
@@ -208,6 +212,7 @@ export function getBestSingleStoreBasket(items = []) {
   if (!items.length || items.some(({ offers }) => !offers.length)) return null
   const minimumTotal = getBasketSummary(items).minimumTotal
   return items[0].offers
+    .filter((store) => !isOnlineStore(store))
     .map((store) => {
       const offers = items.map((product) => product.offers.find(({ id }) => id === store.id))
       if (offers.some((offer) => !offer)) return null
@@ -263,8 +268,9 @@ export function getCompareSelectionFromSearch(search = "") {
 export function getClosestOffer(product, location) {
   if (!location || !product.offers.length) return null
   return product.offers
+    .filter((item) => !isOnlineStore(item) && Number.isFinite(item.lat) && Number.isFinite(item.lng))
     .map((item) => ({ ...item, distance: distanceKm(location.lat, location.lng, item.lat, item.lng) }))
-    .toSorted((a, b) => a.distance - b.distance)[0]
+    .toSorted((a, b) => a.distance - b.distance)[0] || null
 }
 
 export const getUnitPrice = (product) => {

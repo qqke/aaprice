@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getMapUrl, getPriceFreshness, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
+import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
@@ -32,6 +32,13 @@ test("keeps only fresh validated local price snapshots", () => {
 test("finds the nearest priced store", () => {
   const product = products.find(({ id }) => id === "loxonin-s")
   assert.equal(getClosestOffer(product, { lat: 35.6595, lng: 139.7005 }).name, "マツモトキヨシ 渋谷店")
+})
+
+test("does not treat online quotes as nearby physical stores", () => {
+  const online = { id: "sundrug-00000", name: "オンラインショップ-サンドラッグ", lat: 35.7, lng: 139.7, price: 700 }
+  assert.equal(isOnlineStore(online), true)
+  assert.equal(getClosestOffer({ offers: [online] }, { lat: 35.7, lng: 139.7 }), null)
+  assert.equal(getBestSingleStoreBasket([{ offers: [online] }]), null)
 })
 
 test("keeps unpriced products stable when sorting by distance", () => {

@@ -78,6 +78,7 @@ import {
   getCompareSelectionFromSearch,
   getMapUrl,
   getPriceStats,
+  isOnlineStore,
   MAX_COMPARE,
   MAX_PRICE,
   MIN_PRICE,
@@ -93,13 +94,13 @@ const formatDate = (value) => {
 }
 
 const comparisonRows = [
-  ["门店最低价", (product) => formatPrice(getPriceStats(product).min)],
+  ["最低价", (product) => formatPrice(getPriceStats(product).min)],
   ["单位价格", formatUnitPrice],
-  ["最低价门店", (product) => getPriceStats(product).bestOffer?.name || "待查询"],
+  ["最低价来源", (product) => getPriceStats(product).bestOffer?.name || "待查询"],
   ["规格", (product) => product.pack],
   ["分类", (product) => product.category],
   ["商品说明", (product) => product.active],
-  ["有价门店", (product) => `${product.offers.length} 家`],
+  ["报价来源", (product) => `${product.offers.length} 个`],
   ["报价更新", (product) => formatDate(Math.max(0, ...product.offers.map(({ sampledAt }) => Date.parse(sampledAt) || 0)))],
   ["JAN 码", (product) => product.barcode || "未登记"],
 ]
@@ -328,7 +329,7 @@ function LoginDialog({ open, onOpenChange, onSignedIn, priceIntent = false }) {
       <DialogContent className="max-w-[min(440px,calc(100vw-2rem))] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{priceIntent ? "登录后继续查价" : "登录 AAPRICE"}</DialogTitle>
-          <DialogDescription>{priceIntent ? "登录后将自动继续查询门店价格，当前比价清单不会丢失。" : "登录后可查询门店价格、收藏商品并查看个人记录。"}</DialogDescription>
+          <DialogDescription>{priceIntent ? "登录后将自动继续查询价格，当前比价清单不会丢失。" : "登录后可查询价格、收藏商品并查看个人记录。"}</DialogDescription>
         </DialogHeader>
         <form className="mt-2 space-y-3" onSubmit={submit}>
           <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>
@@ -373,7 +374,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
                 <p className="text-sm text-muted-foreground">{product.maker}</p>
                 <h2 className={`mt-1 font-semibold tracking-tight ${featured ? "text-xl md:text-3xl" : "text-xl"}`}><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} className="inline-flex min-h-11 items-center outline-none transition hover:text-primary focus-visible:ring-2">{product.name}</a></h2>
               </div>
-              <Badge className="shrink-0 gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Store className="size-3" /> {hasPrices ? `${stats.storeCount} 店` : "待查价"}</Badge>
+              <Badge className="shrink-0 gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Store className="size-3" /> {hasPrices ? `${stats.storeCount} 源` : "待查价"}</Badge>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2 md:mt-5">
@@ -389,22 +390,23 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
 
             {featured && hasPrices && (
               <div className="mt-7 hidden overflow-hidden rounded-xl border bg-muted/35 md:block">
-                {offers.slice(0, 3).map((item, index) => (
-                  <div key={item.id || item.name} className={`flex items-center justify-between gap-4 px-4 py-3 text-sm ${index ? "border-t" : ""}`}>
-                    <div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.member ? "会员价" : "店头价"} · {formatDate(item.sampledAt)}{location && ` · ${formatDistance(getClosestOffer({ offers: [item] }, location).distance)}`}</p></div>
+                {offers.slice(0, 3).map((item, index) => {
+                  const nearby = getClosestOffer({ offers: [item] }, location)
+                  return <div key={item.id || item.name} className={`flex items-center justify-between gap-4 px-4 py-3 text-sm ${index ? "border-t" : ""}`}>
+                    <div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.member ? "会员价" : isOnlineStore(item) ? "在线价" : "店头价"} · {formatDate(item.sampledAt)}{nearby && ` · ${formatDistance(nearby.distance)}`}</p></div>
                     <span className="shrink-0 font-mono font-semibold">{formatPrice(item.price)}</span>
                   </div>
-                ))}
+                })}
               </div>
             )}
 
             {!featured && hasPrices && <p className="mt-3 truncate text-xs text-muted-foreground md:mt-5">最低 {stats.bestOffer.name} · {formatDate(stats.bestOffer.sampledAt)}{closest && ` · 最近 ${closest.name} ${formatDistance(closest.distance)}`}</p>}
-            {!hasPrices && <p className="mt-3 text-xs text-muted-foreground md:mt-5">{priceError || (priceChecked ? "该商品暂无门店报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
+            {!hasPrices && <p className="mt-3 text-xs text-muted-foreground md:mt-5">{priceError || (priceChecked ? "该商品暂无近期报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
           </div>
 
           <div className={`flex items-end justify-between gap-4 ${featured ? "mt-5 md:mt-8" : "mt-auto"}`}>
             <div>
-              <p className="text-xs text-muted-foreground">{hasPrices ? `门店最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : "同一后台实时返回"}</p>
+              <p className="text-xs text-muted-foreground">{hasPrices ? `报价最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : "同一后台实时返回"}</p>
               <p className="font-mono text-2xl font-semibold tracking-tight">{formatPrice(stats.min)}</p>
             </div>
             {hasPrices ? (
@@ -413,7 +415,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
               </Button>
             ) : (
               <Button onClick={() => onLoadPrices(product.id)} disabled={priceLoading} className="shrink-0">
-                {priceLoading ? <LoaderCircle className="animate-spin" /> : <BadgeJapaneseYen />}{priceLoading ? "查询中" : priceChecked ? "重新查询" : "查询门店价"}
+                {priceLoading ? <LoaderCircle className="animate-spin" /> : <BadgeJapaneseYen />}{priceLoading ? "查询中" : priceChecked ? "重新查询" : "查询报价"}
               </Button>
             )}
           </div>
@@ -459,14 +461,14 @@ function CompareDialog({ open, onOpenChange, selectedProducts, commercialOffers,
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] max-w-[min(1100px,calc(100vw-2rem))] overflow-hidden p-0 sm:max-w-5xl">
-        <DialogHeader className="border-b px-6 py-5 text-left"><div className="flex items-start justify-between gap-4 pr-8"><div><DialogTitle className="text-xl">比价清单</DialogTitle><DialogDescription className="mt-1">门店报价来自实时价格库，合计仅统计已查价商品。</DialogDescription>{(shareStatus || commercialStatus) && <p className="mt-2 text-xs text-muted-foreground" role="status">{commercialStatus || shareStatus}</p>}</div><Button className="shrink-0" variant="outline" size="sm" onClick={shareList}><Share2 />分享</Button></div>{summary.pricedCount > 0 && <div className="flex flex-wrap gap-x-8 gap-y-3 pt-3"><div><p className="text-xs text-muted-foreground">逐件最低合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.minimumTotal)}</p></div><div><p className="text-xs text-muted-foreground">可见差价合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.visibleSaving)}</p></div>{selectedProducts.length > 1 && singleStore && <div><p className="text-xs text-muted-foreground">一店购最低</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(singleStore.total)}</p><p className="mt-1 max-w-48 truncate text-xs text-muted-foreground">{singleStore.name} · 多 {formatPrice(singleStore.premium)}{singleStore.includesMemberPrice && " · 含会员价"}</p><Button asChild variant="link" size="sm" className="-ml-3 mt-1"><a href={getMapUrl(singleStore)} target="_blank" rel="noreferrer" onClick={() => void recordTelemetryEvent("map_opened", { source: "compare_list", store_id: singleStore.id, item_count: selectedProducts.length }).catch(() => {})}><MapPin />地图查看</a></Button></div>}<p className="self-end text-xs text-muted-foreground">已查价 {summary.pricedCount}/{summary.totalCount} 件{selectedProducts.length > 1 && !singleStore && (summary.pricedCount < summary.totalCount ? " · 全部查价后计算一店购" : " · 暂无共同门店")}</p></div>}</DialogHeader>
+        <DialogHeader className="border-b px-6 py-5 text-left"><div className="flex items-start justify-between gap-4 pr-8"><div><DialogTitle className="text-xl">比价清单</DialogTitle><DialogDescription className="mt-1">报价来自近期价格库，合计仅统计已查价商品。</DialogDescription>{(shareStatus || commercialStatus) && <p className="mt-2 text-xs text-muted-foreground" role="status">{commercialStatus || shareStatus}</p>}</div><Button className="shrink-0" variant="outline" size="sm" onClick={shareList}><Share2 />分享</Button></div>{summary.pricedCount > 0 && <div className="flex flex-wrap gap-x-8 gap-y-3 pt-3"><div><p className="text-xs text-muted-foreground">逐件最低合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.minimumTotal)}</p></div><div><p className="text-xs text-muted-foreground">可见差价合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.visibleSaving)}</p></div>{selectedProducts.length > 1 && singleStore && <div><p className="text-xs text-muted-foreground">一店购最低</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(singleStore.total)}</p><p className="mt-1 max-w-48 truncate text-xs text-muted-foreground">{singleStore.name} · 多 {formatPrice(singleStore.premium)}{singleStore.includesMemberPrice && " · 含会员价"}</p><Button asChild variant="link" size="sm" className="-ml-3 mt-1"><a href={getMapUrl(singleStore)} target="_blank" rel="noreferrer" onClick={() => void recordTelemetryEvent("map_opened", { source: "compare_list", store_id: singleStore.id, item_count: selectedProducts.length }).catch(() => {})}><MapPin />地图查看</a></Button></div>}<p className="self-end text-xs text-muted-foreground">已查价 {summary.pricedCount}/{summary.totalCount} 件{selectedProducts.length > 1 && !singleStore && (summary.pricedCount < summary.totalCount ? " · 全部查价后计算一店购" : " · 暂无共同实体店")}</p></div>}</DialogHeader>
         <div className="overflow-auto px-4 pb-6 sm:px-6">
           <div className="grid min-w-[760px]" style={{ gridTemplateColumns: `150px repeat(${selectedProducts.length}, minmax(190px, 1fr))` }}>
             <div className="sticky left-0 z-10 bg-popover py-5" />
             {selectedProducts.map((product) => {
               const needsPrice = !product.offers.length
               const commercialOffer = commercialOffers.find((offer) => String(offer.product_id) === String(product.id))
-              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div><div className="mt-3 flex flex-wrap gap-2">{needsPrice && supabaseConfigured && <Button variant="outline" size="sm" onClick={() => onLoadPrices(product.id)} disabled={priceLoading[product.id]}>{priceLoading[product.id] && <LoaderCircle className="animate-spin" />}{priceLoading[product.id] ? "查询中" : priceChecked[product.id] ? "重新查询" : "查询门店价"}</Button>}{commercialOffer && <Button variant="ghost" size="sm" onClick={() => openCommercial(commercialOffer)}>合作购买</Button>}</div>{priceErrors[product.id] && <p className="mt-2 text-xs text-destructive" role="alert">{priceErrors[product.id]}</p>}</div>
+              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div><div className="mt-3 flex flex-wrap gap-2">{needsPrice && supabaseConfigured && <Button variant="outline" size="sm" onClick={() => onLoadPrices(product.id)} disabled={priceLoading[product.id]}>{priceLoading[product.id] && <LoaderCircle className="animate-spin" />}{priceLoading[product.id] ? "查询中" : priceChecked[product.id] ? "重新查询" : "查询报价"}</Button>}{commercialOffer && <Button variant="ghost" size="sm" onClick={() => openCommercial(commercialOffer)}>合作购买</Button>}</div>{priceErrors[product.id] && <p className="mt-2 text-xs text-destructive" role="alert">{priceErrors[product.id]}</p>}</div>
             })}
             {comparisonRows.flatMap(([label, value]) => [
               <div key={`${label}-label`} className="sticky left-0 z-10 border-b bg-popover py-4 text-sm text-muted-foreground">{label}</div>,
