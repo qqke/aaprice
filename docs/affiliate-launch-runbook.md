@@ -4,11 +4,20 @@
 
 1. 打开管理后台“业务”页的“商业商品候选”；系统已按真实浏览、查价、收藏和近期价格自动排出 50 件。
 2. 点击“复制候选清单”，将 `product_id`、JAN 与商品名 TSV 粘贴到工作表。
-3. 在楽天商品搜索中用 JAN 核对产品并生成对应 affiliate URL；跳过无对应商品或信息不一致的候选。
+3. 在楽天商品搜索中用 JAN 核对产品并生成对应 affiliate URL；跳过无对应商品或信息不一致的候选。当前首批 50 件已于 2026-09-01 完成精确匹配、追踪跳转验证并启用。
 4. 将工作表整理为每行 `product_id + Tab + HTTPS affiliate URL`，粘贴到“批量导入商业链接”。
 5. 首次导入不要勾选“立即启用”。逐条打开目标 URL，核对商品、HTTPS 域名和联盟参数后再启用。
 
 同一商品首期只启用一个合作链接，避免入口竞争和归因歧义。
+
+后续批次可用仓库内工具生成待审核数据。`--validate` 会要求楽天存在包含同一 JAN 的商品页，并确认联盟链接返回官方追踪跳转；`--sql` 只会在全部校验通过时输出事务 SQL：
+
+```bash
+node scripts/generate-rakuten-offers.mjs --validate JAN1 JAN2
+node scripts/generate-rakuten-offers.mjs --validate --sql JAN1 JAN2
+```
+
+执行 SQL 前仍需人工抽查商品规格与数量，避免 JAN 相同但页面销售组合不同。
 
 ## 每周检查
 
