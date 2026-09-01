@@ -409,15 +409,18 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
               <p className="text-xs text-muted-foreground">{hasPrices ? `报价最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : "同一后台实时返回"}</p>
               <p className="font-mono text-2xl font-semibold tracking-tight">{formatPrice(stats.min)}</p>
             </div>
-            {hasPrices ? (
-              <Button variant={selected ? "default" : "outline"} onClick={() => onToggle(product.id)} disabled={!selected && selectionFull} aria-pressed={selected} className="shrink-0">
-                {selected ? <Check /> : <Plus />}{selected ? "已加入" : "加入清单"}
-              </Button>
-            ) : (
-              <Button onClick={() => onLoadPrices(product.id)} disabled={priceLoading} className="shrink-0">
-                {priceLoading ? <LoaderCircle className="animate-spin" /> : <BadgeJapaneseYen />}{priceLoading ? "查询中" : priceChecked ? "重新查询" : "查询报价"}
-              </Button>
-            )}
+            <div className="flex shrink-0 gap-1">
+              <Button asChild variant="ghost" className="px-2.5"><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)}>详情<ChevronRight /></a></Button>
+              {hasPrices ? (
+                <Button variant={selected ? "default" : "outline"} onClick={() => onToggle(product.id)} disabled={!selected && selectionFull} aria-pressed={selected}>
+                  {selected ? <Check /> : <Plus />}{selected ? "已加入" : "加入清单"}
+                </Button>
+              ) : (
+                <Button onClick={() => onLoadPrices(product.id)} disabled={priceLoading}>
+                  {priceLoading ? <LoaderCircle className="animate-spin" /> : <BadgeJapaneseYen />}{priceLoading ? "查询中" : priceChecked ? "重新查询" : "查询报价"}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

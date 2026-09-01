@@ -35,6 +35,7 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(compare, /recordTelemetryEvent\("compare_completed"/)
   assert.match(compare, /fetchCommercialOffers\(selected\)/)
   assert.match(compare, /recordTelemetryEvent\("commercial_offer_seen", \{ offer_count: offers\.length, source: "compare" \}\)/)
+  assert.match(compare, />详情<ChevronRight \/>/)
   assert.match(compare, /recordCommercialClick\(offer\.id, "compare"\)/)
   assert.match(compare, />合作购买<\/Button>/)
   assert.match(compare, /setSavedProducts\(\(items\) => items\.map/)
