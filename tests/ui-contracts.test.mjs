@@ -103,6 +103,8 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(admin, /CommercialCandidates/)
   assert.match(admin, /CommercialBulkImport/)
   assert.match(admin, /批量导入商业链接/)
+  assert.match(admin, /复制候选清单/)
+  assert.match(admin, /navigator\.clipboard\.writeText/)
   assert.match(admin, /adminBulkUpsertCommercialOffers\(payload\)/)
   assert.match(admin, /商业商品候选/)
   assert.match(admin, /adminFetchCommercialCandidates\(\{ days: 90, limit: 50 \}\)/)

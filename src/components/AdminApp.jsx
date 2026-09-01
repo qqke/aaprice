@@ -1,5 +1,5 @@
 import { motion } from "motion/react"
-import { Activity, Boxes, Building2, Coins, PackageCheck, RefreshCw, Save, ShieldAlert, Tags } from "lucide-react"
+import { Activity, Boxes, Building2, ClipboardCopy, Coins, PackageCheck, RefreshCw, Save, ShieldAlert, Tags } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
@@ -141,7 +141,20 @@ function CommercialCoverageSummary({ offers = [] }) {
 }
 
 function CommercialCandidates({ items = [], onSelect }) {
-  return <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 90 天行为优先 + 近期有价核心品类补足</p><h2 className="mt-1 text-2xl font-semibold">商业商品候选</h2><p className="mt-2 text-sm text-muted-foreground">先处理真实浏览、查价和收藏商品；0 个价格来源表示需要先补价。</p></div><span className="font-mono text-sm text-muted-foreground">{items.length}/50 件</span></div><div className="mt-5 max-h-[34rem] divide-y overflow-auto border-y">{items.length ? items.map((item, index) => <div key={item.product_id} className="flex flex-wrap items-center gap-4 py-4"><span className="w-7 shrink-0 font-mono text-sm text-muted-foreground">{index + 1}</span><div className="min-w-48 flex-1"><p className="truncate font-medium">{item.product_name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"} · JAN {item.barcode || "未登记"}</p></div><div className="text-right text-xs text-muted-foreground"><p><span className="font-mono font-semibold text-foreground">{item.interest_score ?? 0}</span> 意向分</p><p className="mt-1">浏览 {item.product_views ?? 0} · 查价 {item.price_queries ?? 0} · 收藏 {item.favorite_count ?? 0}</p></div><div className="w-24 text-right"><p className="font-mono font-semibold">{formatPrice(item.minimum_price_yen)}</p><p className="mt-1 text-xs text-muted-foreground">{item.price_source_count ?? 0} 个来源</p></div><Button size="sm" variant="outline" onClick={() => onSelect(item)}>配置链接</Button></div>) : <p className="py-10 text-center text-sm text-muted-foreground">暂无符合条件的候选商品。</p>}</div></section>
+  const [copyState, setCopyState] = useState("idle")
+  const copyCandidates = async () => {
+    const rows = [["product_id", "JAN", "product_name"], ...items.map((item) => [item.product_id, item.barcode || "", item.product_name || ""])]
+    try {
+      await navigator.clipboard.writeText(rows.map((row) => row.join("\t")).join("\n"))
+      setCopyState("copied")
+    } catch {
+      setCopyState("failed")
+    }
+    window.setTimeout(() => setCopyState("idle"), 2000)
+  }
+
+  const copyLabel = copyState === "copied" ? "已复制" : copyState === "failed" ? "复制失败" : "复制候选清单"
+  return <section className="border-t pt-6 lg:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">近 90 天行为优先 + 近期有价核心品类补足</p><h2 className="mt-1 text-2xl font-semibold">商业商品候选</h2><p className="mt-2 text-sm text-muted-foreground">先处理真实浏览、查价和收藏商品；0 个价格来源表示需要先补价。</p></div><div className="flex items-center gap-3"><span className="font-mono text-sm text-muted-foreground">{items.length}/50 件</span><Button type="button" size="sm" variant="outline" disabled={!items.length} onClick={copyCandidates}><ClipboardCopy />{copyLabel}</Button></div></div><div className="mt-5 max-h-[34rem] divide-y overflow-auto border-y">{items.length ? items.map((item, index) => <div key={item.product_id} className="flex flex-wrap items-center gap-4 py-4"><span className="w-7 shrink-0 font-mono text-sm text-muted-foreground">{index + 1}</span><div className="min-w-48 flex-1"><p className="truncate font-medium">{item.product_name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"} · JAN {item.barcode || "未登记"}</p></div><div className="text-right text-xs text-muted-foreground"><p><span className="font-mono font-semibold text-foreground">{item.interest_score ?? 0}</span> 意向分</p><p className="mt-1">浏览 {item.product_views ?? 0} · 查价 {item.price_queries ?? 0} · 收藏 {item.favorite_count ?? 0}</p></div><div className="w-24 text-right"><p className="font-mono font-semibold">{formatPrice(item.minimum_price_yen)}</p><p className="mt-1 text-xs text-muted-foreground">{item.price_source_count ?? 0} 个来源</p></div><Button size="sm" variant="outline" onClick={() => onSelect(item)}>配置链接</Button></div>) : <p className="py-10 text-center text-sm text-muted-foreground">暂无符合条件的候选商品。</p>}</div></section>
 }
 
 function CommercialBulkImport({ onImport }) {
