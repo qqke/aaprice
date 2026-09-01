@@ -129,6 +129,7 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(api, /rpc\("admin_fetch_affiliate_reports", \{ payload \}/)
   assert.match(api, /rpc\("admin_upsert_affiliate_report", \{ payload \}/)
   assert.match(api, /admin_fetch_price_health\|PGRST202\|schema cache/)
+  assert.match(api, /last_seen_at\.desc\.nullslast,updated_at\.desc/)
   assert.match(api, /rpc\("record_commercial_click"/)
   assert.match(api, /commercial_outbound_clicked/)
   assert.match(api, /rpc\("admin_fetch_commercial_offers"/)

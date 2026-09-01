@@ -58,6 +58,8 @@ test("writes catalog changes and fresh prices atomically", () => {
 
   assert.match(sql, /begin;/)
   assert.match(sql, /is distinct from/)
+  assert.match(sql, /catalog_source = 'sundrug'/)
+  assert.match(sql, /last_seen_at = now\(\)/)
   assert.match(sql, /recent\.collected_at >= now\(\) - interval '20 hours'/)
   assert.match(sql, /select public\.enqueue_price_alert_deliveries\(\) as alerts_queued/)
   assert.match(sql, /commit;/)

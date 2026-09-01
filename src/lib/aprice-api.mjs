@@ -81,7 +81,7 @@ const escapeIlike = (value) => String(value || "")
 export async function searchProducts(term = "", limit = 30, { offset = 0, curated = true } = {}) {
   const query = {
     select: "*",
-    order: "updated_at.desc",
+    order: "last_seen_at.desc.nullslast,updated_at.desc",
     limit: Math.max(1, Math.min(Number(limit) || 30, 500)),
     offset: Math.max(0, Number(offset) || 0),
   }

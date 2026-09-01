@@ -195,19 +195,26 @@ set
   brand = coalesce(nullif(stage.brand, ''), product.brand),
   pack = coalesce(nullif(stage.pack, ''), product.pack),
   category = coalesce(nullif(stage.category, ''), product.category),
-  image_url = coalesce(nullif(stage.image_url, ''), product.image_url)
+  image_url = coalesce(nullif(stage.image_url, ''), product.image_url),
+  catalog_source = 'sundrug',
+  last_seen_at = now()
 from sundrug_sync_stage as stage
 where product.barcode = stage.barcode
-  and row(product.name, product.brand, product.pack, product.category, product.image_url) is distinct from row(
-    stage.name,
-    coalesce(nullif(stage.brand, ''), product.brand),
-    coalesce(nullif(stage.pack, ''), product.pack),
-    coalesce(nullif(stage.category, ''), product.category),
-    coalesce(nullif(stage.image_url, ''), product.image_url)
+  and (
+    product.last_seen_at is null
+    or product.last_seen_at < now() - interval '20 hours'
+    or row(product.name, product.brand, product.pack, product.category, product.image_url, product.catalog_source) is distinct from row(
+      stage.name,
+      coalesce(nullif(stage.brand, ''), product.brand),
+      coalesce(nullif(stage.pack, ''), product.pack),
+      coalesce(nullif(stage.category, ''), product.category),
+      coalesce(nullif(stage.image_url, ''), product.image_url),
+      'sundrug'
+    )
   );
 
-insert into public.products (id, barcode, name, brand, pack, category, image_url)
-select barcode, barcode, name, brand, pack, category, image_url
+insert into public.products (id, barcode, name, brand, pack, category, image_url, catalog_source, last_seen_at)
+select barcode, barcode, name, brand, pack, category, image_url, 'sundrug', now()
 from sundrug_sync_stage as stage
 where not exists (
   select 1 from public.products as product where product.barcode = stage.barcode

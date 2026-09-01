@@ -60,6 +60,15 @@ test("price health reports source freshness for operations", async () => {
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
 
+test("catalog freshness tracks real source observations", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260901103000_product_catalog_freshness.sql", import.meta.url), "utf8")
+  assert.match(sql, /add column if not exists catalog_source text/)
+  assert.match(sql, /add column if not exists last_seen_at timestamptz/)
+  assert.match(sql, /max\(price\.collected_at\) as last_seen_at/)
+  assert.match(sql, /products_catalog_freshness_idx/)
+  assert.doesNotMatch(sql, /delete from public\.products/)
+})
+
 test("security hardening removes unsafe public execution and table privileges", async () => {
   const sql = await readFile(new URL("../supabase/migrations/20260831113000_security_hardening.sql", import.meta.url), "utf8")
   for (const name of ["admin_adjust_credits", "claim_random_price_task", "fetch_credit_summary", "fetch_product_prices", "handle_new_user", "rls_auto_enable", "submit_store_price"]) {
