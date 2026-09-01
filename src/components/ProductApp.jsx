@@ -27,7 +27,7 @@ import {
   submitStorePrice,
   toggleFavorite,
 } from "@/lib/aprice-api.mjs"
-import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getMapUrl, getPriceFreshness, getPriceStats, isOnlineStore, sanitizeCompareSelection } from "@/lib/products.mjs"
+import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getImageSrcSet, getMapUrl, getPriceFreshness, getPriceStats, isOnlineStore, sanitizeCompareSelection } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "未知"
@@ -228,7 +228,7 @@ export default function ProductApp() {
       <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-32 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:pb-24">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-3xl border bg-card shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">
-            <div className="aspect-[4/3] bg-muted"><img src={product.image} alt={product.name} className="h-full w-full object-cover" /></div>
+            <div className="aspect-[4/3] bg-muted"><img src={product.image} srcSet={getImageSrcSet(product.image)} sizes="(min-width: 1024px) 40vw, 100vw" width="1200" height="900" alt={product.name} fetchPriority="high" decoding="async" referrerPolicy="no-referrer" className="h-full w-full object-cover" /></div>
             <div className="p-6"><div className="flex flex-wrap gap-2"><Badge>{product.category}</Badge>{product.pack !== "规格未登记" && <Badge variant="outline">{product.pack}</Badge>}</div>{product.active !== "商品说明未登记" && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{product.active}</p>}</div>
           </motion.div>
           {credit && <div className="mt-4 flex items-center justify-between rounded-xl border px-4 py-3 text-sm"><span>价格查询额度</span><span className="font-mono">积分 {credit.balance ?? 0}</span></div>}

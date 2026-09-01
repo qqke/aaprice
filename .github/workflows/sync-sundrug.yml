@@ -19,7 +19,7 @@ jobs:
           AAPRICE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           if [ -z "$AAPRICE_DB_URL" ]; then
-            echo "::warning::SUPABASE_DB_URL is not configured; skipping this run."
-            exit 0
+            echo "::error::SUPABASE_DB_URL is not configured."
+            exit 1
           fi
           npm run sundrug:sync

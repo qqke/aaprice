@@ -20,6 +20,7 @@ const socialImageUrl = new URL(`${base}/favicon.ico`, site);
     <meta name="color-scheme" content="light dark" />
     <meta name="format-detection" content="telephone=no" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://tplkpguxlvrhxassyjfm.supabase.co wss://tplkpguxlvrhxassyjfm.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
     <meta name="description" content={description} />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4faf7" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#122421" />

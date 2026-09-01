@@ -77,6 +77,7 @@ import {
   getBestSingleStoreBasket,
   getClosestOffer,
   getCompareSelectionFromSearch,
+  getImageSrcSet,
   getMapUrl,
   getPriceStats,
   isOnlineStore,
@@ -377,7 +378,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
     >
       <div className={featured ? "grid md:grid-cols-[1.05fr_0.95fr]" : ""}>
         <a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "aspect-[16/10] md:aspect-auto md:min-h-[31rem]" : "aspect-[16/10] md:aspect-[4/3]"}`}>
-          <motion.img layoutId={`image-${product.id}`} src={product.image} alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} decoding="async" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
+          <motion.img layoutId={`image-${product.id}`} src={product.image} srcSet={getImageSrcSet(product.image)} sizes={featured ? "(min-width: 768px) 525px, 100vw" : "(min-width: 768px) 50vw, 100vw"} width="1200" height="900" alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} fetchPriority={featured ? "high" : "auto"} decoding="async" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
           {featured && <div className="absolute bottom-5 left-5 hidden text-white md:block"><p className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">实时目录</p><p className="mt-1 text-lg font-semibold">扫码、搜索、按需查询价格</p></div>}
         </a>

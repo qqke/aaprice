@@ -168,6 +168,17 @@ export const segments = ["全部", "止痛退热", "眼部护理", "防晒", "�
 
 export const cleanJanCode = (value = "") => String(value).replace(/\D/g, "")
 
+export function getImageSrcSet(value) {
+  try {
+    const url = new URL(value)
+    if (!/^(?:images\.unsplash\.com|cdn\.shopify\.com)$/.test(url.hostname)) return undefined
+    return [480, 800, 1200].map((width) => {
+      url.searchParams.set(url.hostname === "images.unsplash.com" ? "w" : "width", width)
+      return `${url} ${width}w`
+    }).join(", ")
+  } catch { return undefined }
+}
+
 export function isOnlineStore(store = {}) {
   return String(store.id || "") === "sundrug-00000" || /オンライン|online/i.test(String(store.name || ""))
 }

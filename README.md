@@ -1,6 +1,6 @@
 # AAPRICE
 
-基于 Astro、React、shadcn/ui、Motion 和 Supabase 的日本药妆商品比较应用。
+基于 Astro、React、Radix UI、Motion 和 Supabase 的日本药妆商品比较应用。
 
 ## 本地开发
 

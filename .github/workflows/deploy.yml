@@ -45,4 +45,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
       - name: Verify custom domain assets
-        run: node scripts/verify-production-site.mjs https://prices.stbf.online/
+        run: |
+          node scripts/verify-production-site.mjs https://prices.stbf.online/
+          node scripts/verify-production-browser.mjs https://prices.stbf.online/

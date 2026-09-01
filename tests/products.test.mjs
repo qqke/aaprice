@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
+import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getImageSrcSet, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseCommercialOfferRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
@@ -15,6 +15,12 @@ test("searches JAN and sorts filtered drugstore products without mutating source
   })
   assert.deepEqual(result.map(({ id }) => id), ["eve-a", "tylenol-a", "loxonin-s"])
   assert.deepEqual(products.map(({ id }) => id), originalOrder)
+})
+
+test("builds responsive variants only for image CDNs that support resizing", () => {
+  assert.match(getImageSrcSet("https://cdn.shopify.com/image.jpg?v=1"), /width=480 480w[\s\S]*width=1200 1200w/)
+  assert.match(getImageSrcSet("https://images.unsplash.com/photo.jpg?w=100"), /w=480 480w[\s\S]*w=1200 1200w/)
+  assert.equal(getImageSrcSet("https://example.com/image.jpg"), undefined)
 })
 
 test("keeps only fresh validated local price snapshots", () => {

@@ -15,8 +15,8 @@ jobs:
           CRON_SECRET: ${{ secrets.PRICE_ALERT_CRON_SECRET }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
-            echo "::warning::PRICE_ALERT_CRON_SECRET is not configured; skipping this run."
-            exit 0
+            echo "::error::PRICE_ALERT_CRON_SECRET is not configured."
+            exit 1
           fi
           curl --fail-with-body --silent --show-error \
             --request POST "$FUNCTION_URL" \

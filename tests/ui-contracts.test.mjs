@@ -97,12 +97,14 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(account, /永久删除账户/)
   assert.match(account, /role="tablist"/)
   assert.match(await readSource(".github/workflows/deploy.yml"), /PUBLIC_DISABLE_TURNSTILE:.*\|\| '1'/)
+  assert.match(await readSource(".github/workflows/deploy.yml"), /verify-production-browser\.mjs/)
   assert.match(layout, /\/privacy\//)
   assert.match(layout, /\/disclosure\//)
   assert.match(layout, /价格仅供参考/)
   assert.match(layout, /rel="canonical"/)
   assert.match(layout, /property="og:url"/)
   assert.match(layout, /property="og:image"/)
+  assert.match(layout, /http-equiv="Content-Security-Policy"/)
   assert.match(auth, /subscribeAuthState[\s\S]*?\.catch\(\(error\) =>/)
   assert.match(auth, /注册即表示你已阅读/)
   assert.match(auth, /\["register", "resetRequest", "reset"\]\.includes\(initialMode\)/)
@@ -177,6 +179,14 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(api, /try \{ sessionId = sessionStorage\.getItem/)
 })
 
+test("production browser smoke covers anonymous value and auth recovery paths", async () => {
+  const source = await readSource("scripts/verify-production-browser.mjs")
+  assert.match(source, /getByRole\("link", \{ name: "注册账号"/)
+  assert.match(source, /getByRole\("link", \{ name: "忘记密码"/)
+  assert.match(source, /getByText\("匿名价格预览"/)
+  assert.match(source, /commercialIndex < priceIndex/)
+})
+
 test("price alert worker keeps secrets server-side and records every outcome", async () => {
   const [worker, deletionWorker, workflow, config] = await Promise.all([
     readSource("supabase/functions/send-price-alerts/index.ts"),
@@ -193,6 +203,7 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(worker, /siteUrl\("me\/"\)/)
   assert.doesNotMatch(worker, /PUBLIC_/)
   assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/)
+  assert.match(workflow, /PRICE_ALERT_CRON_SECRET is not configured\.[\s\S]*exit 1/)
   assert.match(workflow, /https:\/\/tplkpguxlvrhxassyjfm\.supabase\.co\/functions\/v1\/send-price-alerts/)
   assert.match(config, /\[functions\.send-price-alerts\][\s\S]*verify_jwt = false/)
   assert.match(config, /\[functions\.delete-account\][\s\S]*verify_jwt = true/)
@@ -210,6 +221,8 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(deployWorkflow, /Expected the deployed worker to reject an unauthenticated request with 401/)
   assert.match(deployWorkflow, /SUPABASE_ACCESS_TOKEN is not configured/)
   assert.match(deployWorkflow, /PROJECT_ID: tplkpguxlvrhxassyjfm/)
+  const syncWorkflow = await readSource(".github/workflows/sync-sundrug.yml")
+  assert.match(syncWorkflow, /SUPABASE_DB_URL is not configured\.[\s\S]*exit 1/)
 })
 
 test("publishes concise privacy and affiliate disclosures", async () => {
