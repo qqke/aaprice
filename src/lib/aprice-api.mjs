@@ -94,24 +94,22 @@ export function parseCommercialOfferRows(value) {
 }
 
 export async function searchProducts(term = "", limit = 30, { offset = 0, curated = true } = {}) {
+  const boundedLimit = Math.max(1, Math.min(Number(limit) || 30, 500))
+  const boundedOffset = Math.max(0, Number(offset) || 0)
+  const value = String(term || "").trim()
+  if (!value && curated) return rpc("fetch_public_ranked_products", { payload: { limit: Math.min(boundedLimit, 100), offset: boundedOffset } })
   const query = {
     select: "*",
     order: "last_seen_at.desc.nullslast,updated_at.desc",
-    limit: Math.max(1, Math.min(Number(limit) || 30, 500)),
-    offset: Math.max(0, Number(offset) || 0),
+    limit: boundedLimit,
+    offset: boundedOffset,
   }
-  const value = String(term || "").trim()
   if (value) {
     const pattern = `%${escapeIlike(value)}%`
     const barcode = value.replace(/\D/g, "")
     const filters = [`name.ilike.${pattern}`, `brand.ilike.${pattern}`, `category.ilike.${pattern}`]
     if (barcode) filters.push(`barcode.ilike.%${barcode}%`)
     query.or = `(${filters.join(",")})`
-  } else if (curated) {
-    // ponytail: keyword curation keeps the storefront on-topic until products have a dedicated catalog flag.
-    query.or = `(${["医薬", "薬用", "化粧", "コスメ", "スキン", "美容", "サプリ", "ビタミン", "目薬", "日焼け", "シャンプー"]
-      .flatMap((keyword) => [`name.ilike.%${keyword}%`, `category.ilike.%${keyword}%`])
-      .join(",")})`
   }
   return request("products", { query })
 }

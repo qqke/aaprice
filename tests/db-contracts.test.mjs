@@ -24,6 +24,17 @@ test("public catalog price previews batch aggregate without exposing stores", as
   assert.doesNotMatch(sql, /returns table \([^)]*\bstore_id\b/)
 })
 
+test("public catalog ranking prioritizes coverage and measured engagement", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260901163000_public_ranked_catalog.sql", import.meta.url), "utf8")
+  assert.match(sql, /create or replace function public\.fetch_public_ranked_products\(payload jsonb\)/)
+  assert.match(sql, /returns setof public\.products/)
+  assert.match(sql, /event\.occurred_at >= now\(\) - interval '90 days'/)
+  assert.match(sql, /price\.collected_at >= now\(\) - interval '30 days'/)
+  assert.match(sql, /\(current\.product_id is not null\) desc/)
+  assert.match(sql, /coalesce\(engagement\.score, 0\) \+ coalesce\(favorite_counts\.score, 0\) desc/)
+  assert.match(sql, /grant execute on function public\.fetch_public_ranked_products\(jsonb\) to anon, authenticated/)
+})
+
 test("active price tasks are restored only for the current user", async () => {
   const sql = await readFile(new URL("../supabase/migrations/20260824161000_active_price_task.sql", import.meta.url), "utf8")
   assert.match(sql, /create or replace function public\.get_active_price_task\(\)/)
