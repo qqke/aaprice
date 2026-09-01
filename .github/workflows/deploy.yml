@@ -41,6 +41,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install browser smoke dependency
+        run: npm ci --ignore-scripts
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v5
