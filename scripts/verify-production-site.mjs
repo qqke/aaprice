@@ -8,6 +8,7 @@ if (!siteUrl?.startsWith("https://")) {
 }
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+const expectedSupabaseUrl = "https://tplkpguxlvrhxassyjfm.supabase.co"
 const request = (url, redirects = 0) => new Promise((resolve, reject) => {
   const call = https.get(url, { agent: false }, (response) => {
     if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && redirects < 3) {
@@ -39,10 +40,17 @@ for (let attempt = 1; attempt <= 6; attempt += 1) {
     ].filter(Boolean)
     if (assets.length !== 2) throw new Error("homepage is missing its stylesheet or hydrated component")
 
+    let componentSource = ""
     for (const asset of assets) {
       const assetResponse = await request(new URL(asset, pageUrl))
       if (!assetResponse.ok) throw new Error(`${asset} returned ${assetResponse.status}`)
+      if (asset.endsWith(".js")) componentSource = assetResponse.text
     }
+
+    const apiAsset = componentSource.match(/["']\.\/(aprice-api\.[^"']+\.js)["']/)?.[1]
+    if (!apiAsset) throw new Error("homepage component is missing the API module")
+    const apiResponse = await request(new URL(apiAsset, new URL(assets[1], pageUrl)))
+    if (!apiResponse.ok || !apiResponse.text.includes(expectedSupabaseUrl)) throw new Error("production API module has the wrong Supabase URL")
 
     console.log(`Production smoke check passed: ${pageUrl.origin}`)
     verified = true

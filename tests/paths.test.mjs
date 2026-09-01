@@ -13,5 +13,6 @@ test("builds the custom domain from the site root", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy.yml", import.meta.url), "utf8")
   assert.match(workflow, /ASTRO_BASE_PATH: \/$/m)
   assert.match(workflow, /PUBLIC_SITE_URL: https:\/\/prices\.stbf\.online/)
+  assert.match(workflow, /PUBLIC_SUPABASE_URL: https:\/\/tplkpguxlvrhxassyjfm\.supabase\.co/)
   assert.match(workflow, /node scripts\/verify-production-site\.mjs https:\/\/prices\.stbf\.online\//)
 })
