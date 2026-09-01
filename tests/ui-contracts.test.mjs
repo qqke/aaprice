@@ -170,6 +170,9 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(deployWorkflow, /supabase\/setup-cli@v1/)
   assert.match(deployWorkflow, /version: 2\.116\.0/)
   assert.match(deployWorkflow, /functions deploy send-price-alerts/)
+  assert.match(deployWorkflow, /Expected the deployed worker to reject an unauthenticated request with 401/)
+  assert.match(deployWorkflow, /SUPABASE_ACCESS_TOKEN is not configured/)
+  assert.match(deployWorkflow, /SUPABASE_PROJECT_ID is not configured/)
 })
 
 test("publishes concise privacy and affiliate disclosures", async () => {

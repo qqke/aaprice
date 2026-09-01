@@ -33,6 +33,8 @@ PRICE_ALERT_FUNCTION_URL=https://<Project Ref>.supabase.co/functions/v1/send-pri
 ## 4. 部署与验证
 
 1. 手动运行 `Deploy Supabase functions` 工作流。
+   - 工作流会在缺少部署 Secret 时给出明确错误。
+   - 部署后会自动发起未认证请求；返回 `401` 才表示函数已上线且 `PRICE_ALERT_CRON_SECRET` 已生效。
 2. 在个人中心给一个收藏商品设置高于当前最低价的测试目标价。
 3. 手动运行 `Send price alerts` 工作流。
 4. 确认工作流返回 `sent: 1`，并收到邮件。
@@ -40,3 +42,5 @@ PRICE_ALERT_FUNCTION_URL=https://<Project Ref>.supabase.co/functions/v1/send-pri
 6. 将测试提醒停用，避免重复测试干扰生产指标。
 
 若发送失败，先看管理后台的最近错误；队列会自动退避重试，最多尝试 5 次。
+
+若函数地址返回 `404 Requested function was not found`，说明函数还没有部署，而不是邮件供应商报错。先完成第 2、3 节，再重新运行部署工作流。

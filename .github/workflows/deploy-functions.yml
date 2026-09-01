@@ -3,6 +3,13 @@ name: Deploy Supabase functions
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-functions-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -10,13 +17,28 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
       - uses: supabase/setup-cli@v1
         with:
           version: 2.116.0
       - name: Validate deployment secrets
         run: |
-          test -n "$SUPABASE_ACCESS_TOKEN"
-          test -n "$PROJECT_ID"
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is not configured"
+            exit 1
+          fi
+          if [ -z "$PROJECT_ID" ]; then
+            echo "::error::SUPABASE_PROJECT_ID is not configured"
+            exit 1
+          fi
       - name: Deploy price alert worker
         run: supabase functions deploy send-price-alerts --project-ref "$PROJECT_ID" --use-api
+      - name: Verify worker and cron secret
+        run: |
+          function_url="https://${PROJECT_ID}.supabase.co/functions/v1/send-price-alerts"
+          status=$(curl --silent --show-error --output response.json --write-out "%{http_code}" "$function_url")
+          if [ "$status" != "401" ]; then
+            echo "::error::Expected the deployed worker to reject an unauthenticated request with 401, received $status"
+            cat response.json
+            exit 1
+          fi
