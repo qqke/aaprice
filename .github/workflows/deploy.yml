@@ -25,6 +25,8 @@ jobs:
         with:
           build-cmd: npm test && npm run build
         env:
+          ASTRO_BASE_PATH: /
+          PUBLIC_SITE_URL: https://prices.stbf.online
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
           PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.PUBLIC_TURNSTILE_SITE_KEY }}
