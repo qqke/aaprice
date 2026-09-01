@@ -276,6 +276,11 @@ function LoginDialog({ open, onOpenChange, onSignedIn, priceIntent = false }) {
   const [captchaToken, setCaptchaToken] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [returnPath, setReturnPath] = useState(appPath("/"))
+
+  useEffect(() => {
+    setReturnPath(`${window.location.pathname}${window.location.search}`)
+  }, [])
 
   useEffect(() => {
     if (!open || !turnstileEnabled) return undefined
@@ -324,6 +329,8 @@ function LoginDialog({ open, onOpenChange, onSignedIn, priceIntent = false }) {
     }
   }
 
+  const authHref = (mode) => appPath(`/login/?mode=${mode}&redirect=${encodeURIComponent(returnPath)}`)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[min(440px,calc(100vw-2rem))] sm:max-w-md">
@@ -339,6 +346,10 @@ function LoginDialog({ open, onOpenChange, onSignedIn, priceIntent = false }) {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? <LoaderCircle className="animate-spin" /> : <LogIn />}{loading ? "正在登录" : priceIntent ? "登录并继续查价" : "登录"}
           </Button>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <a className="rounded-md px-1 py-2 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={authHref("register")}>注册账号</a>
+            <a className="rounded-md px-1 py-2 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={authHref("resetRequest")}>忘记密码</a>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

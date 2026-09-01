@@ -85,7 +85,7 @@ export default function AuthApp() {
     const initialMode = new URLSearchParams(window.location.search).get("mode")
     const requestedRedirect = new URLSearchParams(window.location.search).get("redirect") || ""
     setRedirectPath(requestedRedirect.startsWith("/") && !requestedRedirect.startsWith("//") ? requestedRedirect : "")
-    if (initialMode === "reset") setMode("reset")
+    if (["register", "resetRequest", "reset"].includes(initialMode)) setMode(initialMode)
     let active = true
     let unsubscribe = () => {}
     getSession().then(async (value) => {
