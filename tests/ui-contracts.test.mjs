@@ -103,6 +103,8 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(admin, /归因点击/)
   assert.match(admin, /toggleCommercialOffer/)
   assert.match(admin, /价格覆盖健康度/)
+  assert.match(admin, /价格源运行状态/)
+  assert.match(admin, /source\.is_stale \? "已过期" : "运行正常"/)
   assert.match(admin, /降价提醒发送健康度/)
   assert.match(admin, /adminFetchPriceAlertSummary\(\{ days: 7 \}\)/)
   assert.match(admin, /通知终止失败/)

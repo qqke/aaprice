@@ -49,6 +49,17 @@ test("price health summary is admin-only and measures fresh coverage", async () 
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
 
+test("price health reports source freshness for operations", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260901100000_price_source_health.sql", import.meta.url), "utf8")
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /source_health as/)
+  assert.match(sql, /recent_product_count/)
+  assert.match(sql, /max\(price\.collected_at\) < now\(\) - interval '8 days' as is_stale/)
+  assert.match(sql, /'price_sources'/)
+  assert.match(sql, /jsonb_agg\(to_jsonb\(health\)/)
+  assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
+})
+
 test("security hardening removes unsafe public execution and table privileges", async () => {
   const sql = await readFile(new URL("../supabase/migrations/20260831113000_security_hardening.sql", import.meta.url), "utf8")
   for (const name of ["admin_adjust_credits", "claim_random_price_task", "fetch_credit_summary", "fetch_product_prices", "handle_new_user", "rls_auto_enable", "submit_store_price"]) {
