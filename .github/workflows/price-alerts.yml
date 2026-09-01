@@ -11,11 +11,11 @@ jobs:
     steps:
       - name: Trigger alert worker
         env:
-          FUNCTION_URL: ${{ secrets.PRICE_ALERT_FUNCTION_URL }}
+          FUNCTION_URL: https://tplkpguxlvrhxassyjfm.supabase.co/functions/v1/send-price-alerts
           CRON_SECRET: ${{ secrets.PRICE_ALERT_CRON_SECRET }}
         run: |
-          if [ -z "$FUNCTION_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "::warning::Price alert secrets are not configured; skipping this run."
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::PRICE_ALERT_CRON_SECRET is not configured; skipping this run."
             exit 0
           fi
           curl --fail-with-body --silent --show-error \

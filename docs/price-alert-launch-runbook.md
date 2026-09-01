@@ -25,10 +25,10 @@ PRICE_ALERT_APP_URL=<生产站点根路径，结尾带 />
 
 ```text
 SUPABASE_ACCESS_TOKEN=<Supabase Personal Access Token>
-SUPABASE_PROJECT_ID=<Supabase Project Ref>
 PRICE_ALERT_CRON_SECRET=<与 Supabase 中完全相同>
-PRICE_ALERT_FUNCTION_URL=https://<Project Ref>.supabase.co/functions/v1/send-price-alerts
 ```
+
+Project Ref 与函数 URL 已固定在工作流中，它们不是密钥，无需重复配置。
 
 ## 4. 部署与验证
 

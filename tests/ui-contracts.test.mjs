@@ -171,7 +171,7 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(worker, /siteUrl\("me\/"\)/)
   assert.doesNotMatch(worker, /PUBLIC_/)
   assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/)
-  assert.match(workflow, /PRICE_ALERT_FUNCTION_URL/)
+  assert.match(workflow, /https:\/\/tplkpguxlvrhxassyjfm\.supabase\.co\/functions\/v1\/send-price-alerts/)
   assert.match(config, /\[functions\.send-price-alerts\][\s\S]*verify_jwt = false/)
   const deployWorkflow = await readSource(".github/workflows/deploy-functions.yml")
   assert.match(deployWorkflow, /supabase\/setup-cli@v1/)
@@ -179,7 +179,7 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(deployWorkflow, /functions deploy send-price-alerts/)
   assert.match(deployWorkflow, /Expected the deployed worker to reject an unauthenticated request with 401/)
   assert.match(deployWorkflow, /SUPABASE_ACCESS_TOKEN is not configured/)
-  assert.match(deployWorkflow, /SUPABASE_PROJECT_ID is not configured/)
+  assert.match(deployWorkflow, /PROJECT_ID: tplkpguxlvrhxassyjfm/)
 })
 
 test("publishes concise privacy and affiliate disclosures", async () => {
