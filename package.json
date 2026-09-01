@@ -9,6 +9,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "test": "node --test",
+    "sundrug:sync": "node scripts/sync-sundrug.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

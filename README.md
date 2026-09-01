@@ -47,3 +47,15 @@ PRICE_ALERT_APP_URL=https://你的站点根路径/
 再在 GitHub Actions Secrets 配置同一个 `PRICE_ALERT_CRON_SECRET`，以及完整的 `PRICE_ALERT_FUNCTION_URL`（`https://项目引用.supabase.co/functions/v1/send-price-alerts`）。定时工作流每 15 分钟触发一次；数据库会原子领取任务，失败后退避重试，最多尝试 5 次。未配置时定时任务会安全跳过。
 
 如需从 GitHub 部署函数，再配置 `SUPABASE_ACCESS_TOKEN` 和 `SUPABASE_PROJECT_ID`，然后手动运行 `Deploy Supabase functions` 工作流。所有服务端密钥都不得使用 `PUBLIC_` 前缀。
+
+## Sandrug 商品与价格同步
+
+本地安装 `psql` 后，可用服务端数据库连接刷新线上目录：
+
+```sh
+AAPRICE_DB_URL=postgresql://... npm run sundrug:sync
+```
+
+脚本使用 Sandrug 公开目录，只接受有效 JAN 和正整数日元价格。它会先完成全量抓取及数量校验，再以单一事务更新商品、追加当前可售价格并生成符合条件的降价提醒；同商品同价格在 20 小时内重复执行不会再次写入。公开源最多返回 25,000 件商品，已有但未出现在本轮源数据中的历史商品不会被删除。
+
+GitHub Actions 每周运行一次 `.github/workflows/sync-sundrug.yml`。在仓库 Actions Secrets 配置仅供服务端使用的 `SUPABASE_DB_URL`；未配置时任务会安全跳过。可用 `npm run sundrug:sync -- --dry-run` 只验证上游数据，不连接数据库。

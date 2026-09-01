@@ -1,0 +1,25 @@
+name: Sync Sandrug catalog
+
+on:
+  schedule:
+    - cron: "20 17 * * 0"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Refresh catalog and price snapshots
+        env:
+          AAPRICE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$AAPRICE_DB_URL" ]; then
+            echo "::warning::SUPABASE_DB_URL is not configured; skipping this run."
+            exit 0
+          fi
+          npm run sundrug:sync
