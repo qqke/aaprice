@@ -50,4 +50,5 @@ Project Ref 与函数 URL 已固定在工作流中，它们不是密钥，无需
 - 2026-09-01：Resend 域名、DKIM 与 SPF 验证通过。
 - 2026-09-01：`send-price-alerts` 部署成功，未授权请求正确返回 `401`。
 - 2026-09-01：真实测试邮件由 `alerts@prices.stbf.online` 发出，Resend 状态为 `Delivered`；测试提醒已停用。
+- 2026-09-01：生产库保留 1 条成功投递记录；域名验证前的 2 条失败测试记录已达到 5 次重试上限，不会继续发送。
 - 2026-10-01 前：轮换 Supabase Access Token，并同步更新 GitHub Secret `SUPABASE_ACCESS_TOKEN`。
