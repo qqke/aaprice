@@ -5,9 +5,16 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: price-alerts-production
+  cancel-in-progress: false
+
 jobs:
   send:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Trigger alert worker
         env:

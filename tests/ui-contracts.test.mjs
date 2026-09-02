@@ -203,6 +203,9 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(worker, /siteUrl\("me\/"\)/)
   assert.doesNotMatch(worker, /PUBLIC_/)
   assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/)
+  assert.match(workflow, /permissions: \{\}/)
+  assert.match(workflow, /group: price-alerts-production/)
+  assert.match(workflow, /timeout-minutes: 5/)
   assert.match(workflow, /PRICE_ALERT_CRON_SECRET is not configured\.[\s\S]*exit 1/)
   assert.match(workflow, /https:\/\/tplkpguxlvrhxassyjfm\.supabase\.co\/functions\/v1\/send-price-alerts/)
   assert.match(config, /\[functions\.send-price-alerts\][\s\S]*verify_jwt = false/)
@@ -221,8 +224,12 @@ test("price alert worker keeps secrets server-side and records every outcome", a
   assert.match(deployWorkflow, /Expected the deployed worker to reject an unauthenticated request with 401/)
   assert.match(deployWorkflow, /SUPABASE_ACCESS_TOKEN is not configured/)
   assert.match(deployWorkflow, /PROJECT_ID: tplkpguxlvrhxassyjfm/)
+  assert.match(deployWorkflow, /timeout-minutes: 10/)
   const syncWorkflow = await readSource(".github/workflows/sync-sundrug.yml")
   assert.match(syncWorkflow, /SUPABASE_DB_URL is not configured\.[\s\S]*exit 1/)
+  assert.match(syncWorkflow, /permissions:[\s\S]*contents: read/)
+  assert.match(syncWorkflow, /group: sundrug-catalog-production/)
+  assert.match(syncWorkflow, /actions\/checkout@v6/)
 })
 
 test("publishes concise privacy and affiliate disclosures", async () => {
