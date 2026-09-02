@@ -129,4 +129,4 @@
 - [x] **无需 DB** 增加关键认证与商业路径的浏览器级回归检查
 - [x] **无需 DB** 优化首页图片响应式加载与首屏资源体积
 - [x] **运营** 在 2026-10-01 前轮换价格提醒工作流使用的访问令牌
-  - 2026-09-01 已创建新 Supabase Access Token、更新 GitHub `SUPABASE_ACCESS_TOKEN`，并由部署工作流 #5 验证成功。
+  - 2026-09-03 已启用到期日为 2026-12-02 的 replacement Token，更新 GitHub `SUPABASE_ACCESS_TOKEN`，由部署工作流 #6 验证成功，并撤销 3 个旧 Token。
