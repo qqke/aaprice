@@ -373,11 +373,12 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
       initial={reduceMotion ? false : { opacity: 0, y: 28 }}
       animate={{ opacity: 1, y: 0 }}
       exit={reduceMotion ? undefined : { opacity: 0, scale: 0.96 }}
-      transition={{ type: "spring", stiffness: 170, damping: 22 }}
-      className={`group relative overflow-hidden rounded-2xl border bg-card shadow-[0_18px_60px_oklch(0.2_0.03_240_/_0.06)] ${featured ? "md:col-span-2" : ""}`}
+      whileHover={reduceMotion ? undefined : { y: -4 }}
+      transition={{ type: "spring", stiffness: 190, damping: 24 }}
+      className={`group relative overflow-hidden rounded-2xl border bg-card shadow-[0_18px_60px_oklch(0.2_0.03_240_/_0.06)] transition-shadow duration-300 hover:shadow-[0_24px_72px_oklch(0.2_0.04_240_/_0.12)] ${featured ? "md:col-span-2" : ""}`}
     >
       <div className={featured ? "grid md:grid-cols-[1.05fr_0.95fr]" : ""}>
-        <a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "aspect-[16/10] md:aspect-auto md:min-h-[31rem]" : "aspect-[16/10] md:aspect-[4/3]"}`}>
+        <a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "aspect-[16/10] md:aspect-auto md:min-h-[28rem]" : "aspect-[16/10] md:aspect-[4/3]"}`}>
           <motion.img layoutId={`image-${product.id}`} src={product.image} srcSet={getImageSrcSet(product.image)} sizes={featured ? "(min-width: 768px) 525px, 100vw" : "(min-width: 768px) 50vw, 100vw"} width="1200" height="900" alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} fetchPriority={featured ? "high" : "auto"} decoding="async" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
           {featured && <div className="absolute bottom-5 left-5 hidden text-white md:block"><p className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">实时目录</p><p className="mt-1 text-lg font-semibold">扫码、搜索、按需查询价格</p></div>}
@@ -424,7 +425,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
           <div className={`flex items-end justify-between gap-4 ${featured ? "mt-5 md:mt-8" : "mt-auto"}`}>
             <div>
               <p className="text-xs text-muted-foreground">{stats.storeCount ? `报价最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : preview ? `${sourceCount} 个近期报价来源` : "同一后台实时返回"}</p>
-              <p className="font-mono text-2xl font-semibold tracking-tight">{formatPrice(minimumPrice)}</p>
+              <AnimatePresence mode="wait" initial={false}><motion.p key={String(minimumPrice ?? "pending")} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -4 }} transition={{ duration: 0.18 }} className="font-mono text-2xl font-semibold tracking-tight">{formatPrice(minimumPrice)}</motion.p></AnimatePresence>
             </div>
             <div className="flex shrink-0 gap-1">
               <Button asChild variant="ghost" className="px-2.5"><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)}>详情<ChevronRight /></a></Button>
@@ -766,14 +767,14 @@ export default function CompareApp({ initialScan = false }) {
       </header>
 
       <main id="main-content" tabIndex={-1}>
-        <section className="mx-auto max-w-5xl px-4 pb-8 pt-10 sm:px-6 md:pb-12 md:pt-16 lg:px-8">
-          <motion.div initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
-            <h1 className="max-w-3xl text-4xl font-semibold leading-[1.02] tracking-[-0.055em] sm:text-5xl">搜商品，直接比价。</h1>
-            <p className="mt-3 text-sm text-muted-foreground sm:text-base">输入商品名、品牌或 JAN 码。</p>
-            <div className="mt-6 flex gap-2 rounded-2xl border bg-card p-2 shadow-[0_20px_60px_oklch(0.2_0.03_240_/_0.07)]">
+        <section className="commerce-hero mx-auto max-w-5xl px-4 pb-8 pt-10 sm:px-6 md:pb-12 md:pt-16 lg:px-8">
+          <motion.div initial={reduceMotion ? false : "hidden"} animate="visible" variants={{ visible: { transition: { staggerChildren: 0.07 } } }}>
+            <motion.h1 variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.48, ease: [0.16, 1, 0.3, 1] } } }} className="max-w-3xl text-4xl font-semibold leading-[1.02] tracking-[-0.055em] sm:text-5xl">搜商品，直接比价。</motion.h1>
+            <motion.p variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } }} className="mt-3 text-sm text-muted-foreground sm:text-base">输入商品名、品牌或 JAN 码。</motion.p>
+            <motion.div variants={{ hidden: { opacity: 0, y: 12, scale: 0.99 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.46, ease: [0.16, 1, 0.3, 1] } } }} className="search-shell mt-6 flex gap-2 rounded-2xl border bg-card p-2 shadow-[0_20px_60px_oklch(0.2_0.03_240_/_0.07)]">
               <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN 码" aria-label="搜索商品" className="h-14 border-0 bg-transparent px-12 text-base shadow-none focus-visible:ring-0" />{query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
               <Button size="lg" onClick={() => setScanOpen(true)} aria-label="扫码检索" className="h-14 shrink-0 px-4 sm:px-6"><ScanLine /><span className="hidden sm:inline">扫码</span></Button>
-            </div>
+            </motion.div>
           </motion.div>
         </section>
 
@@ -784,15 +785,15 @@ export default function CompareApp({ initialScan = false }) {
                 <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-11 flex-1 items-center gap-2 text-left font-semibold" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序 <ChevronDown className={`ml-auto size-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} /></button>
                 {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}><RotateCcw /> 重置</Button>}
               </div>
-              <div id="catalog-filters" className={filtersOpen ? "block" : "hidden"}>
-                <motion.div key={filtersOpen ? "filters-open" : "filters-closed"} initial={reduceMotion ? false : { opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
+              <AnimatePresence initial={false}>
+                {filtersOpen && <motion.div id="catalog-filters" initial={reduceMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={reduceMotion ? undefined : { opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
                 <div className={`mt-4 grid gap-5 border-t pt-5 ${hasCatalogPrices ? "md:grid-cols-[1.3fr_1fr_0.9fr]" : "md:grid-cols-[1.3fr_1fr]"}`}>
                   <div><p className="text-sm font-medium">商品分类</p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div></div>
                   {hasCatalogPrices ? <><div><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">最高预算</span><span className="font-mono text-sm">{formatPrice(budget[0])}</span></div><Slider aria-label="最高预算" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
                   <div><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem><SelectItem value="unit">单位价优先</SelectItem><SelectItem value="saving">差价最大</SelectItem><SelectItem value="distance">离我最近</SelectItem></SelectContent></Select><Button variant={locationStatus === "ready" ? "secondary" : "outline"} className="mt-3 w-full justify-start" onClick={locate} disabled={locationStatus === "loading" || locationStatus === "unsupported"}><MapPin /> {locationCopy}</Button></div></> : <div className="rounded-xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground"><p className="font-medium text-foreground">价格筛选将在查价后启用</p><p className="mt-1">先在商品卡片查询报价，即可按预算、价格或门店距离排序。</p></div>}
                 </div>
-                </motion.div>
-              </div>
+                </motion.div>}
+              </AnimatePresence>
             </div>
 
             <div aria-busy={catalogLoading}>

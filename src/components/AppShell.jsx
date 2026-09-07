@@ -34,8 +34,8 @@ export default function AppShell({ children, eyebrow, title, description, sessio
       <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href={appPath("/")} className="flex min-h-11 items-center gap-3" aria-label="AAPRICE 首页">
-            <span className="grid size-9 place-items-center rounded-[0.8rem] bg-primary font-mono text-xs font-bold tracking-tight text-primary-foreground shadow-[0_8px_24px_color-mix(in_oklab,var(--primary)_22%,transparent)]">AA</span>
+          <a href={appPath("/")} className="group flex min-h-11 items-center gap-3" aria-label="AAPRICE 首页">
+            <span className="grid size-9 place-items-center rounded-[0.8rem] bg-primary font-mono text-xs font-bold tracking-tight text-primary-foreground shadow-[0_8px_24px_color-mix(in_oklab,var(--primary)_22%,transparent)] transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105">AA</span>
             <span><span className="block font-semibold leading-none tracking-[-0.045em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span>
           </a>
           <nav className="flex items-center gap-1" aria-label="主导航">
