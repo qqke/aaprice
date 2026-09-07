@@ -700,7 +700,7 @@ export default function CompareApp({ initialScan = false }) {
     }
   }, [hasCatalogPrices, catalogLoading, catalogError])
 
-  const filtered = useMemo(() => filterProducts(catalog, { query: supabaseConfigured ? "" : query, segment, maxPrice: budget[0], sort, location }), [catalog, query, segment, budget, sort, location])
+  const filtered = useMemo(() => filterProducts(catalog, { query: supabaseConfigured ? "" : query, segment, maxPrice: budget[0] === MAX_PRICE ? Infinity : budget[0], sort, location }), [catalog, query, segment, budget, sort, location])
   const selectedProducts = selected.map((id) => {
     const current = catalog.find((product) => product.id === id)
     const saved = savedProducts.find((product) => product.id === id)
@@ -867,7 +867,7 @@ export default function CompareApp({ initialScan = false }) {
                 {filtersOpen && <motion.div id="catalog-filters" initial={reduceMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={reduceMotion ? undefined : { opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
                 <div className={`mt-4 grid gap-5 border-t pt-5 ${hasCatalogPrices ? "md:grid-cols-[1.3fr_1fr_0.9fr]" : "md:grid-cols-[1.3fr_1fr]"}`}>
                   <div><p className="text-sm font-medium">商品分类</p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div></div>
-                  {hasCatalogPrices ? <><div><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">最高预算</span><span className="font-mono text-sm">{formatPrice(budget[0])}</span></div><Slider aria-label="最高预算" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
+                  {hasCatalogPrices ? <><div><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">最高预算</span><span className="font-mono text-sm">{budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])}</span></div><Slider aria-label="最高预算" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
                   <div><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem><SelectItem value="unit">单位价优先</SelectItem><SelectItem value="saving">差价最大</SelectItem><SelectItem value="distance">离我最近</SelectItem></SelectContent></Select><Button variant={locationStatus === "ready" ? "secondary" : "outline"} className="mt-3 w-full justify-start" onClick={locate} disabled={locationStatus === "loading" || locationStatus === "unsupported"}><MapPin /> {locationCopy}</Button></div></> : <div className="rounded-xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground"><p className="font-medium text-foreground">价格筛选将在查价后启用</p><p className="mt-1">先在商品卡片查询报价，即可按预算、价格或门店距离排序。</p></div>}
                 </div>
                 </motion.div>}

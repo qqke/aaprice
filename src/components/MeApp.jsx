@@ -20,6 +20,7 @@ import {
   fetchMyPriceAlerts,
   fetchMyProductSubmissions,
   fetchPersonalLogs,
+  fetchProductsByIds,
   fetchRecentViews,
   friendlyApiError,
   getSession,
@@ -93,19 +94,30 @@ export default function MeApp() {
         fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id, { limit: 30 }), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(20), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }), fetchMyPriceAlerts(),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
+      const loadedProducts = value(1, [])
+      const favoriteRows = value(4, [])
+      const activeTask = value(8, null)
+      const loadedProductIds = new Set(loadedProducts.map((item) => String(item.id)))
+      const relatedProductIds = [
+        ...favoriteRows.filter((item) => item.entity_type === "product").map((item) => item.entity_id),
+        activeTask?.product_id,
+      ].filter((id) => id && !loadedProductIds.has(String(id)))
+      let relatedProducts = []
+      let partialLoad = results.some(({ status }) => status === "rejected")
+      try { relatedProducts = await fetchProductsByIds(relatedProductIds) } catch { partialLoad = true }
       setProfile(value(0, { id: activeSession.user.id, email: activeSession.user.email, role: "user" }))
-      setProducts(value(1, []))
+      setProducts([...loadedProducts, ...relatedProducts])
       setStores(value(2, []))
       setLogs(value(3, []))
-      setFavorites(value(4, []))
+      setFavorites(favoriteRows)
       setCredit(value(5, null))
       setLedger(value(6, []))
       setHistoryMore({ logs: value(3, []).length === 30, credits: value(6, []).length === 20 })
       setSubmissions(value(7, []))
-      setTask(value(8, null))
+      setTask(activeTask)
       setFavoriteChanges(value(9, { items: [] }).items)
       setPriceAlerts(value(10, []))
-      if (results.some(({ status }) => status === "rejected")) setStatus("部分账户数据暂时无法加载，请刷新页面重试。")
+      if (partialLoad) setStatus("部分账户数据暂时无法加载，请刷新页面重试。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setLoading(false) }
   }
 

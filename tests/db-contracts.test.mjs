@@ -206,6 +206,18 @@ test("price alert operations are visible only to administrators", async () => {
   assert.doesNotMatch(sql, /grant execute[\s\S]* to anon/)
 })
 
+test("price task claims replenish a bounded catalog gap pool", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260907170000_refill_price_tasks.sql", import.meta.url), "utf8")
+  assert.match(sql, /create unique index if not exists price_tasks_active_product_idx/)
+  assert.match(sql, /create or replace function public\.refill_price_tasks\(payload jsonb default '\{\}'::jsonb\)/)
+  assert.match(sql, /least\(500, greatest\(1,/)
+  assert.match(sql, /price\.collected_at >= now\(\) - interval '30 days'/)
+  assert.match(sql, /not exists \(select 1 from public\.price_tasks where status = 'open'\)/)
+  assert.match(sql, /perform public\.refill_price_tasks\(jsonb_build_object\('limit', 100\)\)/)
+  assert.match(sql, /grant execute on function public\.claim_random_price_task\(jsonb\) to authenticated/)
+  assert.doesNotMatch(sql, /grant execute on function public\.refill_price_tasks\(jsonb\) to (anon|authenticated)/)
+})
+
 test("membership work stays gated on measured retention and repeat usage", async () => {
   const sql = await readFile(new URL("../supabase/migrations/20260831193000_membership_readiness.sql", import.meta.url), "utf8")
   assert.match(sql, /create or replace function public\.admin_fetch_membership_readiness\(payload jsonb default '\{\}'::jsonb\)/)

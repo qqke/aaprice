@@ -129,6 +129,13 @@ export async function fetchProductById(id) {
   return rows?.[0] || null
 }
 
+export async function fetchProductsByIds(ids = []) {
+  const values = [...new Set(ids.map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 500)
+  if (!values.length) return []
+  const quoted = values.map((id) => `"${id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")
+  return request("products", { query: { select: "*", id: `in.(${quoted})`, limit: values.length } })
+}
+
 export async function searchStores(term = "", limit = 100) {
   const query = { select: "*", order: "name.asc", limit: Math.max(1, Math.min(Number(limit) || 100, 500)) }
   const value = String(term || "").trim()

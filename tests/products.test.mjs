@@ -54,6 +54,12 @@ test("keeps unpriced products stable when sorting by distance", () => {
   assert.doesNotThrow(() => filterProducts([unpriced], { sort: "distance", location }))
 })
 
+test("does not hide expensive products until a budget is selected", () => {
+  const expensive = { ...products[0], id: "expensive", offers: [{ ...products[0].offers[0], price: 5940 }] }
+  assert.deepEqual(filterProducts([expensive], { maxPrice: Infinity }).map(({ id }) => id), ["expensive"])
+  assert.deepEqual(filterProducts([expensive], { maxPrice: 3200 }), [])
+})
+
 test("maps Supabase products and keeps only the latest price per store", () => {
   const product = mapProductRow({ id: "p1", barcode: "4901234567894", name: "测试商品", brand: "测试品牌", pack: "24錠", category: "医薬品" })
   const offers = offersFromPriceRows([
