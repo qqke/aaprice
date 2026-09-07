@@ -57,10 +57,14 @@ export default function MeApp() {
   const [priceAlerts, setPriceAlerts] = useState([])
   const [credit, setCredit] = useState(null)
   const [ledger, setLedger] = useState([])
+  const [historyMore, setHistoryMore] = useState({ logs: false, credits: false })
+  const [historyBusy, setHistoryBusy] = useState(false)
+  const [historyError, setHistoryError] = useState("")
+  const [exporting, setExporting] = useState(false)
   const [submissions, setSubmissions] = useState([])
   const [recentViews, setRecentViews] = useState([])
   const [task, setTask] = useState(null)
-  const [dataTab, setDataTab] = useState("logs")
+  const [dataTab, setDataTab] = useState("favorites")
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState("")
   const [savingLog, setSavingLog] = useState(false)
@@ -83,7 +87,7 @@ export default function MeApp() {
       setSession(activeSession)
       if (!activeSession) return
       const results = await Promise.allSettled([
-        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(30), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }), fetchMyPriceAlerts(),
+        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id, { limit: 30 }), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(20), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }), fetchMyPriceAlerts(),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       setProfile(value(0, { id: activeSession.user.id, email: activeSession.user.email, role: "user" }))
@@ -93,6 +97,7 @@ export default function MeApp() {
       setFavorites(value(4, []))
       setCredit(value(5, null))
       setLedger(value(6, []))
+      setHistoryMore({ logs: value(3, []).length === 30, credits: value(6, []).length === 20 })
       setSubmissions(value(7, []))
       setTask(value(8, null))
       setFavoriteChanges(value(9, { items: [] }).items)
@@ -124,7 +129,9 @@ export default function MeApp() {
     try {
       await savePersonalLog({ ...logForm, price_yen: Number(logForm.price_yen), store_id: logForm.store_id || null, purchased_at: new Date().toISOString().slice(0, 10) })
       setLogForm({ product_id: "", store_id: "", price_yen: "", note: "" })
-      setLogs(await fetchPersonalLogs(session.user.id))
+      const nextLogs = await fetchPersonalLogs(session.user.id, { limit: 30 })
+      setLogs(nextLogs)
+      setHistoryMore((value) => ({ ...value, logs: nextLogs.length === 30 }))
       setStatus("价格记录已保存。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setSavingLog(false) }
   }
@@ -203,30 +210,71 @@ export default function MeApp() {
       setDeletingAccount(false)
     }
   }
-  const exportAccountData = () => {
-    const content = JSON.stringify({ exported_at: new Date().toISOString(), profile, price_logs: logs, favorites, favorite_price_changes: favoriteChanges, price_alerts: priceAlerts, credit, credit_ledger: ledger, product_submissions: submissions, recent_views: recentViews }, null, 2)
-    const url = URL.createObjectURL(new Blob([content], { type: "application/json" }))
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `aprice-account-${new Date().toISOString().slice(0, 10)}.json`
-    document.body.append(link)
-    link.click()
-    link.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 0)
-    setStatus("账户数据已导出。")
+  const exportAccountData = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const allPages = async (fetchPage) => {
+        const rows = []
+        for (;;) {
+          const page = await fetchPage(rows.length)
+          rows.push(...page)
+          if (page.length < 100) return rows
+        }
+      }
+      const [allLogs, allCredits] = await Promise.all([
+        allPages((offset) => fetchPersonalLogs(session.user.id, { limit: 100, offset })),
+        allPages((offset) => fetchCreditLedger(100, offset)),
+      ])
+      const content = JSON.stringify({ exported_at: new Date().toISOString(), profile, price_logs: allLogs, favorites, favorite_price_changes: favoriteChanges, price_alerts: priceAlerts, credit, credit_ledger: allCredits, product_submissions: submissions, recent_views: recentViews }, null, 2)
+      const url = URL.createObjectURL(new Blob([content], { type: "application/json" }))
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `aprice-account-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.append(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+      setStatus("账户数据已导出。")
+    } catch (error) { setStatus(friendlyApiError(error)) } finally { setExporting(false) }
+  }
+
+  const loadMoreHistory = async (kind) => {
+    if (historyBusy) return
+    setHistoryBusy(true)
+    setHistoryError("")
+    try {
+      const rows = kind === "logs"
+        ? await fetchPersonalLogs(session.user.id, { limit: 30, offset: logs.length })
+        : await fetchCreditLedger(20, ledger.length)
+      const update = kind === "logs" ? setLogs : setLedger
+      update((current) => [...current, ...rows.filter((row) => !current.some((item) => item.id === row.id))])
+      setHistoryMore((value) => ({ ...value, [kind]: rows.length === (kind === "logs" ? 30 : 20) }))
+    } catch (error) {
+      setHistoryError(friendlyApiError(error))
+    } finally { setHistoryBusy(false) }
+  }
+
+  const moveDataTab = (event, index) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+    event.preventDefault()
+    const next = event.key === "Home" ? 0 : event.key === "End" ? dataTabs.length - 1
+      : (index + (event.key === "ArrowRight" ? 1 : -1) + dataTabs.length) % dataTabs.length
+    setDataTab(dataTabs[next][0])
+    document.getElementById(`account-tab-${dataTabs[next][0]}`)?.focus()
   }
 
   const dataTabs = [
-    ["logs", "价格记录", logs.length],
+    ["favorites", "收藏与提醒", favorites.length],
     ["recent", "最近浏览", recentViews.length],
-    ["favorites", "收藏", favorites.length],
+    ["logs", "价格记录", logs.length],
     ["credits", "积分", ledger.length],
     ["submissions", "商品提交", submissions.length],
   ]
   const dataInfo = {
     logs: ["价格记录", "个人记录仅自己可见。"],
     recent: ["最近浏览", "保存在当前设备。"],
-    favorites: ["收藏", "快速返回常看的商品与门店。"],
+    favorites: ["收藏与降价提醒", "快速返回常看的商品与门店。"],
     credits: ["积分流水", "查询消耗与贡献奖励记录。"],
     submissions: ["商品提交", "查看扫码补录的审核进度。"],
   }
@@ -240,17 +288,34 @@ export default function MeApp() {
   if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务会同步到你的 AAPRICE 账号。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/me/"))}`)}>登录或注册</a></Button></div></AppShell>
 
   return (
-    <AppShell title={profile?.full_name || "我的账户"} description={session.user.email} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportAccountData}><Download /> 导出数据</Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>}>
+    <AppShell title={profile?.full_name || "我的账户"} description={session.user.email} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportAccountData} disabled={exporting}><Download /> 导出数据</Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>}>
       <section className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6 lg:px-8">
         {status && <div className="mb-6 rounded-2xl border bg-card px-4 py-3 text-sm shadow-sm" role="status">{status}</div>}
 
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid gap-4 border-b pb-8 sm:grid-cols-3">
-          {[["积分余额", credit?.balance ?? 0], ["价格记录", logs.length], ["收藏", favorites.length]].map(([label, value]) => <div key={label} className="rounded-2xl bg-muted/60 p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value}</p></div>)}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-3 gap-2 border-b pb-5 sm:gap-4 sm:pb-8">
+          {[["积分余额", credit?.balance ?? 0], ["已加载记录", logs.length], ["收藏", favorites.length]].map(([label, value]) => <div key={label} className="rounded-2xl bg-muted/60 p-3 sm:p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value}</p></div>)}
         </motion.div>
 
         {(task || needsCredits || recentViews.length > 1) && <div className="flex flex-wrap items-center justify-between gap-3 border-b py-4 text-sm"><p>{task ? "你有一项进行中的补价任务。" : needsCredits ? "查价积分不足，可通过补价任务获得积分。" : "继续比较最近浏览的商品。"}</p>{task || needsCredits ? <Button asChild size="sm" variant="outline"><a href="#price-tasks">{task ? "继续任务" : "获取积分"}</a></Button> : <Button size="sm" variant="outline" onClick={() => setDataTab("recent")}>查看最近浏览</Button>}</div>}
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)] lg:items-start">
+        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:items-start">
+          <section className={`${panelClass} min-w-0`}>
+            <div className="flex gap-2 overflow-x-auto pb-2" role="tablist" aria-label="个人数据分类">{dataTabs.map(([value, label, count], index) => <Button key={value} id={`account-tab-${value}`} role="tab" tabIndex={dataTab === value ? 0 : -1} onKeyDown={(event) => moveDataTab(event, index)} aria-selected={dataTab === value} aria-controls={`account-panel-${value}`} size="sm" variant={dataTab === value ? "default" : "ghost"} className="shrink-0 rounded-full" onClick={() => setDataTab(value)}>{label}<span className="font-mono text-xs opacity-70">{count}</span></Button>)}</div>
+            <motion.div id={`account-panel-${dataTab}`} role="tabpanel" tabIndex={0} aria-labelledby={`account-tab-${dataTab}`} key={dataTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }} className="mt-6">
+              <div className="flex items-end justify-between gap-4"><div><h2 className="text-2xl font-semibold">{dataInfo[dataTab][0]}</h2><p className="mt-1 text-sm text-muted-foreground">{dataInfo[dataTab][1]}</p></div><div className="flex shrink-0 gap-1">{dataCompareHref && <Button asChild size="sm" variant="outline"><a href={dataCompareHref}>比较商品 {dataCompareIds.length}</a></Button>}{dataTab === "recent" && recentViews.length > 0 && <Button size="sm" variant="ghost" onClick={() => { clearRecentViews(); setRecentViews([]) }}>清空</Button>}</div></div>
+
+              {dataTab === "logs" && <div className={listClass}>{logs.length ? logs.map((log) => <div key={log.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{log.products?.name || productNames.get(String(log.product_id)) || log.product_id}</p><p className="mt-1 truncate text-xs text-muted-foreground">{log.stores?.name || storeNames.get(String(log.store_id)) || "未指定门店"}，{formatDate(log.purchased_at || log.created_at)}{log.note ? `，${log.note}` : ""}</p></div><span className="shrink-0 font-mono font-semibold">{formatPrice(log.price_yen)}</span></div>) : <div className="py-10 text-center"><p className="text-sm text-muted-foreground">还没有价格记录。</p><Button asChild variant="outline" className="mt-4"><a href={"#quick-log"}>记录第一笔价格</a></Button></div>}</div>}
+              {dataTab === "recent" && <div className={listClass}>{recentViews.length ? recentViews.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"}，{item.pack || "规格未登记"}，{formatDate(item.viewed_at)}</p></div><Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.id)}`)}>打开</a></Button></div>) : <div className="py-10 text-center"><p className="text-sm text-muted-foreground">暂无浏览记录。</p><Button asChild variant="outline" className="mt-4"><a href={appPath("/")}>去找商品</a></Button></div>}</div>}
+              {dataTab === "favorites" && <>{favoriteProducts.length > 0 && <form id="price-alert-form" onSubmit={saveAlert} className="mt-5 grid scroll-mt-24 gap-3 border-y py-4 sm:grid-cols-[minmax(0,1fr)_9rem_auto_auto] sm:items-end"><label><span className="mb-2 block text-sm font-medium">降价提醒商品</span><select value={alertForm.product_id} onChange={(event) => { const productId = event.target.value; const alert = alertByProduct.get(String(productId)); const currentPrice = favoriteChangeByProduct.get(String(productId))?.current_min_price_yen; setAlertForm({ product_id: productId, target_price_yen: alert?.target_price_yen ?? currentPrice ?? "", is_active: alert?.is_active ?? true }) }} className="h-11 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择收藏商品</option>{favoriteProducts.map((item) => <option key={item.id} value={item.entity_id}>{productNames.get(String(item.entity_id)) || item.entity_id}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">目标价（日元）</span><Input type="number" min="1" value={alertForm.target_price_yen} onChange={(event) => setAlertForm({ ...alertForm, target_price_yen: event.target.value })} required /></label><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={alertForm.is_active} onChange={(event) => setAlertForm({ ...alertForm, is_active: event.target.checked })} className="size-4 accent-primary" />启用提醒</label><Button type="submit" disabled={savingAlert}>{savingAlert ? <LoaderCircle className="animate-spin" /> : <Save />}{savingAlert ? "保存中" : "保存提醒"}</Button></form>}<div className={favoriteProducts.length ? "divide-y" : listClass}>{favorites.length ? favorites.map((item) => { const label = item.entity_type === "product" ? productNames.get(String(item.entity_id)) : storeNames.get(String(item.entity_id)); const change = item.entity_type === "product" ? favoriteChangeByProduct.get(String(item.entity_id)) : null; const alert = item.entity_type === "product" ? alertByProduct.get(String(item.entity_id)) : null; const difference = Math.abs(Number(change?.change_yen) || 0); const changeLabel = change?.change_direction === "down" ? `降 ${formatPrice(difference)}` : change?.change_direction === "up" ? `涨 ${formatPrice(difference)}` : change?.change_direction === "same" ? "价格持平" : change?.change_direction === "new" ? "新增报价" : change ? "近期无报价" : ""; return <div key={item.id} className="flex flex-col gap-3 py-4 transition-colors hover:bg-muted/35 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="truncate font-medium">{label || item.entity_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.entity_type === "product" ? "商品" : "门店"}，{change?.latest_collected_at ? `价格更新 ${formatDate(change.latest_collected_at)}` : formatDate(item.created_at)}{alert ? `，提醒 ≤ ${formatPrice(alert.target_price_yen)}（${alert.is_active ? "已启用" : "已停用"}）` : ""}</p></div><div className="flex flex-wrap items-center justify-end gap-1">{change && <div className="mr-auto text-left sm:mr-2 sm:text-right"><p className="font-mono font-semibold">{change.current_min_price_yen != null && Number.isFinite(Number(change.current_min_price_yen)) ? formatPrice(change.current_min_price_yen) : "—"}</p><p className={`text-xs ${change.change_direction === "down" ? "text-primary" : "text-muted-foreground"}`}>{changeLabel}</p></div>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href="#price-alert-form" onClick={() => setAlertForm({ product_id: String(item.entity_id), target_price_yen: alert?.target_price_yen ?? change?.current_min_price_yen ?? "", is_active: alert?.is_active ?? true })}>{alert ? "编辑提醒" : "设提醒"}</a></Button>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.entity_id)}`)}>打开</a></Button>}<Button size="sm" variant="ghost" onClick={() => removeFavorite(item)}>移除</Button></div></div> }) : <div className="py-10 text-center"><p className="text-sm text-muted-foreground">收藏商品后，可在这里设置降价提醒。</p><Button asChild variant="outline" className="mt-4"><a href={appPath("/")}>去找商品</a></Button></div>}</div></>}
+              {dataTab === "credits" && <><div className="mt-5 grid gap-3 sm:grid-cols-3">{[["今日商品检索", `${credit?.searches_today ?? 0}/${credit?.daily_free_searches ?? 0}`, `超出后 ${credit?.search_cost_after_free ?? 0} 分/次`], ["今日价格查询", `${credit?.references_today ?? 0}/${credit?.daily_free_price_references ?? 0}`, `超出后 ${credit?.price_reference_cost ?? 0} 分/次`], ["贡献奖励", `+${credit?.approved_contribution_reward ?? 0}`, "公共价格审核通过后发放"]].map(([label, value, note]) => <div key={label} className="rounded-xl bg-muted p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-mono text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{note}</p></div>)}</div><div className={listClass}>{ledger.length ? ledger.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.reason || "积分变动"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDate(item.created_at)}{item.note ? `，${item.note}` : ""}</p></div><span className={`shrink-0 font-mono font-semibold ${Number(item.amount) > 0 ? "text-primary" : ""}`}>{Number(item.amount) > 0 ? "+" : ""}{item.amount}</span></div>) : <div className="py-10 text-center"><p className="text-sm text-muted-foreground">暂无积分流水。</p><Button asChild variant="outline" className="mt-4"><a href={"#price-tasks"}>查看补价任务</a></Button></div>}</div></>}
+              {dataTab === "submissions" && <div className={listClass}>{submissions.length ? submissions.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 text-xs text-muted-foreground">JAN {item.barcode}，{formatDate(item.created_at)}</p></div><Badge variant={item.review_status === "approved" ? "default" : "outline"}>{reviewLabels[item.review_status] || "状态未知"}</Badge></div>) : <div className="py-10 text-center"><p className="text-sm text-muted-foreground">暂无商品补录记录。</p><Button asChild variant="outline" className="mt-4"><a href={appPath("/scan/")}>扫码补录商品</a></Button></div>}</div>}
+              {(dataTab === "logs" || dataTab === "credits") && <div className="mt-4 space-y-3">
+                <p className="text-xs text-muted-foreground" role="status">已显示 {dataTab === "logs" ? logs.length : ledger.length} 条{historyMore[dataTab] ? "" : "，没有更多记录"}</p>
+                {historyError && <p role="alert" className="text-sm text-destructive">{historyError}</p>}
+                {historyMore[dataTab] && <Button variant="outline" disabled={historyBusy} onClick={() => loadMoreHistory(dataTab)}>{historyBusy ? "正在加载" : historyError ? "重试加载" : "加载更多记录"}</Button>}
+              </div>}
+            </motion.div>
+          </section>
           <div className="min-w-0 space-y-5 lg:sticky lg:top-24">
             <motion.section id="quick-log" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className={`${panelClass} scroll-mt-24`}>
               <div><h2 className="text-xl font-semibold">快速记录价格</h2><p className="mt-1 text-sm text-muted-foreground">选择商品并输入价格即可。</p></div>
@@ -278,19 +343,6 @@ export default function MeApp() {
               <div className="mt-5 space-y-3"><p className="text-sm leading-6 text-muted-foreground">这会永久删除账户、个人价格记录、收藏、积分和提醒，且无法恢复。遥测和运营记录中的账户标识将解除关联。</p><label><span className="mb-2 block text-sm font-medium">输入“删除账户”确认</span><Input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} disabled={deletingAccount} /></label><Button variant="destructive" className="w-full" onClick={removeAccount} disabled={deleteConfirmation !== "删除账户" || deletingAccount}>{deletingAccount ? <LoaderCircle className="animate-spin" /> : <Trash2 />}{deletingAccount ? "正在删除" : "永久删除账户"}</Button></div>
             </details>
           </div>
-
-          <section className={`${panelClass} min-w-0`}>
-            <div className="flex gap-2 overflow-x-auto pb-2" role="tablist" aria-label="个人数据分类">{dataTabs.map(([value, label, count]) => <Button key={value} id={`account-tab-${value}`} role="tab" aria-selected={dataTab === value} aria-controls={`account-panel-${value}`} size="sm" variant={dataTab === value ? "default" : "ghost"} className="shrink-0 rounded-full" onClick={() => setDataTab(value)}>{label}<span className="font-mono text-xs opacity-70">{count}</span></Button>)}</div>
-            <motion.div id={`account-panel-${dataTab}`} role="tabpanel" aria-labelledby={`account-tab-${dataTab}`} key={dataTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }} className="mt-6">
-              <div className="flex items-end justify-between gap-4"><div><h2 className="text-2xl font-semibold">{dataInfo[dataTab][0]}</h2><p className="mt-1 text-sm text-muted-foreground">{dataInfo[dataTab][1]}</p></div><div className="flex shrink-0 gap-1">{dataCompareHref && <Button asChild size="sm" variant="outline"><a href={dataCompareHref}>比较商品 {dataCompareIds.length}</a></Button>}{dataTab === "recent" && recentViews.length > 0 && <Button size="sm" variant="ghost" onClick={() => { clearRecentViews(); setRecentViews([]) }}>清空</Button>}</div></div>
-
-              {dataTab === "logs" && <div className={listClass}>{logs.length ? logs.slice(0, 30).map((log) => <div key={log.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{log.products?.name || productNames.get(String(log.product_id)) || log.product_id}</p><p className="mt-1 truncate text-xs text-muted-foreground">{log.stores?.name || storeNames.get(String(log.store_id)) || "未指定门店"}，{formatDate(log.purchased_at || log.created_at)}{log.note ? `，${log.note}` : ""}</p></div><span className="shrink-0 font-mono font-semibold">{formatPrice(log.price_yen)}</span></div>) : <p className="py-12 text-center text-sm text-muted-foreground">还没有价格记录。</p>}</div>}
-              {dataTab === "recent" && <div className={listClass}>{recentViews.length ? recentViews.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.brand || "品牌未登记"}，{item.pack || "规格未登记"}，{formatDate(item.viewed_at)}</p></div><Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.id)}`)}>打开</a></Button></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无浏览记录。</p>}</div>}
-              {dataTab === "favorites" && <>{favoriteProducts.length > 0 && <form id="price-alert-form" onSubmit={saveAlert} className="mt-5 grid scroll-mt-24 gap-3 border-y py-4 sm:grid-cols-[minmax(0,1fr)_9rem_auto_auto] sm:items-end"><label><span className="mb-2 block text-sm font-medium">降价提醒商品</span><select value={alertForm.product_id} onChange={(event) => { const productId = event.target.value; const alert = alertByProduct.get(String(productId)); const currentPrice = favoriteChangeByProduct.get(String(productId))?.current_min_price_yen; setAlertForm({ product_id: productId, target_price_yen: alert?.target_price_yen ?? currentPrice ?? "", is_active: alert?.is_active ?? true }) }} className="h-11 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择收藏商品</option>{favoriteProducts.map((item) => <option key={item.id} value={item.entity_id}>{productNames.get(String(item.entity_id)) || item.entity_id}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">目标价（日元）</span><Input type="number" min="1" value={alertForm.target_price_yen} onChange={(event) => setAlertForm({ ...alertForm, target_price_yen: event.target.value })} required /></label><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={alertForm.is_active} onChange={(event) => setAlertForm({ ...alertForm, is_active: event.target.checked })} className="size-4 accent-primary" />启用提醒</label><Button type="submit" disabled={savingAlert}>{savingAlert ? <LoaderCircle className="animate-spin" /> : <Save />}{savingAlert ? "保存中" : "保存提醒"}</Button></form>}<div className={favoriteProducts.length ? "divide-y" : listClass}>{favorites.length ? favorites.map((item) => { const label = item.entity_type === "product" ? productNames.get(String(item.entity_id)) : storeNames.get(String(item.entity_id)); const change = item.entity_type === "product" ? favoriteChangeByProduct.get(String(item.entity_id)) : null; const alert = item.entity_type === "product" ? alertByProduct.get(String(item.entity_id)) : null; const difference = Math.abs(Number(change?.change_yen) || 0); const changeLabel = change?.change_direction === "down" ? `降 ${formatPrice(difference)}` : change?.change_direction === "up" ? `涨 ${formatPrice(difference)}` : change?.change_direction === "same" ? "价格持平" : change?.change_direction === "new" ? "新增报价" : change ? "近期无报价" : ""; return <div key={item.id} className="flex flex-col gap-3 py-4 transition-colors hover:bg-muted/35 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="truncate font-medium">{label || item.entity_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.entity_type === "product" ? "商品" : "门店"}，{change?.latest_collected_at ? `价格更新 ${formatDate(change.latest_collected_at)}` : formatDate(item.created_at)}{alert ? `，提醒 ≤ ${formatPrice(alert.target_price_yen)}（${alert.is_active ? "已启用" : "已停用"}）` : ""}</p></div><div className="flex flex-wrap items-center justify-end gap-1">{change && <div className="mr-auto text-left sm:mr-2 sm:text-right"><p className="font-mono font-semibold">{change.current_min_price_yen != null && Number.isFinite(Number(change.current_min_price_yen)) ? formatPrice(change.current_min_price_yen) : "—"}</p><p className={`text-xs ${change.change_direction === "down" ? "text-primary" : "text-muted-foreground"}`}>{changeLabel}</p></div>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href="#price-alert-form" onClick={() => setAlertForm({ product_id: String(item.entity_id), target_price_yen: alert?.target_price_yen ?? change?.current_min_price_yen ?? "", is_active: alert?.is_active ?? true })}>{alert ? "编辑提醒" : "设提醒"}</a></Button>}{item.entity_type === "product" && <Button asChild size="sm" variant="ghost"><a href={appPath(`/product/?id=${encodeURIComponent(item.entity_id)}`)}>打开</a></Button>}<Button size="sm" variant="ghost" onClick={() => removeFavorite(item)}>移除</Button></div></div> }) : <p className="py-12 text-center text-sm text-muted-foreground">还没有收藏。</p>}</div></>}
-              {dataTab === "credits" && <><div className="mt-5 grid gap-3 sm:grid-cols-3">{[["今日商品检索", `${credit?.searches_today ?? 0}/${credit?.daily_free_searches ?? 0}`, `超出后 ${credit?.search_cost_after_free ?? 0} 分/次`], ["今日价格查询", `${credit?.references_today ?? 0}/${credit?.daily_free_price_references ?? 0}`, `超出后 ${credit?.price_reference_cost ?? 0} 分/次`], ["贡献奖励", `+${credit?.approved_contribution_reward ?? 0}`, "公共价格审核通过后发放"]].map(([label, value, note]) => <div key={label} className="rounded-xl bg-muted p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-mono text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{note}</p></div>)}</div><div className={listClass}>{ledger.length ? ledger.slice(0, 20).map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.reason || "积分变动"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDate(item.created_at)}{item.note ? `，${item.note}` : ""}</p></div><span className={`shrink-0 font-mono font-semibold ${Number(item.amount) > 0 ? "text-primary" : ""}`}>{Number(item.amount) > 0 ? "+" : ""}{item.amount}</span></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无积分流水。</p>}</div></>}
-              {dataTab === "submissions" && <div className={listClass}>{submissions.length ? submissions.map((item) => <div key={item.id} className={rowClass}><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="mt-1 text-xs text-muted-foreground">JAN {item.barcode}，{formatDate(item.created_at)}</p></div><Badge variant={item.review_status === "approved" ? "default" : "outline"}>{reviewLabels[item.review_status] || "状态未知"}</Badge></div>) : <p className="py-12 text-center text-sm text-muted-foreground">暂无商品补录记录。</p>}</div>}
-            </motion.div>
-          </section>
         </div>
       </section>
     </AppShell>

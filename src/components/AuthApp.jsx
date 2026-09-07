@@ -78,7 +78,8 @@ export default function AuthApp() {
   const [captchaToken, setCaptchaToken] = useState("")
   const [status, setStatus] = useState("")
   const [statusType, setStatusType] = useState("info")
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [sessionLoading, setSessionLoading] = useState(true)
   const [redirectPath, setRedirectPath] = useState("")
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export default function AuthApp() {
       if (!active) return
       setSession(value)
       if (value) setProfile(await fetchCurrentProfile())
-    }).catch((error) => { setStatusType("error"); setStatus(friendlyApiError(error)) }).finally(() => setLoading(false))
+    }).catch((error) => { setStatusType("error"); setStatus(friendlyApiError(error)) }).finally(() => { if (active) setSessionLoading(false) })
     subscribeAuthState(async (value) => {
       if (!active) return
       setSession(value)
@@ -106,6 +107,7 @@ export default function AuthApp() {
   }, [])
 
   const switchMode = (next) => {
+    if (loading) return
     setMode(next)
     setStatus("")
     setStatusType("info")
@@ -117,6 +119,7 @@ export default function AuthApp() {
 
   const submit = async (event) => {
     event.preventDefault()
+    if (loading) return
     if (mode !== "resetRequest" && password.length < 8) { setStatusType("error"); setStatus("密码至少需要 8 位。"); return }
     if ((mode === "register" || mode === "reset") && password !== confirm) { setStatusType("error"); setStatus("两次输入的密码不一致。"); return }
     setLoading(true)
@@ -162,24 +165,24 @@ export default function AuthApp() {
     <AppShell session={session} profile={profile}>
       <section className="mx-auto max-w-lg px-4 py-10 pb-24 sm:px-6 sm:py-16">
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)] sm:p-8">
-          {loading && !session ? <div className="flex min-h-64 items-center justify-center text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" /> 读取会话</div> : session && mode === "login" ? (
+          {sessionLoading ? <div className="flex min-h-64 items-center justify-center text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" /> 读取会话</div> : session && mode === "login" ? (
             <div className="flex min-h-64 flex-col justify-between">
               <div><Badge className="gap-1"><CheckCircle2 className="size-3" /> 已登录</Badge><h2 className="mt-5 text-2xl font-semibold">{profile?.full_name || session.user.email}</h2><p className="mt-2 text-muted-foreground">角色：{profile?.role || "user"}</p></div>
               <div className="mt-8 flex flex-wrap gap-3"><Button asChild><a href={redirectPath || appPath(profile?.role === "admin" ? "/admin/" : "/me/")}>继续使用 <ArrowRight /></a></Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>
             </div>
           ) : (
-            <form onSubmit={submit}>
+            <form onSubmit={submit} aria-busy={loading}>
               <div><h1 className="text-3xl font-semibold tracking-tight">{title}</h1><p className="mt-2 text-sm text-muted-foreground">{description}</p></div>
               <div className="mt-8 space-y-4">
-                {mode !== "reset" && <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="name@example.com" /></label>}
-                {mode !== "resetRequest" && <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><span className="relative block"><Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="至少 8 位" className="pr-12" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setShowPassword((value) => !value)} className="absolute right-0 top-1/2 -translate-y-1/2" aria-label={showPassword ? "隐藏密码" : "显示密码"}>{showPassword ? <EyeOff /> : <Eye />}</Button></span></label>}
-                {(mode === "register" || mode === "reset") && <label className="block"><span className="mb-2 block text-sm font-medium">确认密码</span><Input type={showPassword ? "text" : "password"} value={confirm} onChange={(event) => setConfirm(event.target.value)} required autoComplete="new-password" placeholder="再次输入" /></label>}
+                {mode !== "reset" && <label className="block"><span className="mb-2 block text-sm font-medium">邮箱</span><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="name@example.com" readOnly={loading} /></label>}
+                {mode !== "resetRequest" && <label className="block"><span className="mb-2 block text-sm font-medium">密码</span><span className="relative block"><Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="至少 8 位" readOnly={loading} className="pr-12" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setShowPassword((value) => !value)} className="absolute right-0 top-1/2 -translate-y-1/2" aria-label={showPassword ? "隐藏密码" : "显示密码"}>{showPassword ? <EyeOff /> : <Eye />}</Button></span></label>}
+                {(mode === "register" || mode === "reset") && <label className="block"><span className="mb-2 block text-sm font-medium">确认密码</span><Input type={showPassword ? "text" : "password"} value={confirm} onChange={(event) => setConfirm(event.target.value)} required autoComplete="new-password" placeholder="再次输入" readOnly={loading} /></label>}
                 {mode !== "reset" && <Turnstile key={mode} onToken={setCaptchaToken} />}
                 {status && <p className={`rounded-xl border px-4 py-3 text-sm ${statusType === "error" ? "border-destructive/25 bg-destructive/5 text-destructive" : statusType === "success" ? "border-primary/25 bg-primary/5 text-foreground" : "bg-muted"}`} role={statusType === "error" ? "alert" : "status"} aria-live="polite">{status}</p>}
               </div>
-              <Button type="submit" className="mt-6 w-full" disabled={loading}>{loading ? <LoaderCircle className="animate-spin" /> : mode === "register" ? <UserPlus /> : <Mail />}{loading ? "正在处理" : submitLabel}</Button>
+              <Button type="submit" className="mt-6 w-full" disabled={loading}>{loading ? <LoaderCircle className="animate-spin" /> : mode === "register" ? <UserPlus /> : <Mail />}{loading ? mode === "login" ? "正在登录" : "正在处理" : submitLabel}</Button>
               {mode === "register" && <p className="mt-3 text-xs leading-5 text-muted-foreground">注册即表示你已阅读<a className="mx-1 font-medium text-foreground underline underline-offset-4" href={appPath("/privacy/")}>隐私与数据说明</a>及<a className="ml-1 font-medium text-foreground underline underline-offset-4" href={appPath("/disclosure/")}>服务说明</a>。</p>}
-              <div className="mt-4 flex flex-wrap justify-between gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => switchMode(mode === "login" ? "register" : "login")}>{toggleLabel}</Button>{mode === "login" && <Button type="button" variant="ghost" size="sm" onClick={() => switchMode("resetRequest")}>忘记密码</Button>}</div>
+              <div className="mt-4 flex flex-wrap justify-between gap-2"><Button type="button" variant="ghost" size="sm" disabled={loading} onClick={() => switchMode(mode === "login" ? "register" : "login")}>{toggleLabel}</Button>{mode === "login" && <Button type="button" variant="ghost" size="sm" disabled={loading} onClick={() => switchMode("resetRequest")}>忘记密码</Button>}</div>
             </form>
           )}
         </motion.div>

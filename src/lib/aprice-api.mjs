@@ -291,11 +291,11 @@ export async function deleteAccount() {
   }
 }
 
-export async function fetchPersonalLogs(userId) {
+export async function fetchPersonalLogs(userId, { limit = 200, offset = 0 } = {}) {
   const session = await requireSession()
   return request("user_price_logs", {
     token: session.access_token,
-    query: { select: "*,products:product_id(*),stores:store_id(*)", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc", limit: 200 },
+    query: { select: "*,products:product_id(*),stores:store_id(*)", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc,id.desc", limit: Math.max(1, Math.min(Math.trunc(Number(limit)) || 200, 200)), offset: Math.max(0, Math.trunc(Number(offset)) || 0) },
   })
 }
 
@@ -359,11 +359,11 @@ export async function fetchCreditSummary() {
   return Array.isArray(result) ? result[0] || {} : result || {}
 }
 
-export async function fetchCreditLedger(limit = 30) {
+export async function fetchCreditLedger(limit = 30, offset = 0) {
   const session = await requireSession()
   return request("credit_ledger", {
     token: session.access_token,
-    query: { select: "*", user_id: `eq.${session.user.id}`, order: "created_at.desc", limit: Math.max(1, Math.min(Number(limit) || 30, 100)) },
+    query: { select: "*", user_id: `eq.${session.user.id}`, order: "created_at.desc,id.desc", limit: Math.max(1, Math.min(Math.trunc(Number(limit)) || 30, 100)), offset: Math.max(0, Math.trunc(Number(offset)) || 0) },
   })
 }
 

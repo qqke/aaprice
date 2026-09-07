@@ -89,6 +89,7 @@ import {
   sanitizePriceSnapshots,
 } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
+import { CATALOG_STATE_KEY, readCatalogState } from "@/lib/catalog-state.mjs"
 
 const formatDate = (value) => {
   const date = new Date(value)
@@ -480,17 +481,31 @@ function CompareDialog({ open, onOpenChange, selectedProducts, commercialOffers,
     try { await onCommercial(offer) } catch (error) { setCommercialStatus(friendlyApiError(error)) }
   }
 
+  const productActions = (product) => {
+    const commercialOffer = commercialOffers.find((offer) => String(offer.product_id) === String(product.id))
+    return <><div className="mt-3 flex flex-wrap gap-2">
+      {!product.offers.length && supabaseConfigured && <Button variant="outline" size="sm" onClick={() => onLoadPrices(product.id)} disabled={priceLoading[product.id]}>{priceLoading[product.id] && <LoaderCircle className="animate-spin" />}{priceLoading[product.id] ? "查询中" : priceChecked[product.id] ? "重新查询" : "查询报价"}</Button>}
+      {commercialOffer && <Button variant="ghost" size="sm" onClick={() => openCommercial(commercialOffer)}>合作购买</Button>}
+      <Button asChild variant="ghost" size="sm"><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)}>商品详情</a></Button>
+    </div>{priceErrors[product.id] && <p className="mt-2 text-xs text-destructive" role="alert">{priceErrors[product.id]}</p>}</>
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] max-w-[min(1100px,calc(100vw-2rem))] overflow-hidden p-0 sm:max-w-5xl">
+      <DialogContent className="flex max-h-[90dvh] max-w-[min(1100px,calc(100vw-2rem))] flex-col overflow-hidden p-0 sm:max-w-5xl">
         <DialogHeader className="border-b px-6 py-5 text-left"><div className="flex items-start justify-between gap-4 pr-8"><div><DialogTitle className="text-xl">比价清单</DialogTitle><DialogDescription className="mt-1">报价来自近期价格库，合计仅统计已查价商品。</DialogDescription>{(shareStatus || commercialStatus) && <p className="mt-2 text-xs text-muted-foreground" role="status">{commercialStatus || shareStatus}</p>}</div><Button className="shrink-0" variant="outline" size="sm" onClick={shareList}><Share2 />分享</Button></div>{summary.pricedCount > 0 && <div className="flex flex-wrap gap-x-8 gap-y-3 pt-3"><div><p className="text-xs text-muted-foreground">逐件最低合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.minimumTotal)}</p></div><div><p className="text-xs text-muted-foreground">可见差价合计</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(summary.visibleSaving)}</p></div>{selectedProducts.length > 1 && singleStore && <div><p className="text-xs text-muted-foreground">一店购最低</p><p className="mt-1 font-mono text-xl font-semibold text-foreground">{formatPrice(singleStore.total)}</p><p className="mt-1 max-w-48 truncate text-xs text-muted-foreground">{singleStore.name} · 多 {formatPrice(singleStore.premium)}{singleStore.includesMemberPrice && " · 含会员价"}</p><Button asChild variant="link" size="sm" className="-ml-3 mt-1"><a href={getMapUrl(singleStore)} target="_blank" rel="noreferrer" onClick={() => void recordTelemetryEvent("map_opened", { source: "compare_list", store_id: singleStore.id, item_count: selectedProducts.length }).catch(() => {})}><MapPin />地图查看</a></Button></div>}<p className="self-end text-xs text-muted-foreground">已查价 {summary.pricedCount}/{summary.totalCount} 件{selectedProducts.length > 1 && !singleStore && (summary.pricedCount < summary.totalCount ? " · 全部查价后计算一店购" : " · 暂无共同实体店")}</p></div>}</DialogHeader>
-        <div className="overflow-auto px-4 pb-6 sm:px-6">
-          <div className="grid min-w-[760px]" style={{ gridTemplateColumns: `150px repeat(${selectedProducts.length}, minmax(190px, 1fr))` }}>
+        <div className="min-h-0 overflow-auto px-4 pb-6 sm:px-6">
+          {!selectedProducts.length && <div className="py-8 text-center"><p className="text-sm text-muted-foreground">清单已清空，继续添加想比较的商品。</p><Button variant="outline" className="mt-4" onClick={() => onOpenChange(false)}>继续选商品</Button></div>}
+          <div className="divide-y md:hidden">{selectedProducts.map((product) => <article key={product.id} className="py-5">
+            <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs text-muted-foreground">{product.maker}</p><h3 className="mt-1 break-words font-semibold">{product.name}</h3></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div>
+            <dl className="mt-4 grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">{comparisonRows.slice(0, 4).map(([label, value]) => <div key={label} className="contents"><dt className="text-muted-foreground">{label}</dt><dd className="break-words font-medium">{value(product)}</dd></div>)}</dl>
+            {productActions(product)}
+            <details className="mt-3"><summary className="min-h-11 cursor-pointer py-3 text-sm text-muted-foreground">更多商品信息</summary><dl className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">{comparisonRows.slice(4).map(([label, value]) => <div key={label} className="contents"><dt className="text-muted-foreground">{label}</dt><dd className="break-words">{value(product)}</dd></div>)}</dl></details>
+          </article>)}</div>
+          <div className="hidden min-w-[760px] md:grid" style={{ gridTemplateColumns: `150px repeat(${selectedProducts.length}, minmax(190px, 1fr))` }}>
             <div className="sticky left-0 z-10 bg-popover py-5" />
             {selectedProducts.map((product) => {
-              const needsPrice = !product.offers.length
-              const commercialOffer = commercialOffers.find((offer) => String(offer.product_id) === String(product.id))
-              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div><div className="mt-3 flex flex-wrap gap-2">{needsPrice && supabaseConfigured && <Button variant="outline" size="sm" onClick={() => onLoadPrices(product.id)} disabled={priceLoading[product.id]}>{priceLoading[product.id] && <LoaderCircle className="animate-spin" />}{priceLoading[product.id] ? "查询中" : priceChecked[product.id] ? "重新查询" : "查询报价"}</Button>}{commercialOffer && <Button variant="ghost" size="sm" onClick={() => openCommercial(commercialOffer)}>合作购买</Button>}</div>{priceErrors[product.id] && <p className="mt-2 text-xs text-destructive" role="alert">{priceErrors[product.id]}</p>}</div>
+              return <div key={product.id} className="border-b px-4 py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">{product.maker}</p><p className="mt-1 font-semibold">{product.name}</p></div><Button variant="ghost" size="icon-sm" onClick={() => onRemove(product.id)} aria-label={`移除 ${product.name}`}><X /></Button></div>{productActions(product)}</div>
             })}
             {comparisonRows.flatMap(([label, value]) => [
               <div key={`${label}-label`} className="sticky left-0 z-10 border-b bg-popover py-4 text-sm text-muted-foreground">{label}</div>,
@@ -511,6 +526,10 @@ export default function CompareApp({ initialScan = false }) {
   const [catalogHasMore, setCatalogHasMore] = useState(false)
   const [catalogError, setCatalogError] = useState("")
   const [catalogRetry, setCatalogRetry] = useState(0)
+  const [catalogReady, setCatalogReady] = useState(false)
+  const restoredQuery = useRef(null)
+  const pendingScroll = useRef(null)
+  const catalogView = useRef(null)
   const [query, setQuery] = useState("")
   const [segment, setSegment] = useState("全部")
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -533,6 +552,61 @@ export default function CompareApp({ initialScan = false }) {
   const [locationStatus, setLocationStatus] = useState("idle")
 
   useEffect(() => { if (initialScan) setScanOpen(true) }, [initialScan])
+
+  catalogView.current = { catalog, query, segment, budget: budget[0], sort, filtersOpen, hasMore: catalogHasMore, userId: session?.user.id || null, location, loading: catalogLoading }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const returning = params.get("restore") === "1" || performance.getEntriesByType("navigation")[0]?.type === "back_forward"
+    let saved = null
+    try { if (returning && !initialScan) saved = readCatalogState(sessionStorage.getItem(CATALOG_STATE_KEY)) } catch {}
+    let active = true
+    const restore = async () => {
+      if (saved?.userId) {
+        const current = await getSession().catch(() => null)
+        if (current?.user.id !== saved.userId) saved = null
+        else if (active) setSession(current)
+      }
+      if (!active) return
+      if (saved) {
+        setCatalog(saved.catalog)
+        setQuery(saved.query)
+        setSegment(saved.segment)
+        setBudget([Math.max(MIN_PRICE, Math.min(MAX_PRICE, saved.budget))])
+        setSort(saved.sort)
+        setLocation(saved.location)
+        if (saved.location) setLocationStatus("ready")
+        setFiltersOpen(saved.filtersOpen)
+        setCatalogHasMore(saved.hasMore)
+        setCatalogLoading(false)
+        restoredQuery.current = saved.query
+        pendingScroll.current = saved.scrollY
+      }
+      if (params.has("restore")) {
+        const url = new URL(window.location.href)
+        url.searchParams.delete("restore")
+        history.replaceState(null, "", url.href)
+      }
+      setCatalogReady(true)
+    }
+    void restore()
+    const saveView = () => {
+      try {
+        const view = catalogView.current
+        if (!initialScan && !view.loading && view.catalog.length) sessionStorage.setItem(CATALOG_STATE_KEY, JSON.stringify({ ...view, scrollY: window.scrollY, savedAt: Date.now() }))
+      } catch {}
+    }
+    window.addEventListener("pagehide", saveView)
+    return () => { active = false; window.removeEventListener("pagehide", saveView) }
+  }, [initialScan])
+
+  useEffect(() => {
+    if (!catalogReady || pendingScroll.current === null) return
+    const y = pendingScroll.current
+    pendingScroll.current = null
+    const frame = requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "instant" }))
+    return () => cancelAnimationFrame(frame)
+  }, [catalogReady])
 
   useEffect(() => {
     let active = true
@@ -588,7 +662,8 @@ export default function CompareApp({ initialScan = false }) {
   }, [])
 
   useEffect(() => {
-    if (!supabaseConfigured) return undefined
+    if (!supabaseConfigured || !catalogReady) return undefined
+    if (restoredQuery.current === query) { restoredQuery.current = null; return undefined }
     let active = true
     const timer = setTimeout(async () => {
       setCatalogLoading(true)
@@ -613,7 +688,7 @@ export default function CompareApp({ initialScan = false }) {
       }
     }, query ? 300 : 0)
     return () => { active = false; clearTimeout(timer) }
-  }, [query, catalogRetry])
+  }, [query, catalogRetry, catalogReady])
 
   const segments = useMemo(() => ["全部", ...new Set(catalog.map(({ category }) => category).filter(Boolean))].slice(0, 7), [catalog])
   useEffect(() => { if (!catalogLoading && !catalogError && !segments.includes(segment)) setSegment("全部") }, [segments, segment, catalogLoading, catalogError])
@@ -726,6 +801,7 @@ export default function CompareApp({ initialScan = false }) {
   const handleSignOut = async () => {
     await signOut()
     setSession(null)
+    try { sessionStorage.removeItem(CATALOG_STATE_KEY) } catch {}
     setCatalog((items) => items.map((product) => ({ ...product, offers: [] })))
   }
 
