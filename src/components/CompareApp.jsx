@@ -379,9 +379,9 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
     >
       <div className={featured ? "grid md:grid-cols-[1.05fr_0.95fr]" : ""}>
         <a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)} aria-label={`查看 ${product.name} 详情`} className={`relative block overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring ${featured ? "aspect-[16/10] md:aspect-auto md:min-h-[28rem]" : "aspect-[16/10] md:aspect-[4/3]"}`}>
-          <motion.img layoutId={`image-${product.id}`} src={product.image} srcSet={getImageSrcSet(product.image)} sizes={featured ? "(min-width: 768px) 525px, 100vw" : "(min-width: 768px) 50vw, 100vw"} width="1200" height="900" alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} fetchPriority={featured ? "high" : "auto"} decoding="async" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.035]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
-          {featured && <div className="absolute bottom-5 left-5 hidden text-white md:block"><p className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">实时目录</p><p className="mt-1 text-lg font-semibold">扫码、搜索、按需查询价格</p></div>}
+          <motion.img layoutId={`image-${product.id}`} src={product.image} srcSet={getImageSrcSet(product.image)} sizes={featured ? "(min-width: 768px) 525px, 100vw" : "(min-width: 768px) 50vw, 100vw"} width="1200" height="900" alt={`${product.name} 药妆商品示意图`} loading={featured ? "eager" : "lazy"} fetchPriority={featured ? "high" : "auto"} decoding="async" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full bg-white object-contain p-4 motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover:scale-[1.025]" />
+
+
         </a>
 
         <div className={`flex flex-col p-4 md:p-5 ${featured ? "justify-between md:p-8" : "gap-4 md:gap-5"}`}>
@@ -422,6 +422,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
             {!hasPrices && <p className="mt-3 text-xs text-muted-foreground md:mt-5">{priceError || (priceChecked ? "该商品暂无近期报价。" : "登录后按需查询，不会在浏览目录时消耗额度。")}</p>}
           </div>
 
+          {!selected && selectionFull && <p className="mt-3 text-xs text-muted-foreground">最多比较 {MAX_COMPARE} 件，请在清单中移除一件后再加入。</p>}
           <div className={`flex items-end justify-between gap-4 ${featured ? "mt-5 md:mt-8" : "mt-auto"}`}>
             <div>
               <p className="text-xs text-muted-foreground">{stats.storeCount ? `报价最高 ${formatPrice(stats.max)} · 可省 ${formatPrice(stats.saving)}` : preview ? `${sourceCount} 个近期报价来源` : "同一后台实时返回"}</p>
@@ -431,7 +432,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
               <Button asChild variant="ghost" className="px-2.5"><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)}>详情<ChevronRight /></a></Button>
               {hasPrices ? (
                 <Button variant={selected ? "default" : "outline"} onClick={() => onToggle(product.id)} disabled={!selected && selectionFull} aria-pressed={selected}>
-                  {selected ? <Check /> : <Plus />}{selected ? "已加入" : "加入清单"}
+                  {selected ? <Check /> : <Plus />}{selected ? "已加入" : selectionFull ? "清单已满" : "加入清单"}
                 </Button>
               ) : (
                 <Button onClick={() => onLoadPrices(product.id)} disabled={priceLoading}>
@@ -509,6 +510,7 @@ export default function CompareApp({ initialScan = false }) {
   const [catalogLoadingMore, setCatalogLoadingMore] = useState(false)
   const [catalogHasMore, setCatalogHasMore] = useState(false)
   const [catalogError, setCatalogError] = useState("")
+  const [catalogRetry, setCatalogRetry] = useState(0)
   const [query, setQuery] = useState("")
   const [segment, setSegment] = useState("全部")
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -611,17 +613,17 @@ export default function CompareApp({ initialScan = false }) {
       }
     }, query ? 300 : 0)
     return () => { active = false; clearTimeout(timer) }
-  }, [query])
+  }, [query, catalogRetry])
 
   const segments = useMemo(() => ["全部", ...new Set(catalog.map(({ category }) => category).filter(Boolean))].slice(0, 7), [catalog])
-  useEffect(() => { if (!segments.includes(segment)) setSegment("全部") }, [segments, segment])
+  useEffect(() => { if (!catalogLoading && !catalogError && !segments.includes(segment)) setSegment("全部") }, [segments, segment, catalogLoading, catalogError])
   const hasCatalogPrices = catalog.some((product) => product.offers.length > 0)
   useEffect(() => {
-    if (!hasCatalogPrices) {
+    if (!catalogLoading && !catalogError && !hasCatalogPrices) {
       setBudget([MAX_PRICE])
       setSort("score")
     }
-  }, [hasCatalogPrices])
+  }, [hasCatalogPrices, catalogLoading, catalogError])
 
   const filtered = useMemo(() => filterProducts(catalog, { query: supabaseConfigured ? "" : query, segment, maxPrice: budget[0], sort, location }), [catalog, query, segment, budget, sort, location])
   const selectedProducts = selected.map((id) => {
@@ -798,11 +800,11 @@ export default function CompareApp({ initialScan = false }) {
 
             <div aria-busy={catalogLoading}>
               <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">{catalogLoading ? "正在更新目录" : catalogError ? "后台连接异常" : "匹配结果"}</p><AnimatePresence mode="wait" initial={false}><motion.h2 key={catalogLoading ? "loading" : filtered.length} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-1 text-2xl font-semibold tracking-tight" aria-live="polite">{catalogLoading && !catalog.length ? "正在加载商品" : `${filtered.length} 款可比较商品`}</motion.h2></AnimatePresence></div><div className="flex items-center gap-2 text-sm text-muted-foreground"><BadgeJapaneseYen className="size-4" /> 价格按需查询</div></div>
-              {catalogError && <div className="mb-5 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">{catalogError}</div>}
+              {catalogError && <div className="mb-5 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-4 text-sm" role="alert"><p className="font-semibold">商品暂时加载失败</p><p className="mt-1 text-muted-foreground">请重试，搜索内容和筛选条件会保留。</p><Button variant="outline" className="mt-3" onClick={() => setCatalogRetry((value) => value + 1)} disabled={catalogLoading}><RotateCcw />重新加载</Button></div>}
               {catalogLoading && !catalog.length && <div className="grid gap-5 md:grid-cols-2" aria-hidden="true">{[0, 1].map((item) => <div key={item} className="overflow-hidden rounded-2xl border bg-card"><div className="aspect-[16/10] animate-pulse bg-muted" /><div className="space-y-4 p-5"><div className="h-3 w-20 animate-pulse rounded bg-muted" /><div className="h-6 w-3/4 animate-pulse rounded bg-muted" /><div className="h-16 animate-pulse rounded-xl bg-muted" /></div></div>)}</div>}
               <motion.div layout className="grid gap-5 md:grid-cols-2"><AnimatePresence mode="popLayout">{filtered.map((product, index) => <ProductCard key={product.id} product={product} featured={index === 0} selected={selected.includes(product.id)} selectionFull={selected.length >= MAX_COMPARE} onToggle={toggleProduct} reduceMotion={reduceMotion} location={location} priceLoading={priceLoading[product.id]} priceChecked={priceChecked[product.id]} priceError={priceErrors[product.id]} onLoadPrices={loadPrices} />)}</AnimatePresence></motion.div>
-              {!catalogLoading && catalogHasMore && <div className="mt-8 flex justify-center"><Button variant="outline" size="lg" onClick={loadMoreProducts} disabled={catalogLoadingMore}>{catalogLoadingMore && <LoaderCircle className="animate-spin" />}{catalogLoadingMore ? "正在加载" : "加载更多商品"}</Button></div>}
-              {!catalogLoading && !filtered.length && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid min-h-80 place-items-center rounded-2xl border border-dashed bg-muted/30 p-8 text-center"><div><Pill className="mx-auto size-8 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">没有符合条件的商品</h3><p className="mt-2 text-sm text-muted-foreground">换商品名、品牌、JAN 码或直接扫码试试。</p><Button className="mt-5" onClick={resetFilters}>清除筛选</Button></div></motion.div>}
+              {!catalogLoading && !catalogError && catalogHasMore && <div className="mt-8 flex justify-center"><Button variant="outline" size="lg" onClick={loadMoreProducts} disabled={catalogLoadingMore}>{catalogLoadingMore && <LoaderCircle className="animate-spin" />}{catalogLoadingMore ? "正在加载" : "加载更多商品"}</Button></div>}
+              {!catalogLoading && !catalogError && !filtered.length && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid min-h-80 place-items-center rounded-2xl border border-dashed bg-muted/30 p-8 text-center"><div><Pill className="mx-auto size-8 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">没有符合条件的商品</h3><p className="mt-2 text-sm text-muted-foreground">换商品名、品牌、JAN 码或直接扫码试试。</p><Button className="mt-5" onClick={resetFilters}>清除筛选</Button></div></motion.div>}
             </div>
           </div>
         </section>

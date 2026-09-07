@@ -169,9 +169,13 @@
 
   .search-shell:focus-within {
     transform: translateY(-2px);
-    border-color: color-mix(in oklab, var(--primary) 62%, var(--border));
-    box-shadow: 0 24px 70px color-mix(in oklab, var(--primary) 14%, transparent), 0 0 0 3px color-mix(in oklab, var(--primary) 13%, transparent);
   }
+}
+
+.search-shell:focus-within {
+  border-color: var(--ring);
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }
 
 .commerce-hero {
