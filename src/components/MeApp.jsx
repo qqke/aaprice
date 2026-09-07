@@ -213,7 +213,13 @@ export default function MeApp() {
     try {
       const nextTask = await claimRandomPriceTask()
       setTask(nextTask)
-      if (nextTask) void recordTelemetryEvent("task_claimed", { product_id: nextTask.product_id, has_store: Boolean(nextTask.store_id) }).catch(() => {})
+      if (nextTask) {
+        void recordTelemetryEvent("task_claimed", { product_id: nextTask.product_id, has_store: Boolean(nextTask.store_id) }).catch(() => {})
+        if (!products.some((item) => String(item.id) === String(nextTask.product_id))) {
+          const [claimedProduct] = await fetchProductsByIds([nextTask.product_id]).catch(() => [])
+          if (claimedProduct) setProducts((items) => items.some((item) => String(item.id) === String(claimedProduct.id)) ? items : [...items, claimedProduct])
+        }
+      }
       setStatus(nextTask ? "已领取补价任务。" : "当前没有可领取的补价任务。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setTaskBusy(false) }
   }

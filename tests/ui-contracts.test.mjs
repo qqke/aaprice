@@ -79,6 +79,7 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(account, /task=1[\s\S]*#record-price/)
   assert.match(account, /fetchActivePriceTask\(\)/)
   assert.match(account, /recordTelemetryEvent\("task_claimed"/)
+  assert.match(account, /fetchProductsByIds\(\[nextTask\.product_id\]\)/)
   assert.match(account, /fetchFavoritePriceChanges\(\{ days: 7 \}\)/)
   assert.match(account, /fetchMyPriceAlerts\(\)/)
   assert.match(account, /upsertPriceAlert/)
