@@ -96,6 +96,8 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(account, /await deleteAccount\(\)/)
   assert.match(account, /永久删除账户/)
   assert.match(account, /role="tablist"/)
+  assert.match(account, /searchProducts\(query, 50, \{ curated: false \}\)/)
+  assert.match(account, /正在搜索完整目录/)
   assert.match(await readSource(".github/workflows/deploy.yml"), /PUBLIC_DISABLE_TURNSTILE:.*\|\| '1'/)
   assert.match(await readSource(".github/workflows/deploy.yml"), /verify-production-browser\.mjs/)
   assert.match(layout, /\/privacy\//)

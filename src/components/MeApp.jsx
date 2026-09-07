@@ -74,6 +74,9 @@ export default function MeApp() {
   const [deletingAccount, setDeletingAccount] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
   const [productSearch, setProductSearch] = useState("")
+  const [productMatches, setProductMatches] = useState(null)
+  const [productSearchBusy, setProductSearchBusy] = useState(false)
+  const [productSearchError, setProductSearchError] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
   const [logForm, setLogForm] = useState({ product_id: "", store_id: "", price_yen: "", note: "" })
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" })
@@ -108,6 +111,30 @@ export default function MeApp() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    const query = productSearch.trim()
+    if (!query) {
+      setProductMatches(null)
+      setProductSearchBusy(false)
+      setProductSearchError("")
+      return undefined
+    }
+    let active = true
+    setProductSearchBusy(true)
+    setProductSearchError("")
+    const timer = setTimeout(async () => {
+      try {
+        const rows = await searchProducts(query, 50, { curated: false })
+        if (active) setProductMatches({ query, rows: Array.isArray(rows) ? rows : [] })
+      } catch (error) {
+        if (active) setProductSearchError(friendlyApiError(error))
+      } finally {
+        if (active) setProductSearchBusy(false)
+      }
+    }, 300)
+    return () => { active = false; clearTimeout(timer) }
+  }, [productSearch])
+
   const productNames = useMemo(() => new Map(products.map((item) => [String(item.id), item.name])), [products])
   const storeNames = useMemo(() => new Map(stores.map((item) => [String(item.id), item.name])), [stores])
   const favoriteChangeByProduct = useMemo(() => new Map(favoriteChanges.map((item) => [String(item.product_id), item])), [favoriteChanges])
@@ -115,8 +142,12 @@ export default function MeApp() {
   const favoriteProducts = useMemo(() => favorites.filter((item) => item.entity_type === "product"), [favorites])
   const filteredProducts = useMemo(() => {
     const needle = productSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
-    return needle ? products.filter((item) => [item.name, item.brand, item.barcode].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : products
-  }, [productSearch, products])
+    if (!needle) return products
+    return productMatches?.query === productSearch.trim()
+      ? productMatches.rows
+      : products.filter((item) => [item.name, item.brand, item.barcode].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle))
+  }, [productSearch, productMatches, products])
+  const selectedProductOutsideSearch = products.find((item) => String(item.id) === String(logForm.product_id) && !filteredProducts.some((match) => String(match.id) === String(item.id)))
   const filteredStores = useMemo(() => {
     const needle = storeSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
     return needle ? stores.filter((item) => [item.name, item.chain_name, item.pref, item.city, item.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : stores
@@ -321,7 +352,8 @@ export default function MeApp() {
               <div><h2 className="text-xl font-semibold">快速记录价格</h2><p className="mt-1 text-sm text-muted-foreground">选择商品并输入价格即可。</p></div>
               <form onSubmit={saveLog} className="mt-6 space-y-4">
                 <label><span className="mb-2 block text-sm font-medium">搜索商品</span><Input type="search" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="商品名、品牌或 JAN 码" /></label>
-                <label><span className="mb-2 block text-sm font-medium">商品</span><select value={logForm.product_id} onChange={(event) => setLogForm({ ...logForm, product_id: event.target.value })} className="h-11 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择商品</option>{filteredProducts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                {productSearch && <p className={`text-xs ${productSearchError ? "text-destructive" : "text-muted-foreground"}`} role={productSearchError ? "alert" : "status"}>{productSearchBusy ? "正在搜索完整目录…" : productSearchError || `匹配 ${filteredProducts.length} 件商品`}</p>}
+                <label><span className="mb-2 block text-sm font-medium">商品</span><select value={logForm.product_id} onChange={(event) => { const productId = event.target.value; const selected = filteredProducts.find((item) => String(item.id) === productId); if (selected && !products.some((item) => String(item.id) === productId)) setProducts((items) => [...items, selected]); setLogForm({ ...logForm, product_id: productId }) }} className="h-11 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择商品</option>{selectedProductOutsideSearch && <option value={selectedProductOutsideSearch.id}>{selectedProductOutsideSearch.name}（已选择）</option>}{filteredProducts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={logForm.price_yen} onChange={(event) => setLogForm({ ...logForm, price_yen: event.target.value })} required /></label>
                 <details><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground">门店与备注（可选）</summary><div className="mt-2 space-y-4"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label><label><span className="mb-2 block text-sm font-medium">门店</span><select value={logForm.store_id} onChange={(event) => setLogForm({ ...logForm, store_id: event.target.value })} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={logForm.note} onChange={(event) => setLogForm({ ...logForm, note: event.target.value })} placeholder="促销、会员价等" /></label></div></details>
                 <Button type="submit" className="w-full" disabled={savingLog}>{savingLog ? <LoaderCircle className="animate-spin" /> : <Save />}{savingLog ? "正在保存" : "保存记录"}</Button>
