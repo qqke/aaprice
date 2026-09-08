@@ -1,6 +1,20 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { spawnSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
 import { buildRows, csvCell, normalizeProduct, syncSql } from "../scripts/sync-sundrug.mjs"
+
+test("sync fails before fetching with missing or invalid database configuration without leaking it", () => {
+  for (const databaseUrl of ["", "https://user:private-test-password@example.invalid/db", "not-a-url"]) {
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/sync-sundrug.mjs", import.meta.url))], {
+      env: { ...process.env, AAPRICE_DB_URL: databaseUrl }, encoding: "utf8", timeout: 5000,
+    })
+    assert.equal(result.error, undefined)
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /AAPRICE_DB_URL/)
+    assert.doesNotMatch(result.stdout + result.stderr, /Fetched|private-test-password/)
+  }
+})
 
 test("rejects malformed and fractional yen without truncating, and counts rejected variants", () => {
   const valid = ["980", "980.00", "1,280.00", " 2400 ", 1, "2147483647"]

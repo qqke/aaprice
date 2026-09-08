@@ -138,6 +138,7 @@ function databaseProcess(databaseUrl, input) {
 
   const args = [
     "-X",
+    "--no-password",
     "-v", "ON_ERROR_STOP=1",
     "-h", parsed.hostname,
     "-p", parsed.port || "5432",
@@ -149,6 +150,7 @@ function databaseProcess(databaseUrl, input) {
       ...process.env,
       PGPASSWORD: decodeURIComponent(parsed.password),
       PGSSLMODE: parsed.searchParams.get("sslmode") || "require",
+      PGCONNECT_TIMEOUT: "15",
     },
     input,
     encoding: "utf8",
@@ -266,6 +268,12 @@ commit;
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run")
+  const databaseUrl = process.env.AAPRICE_DB_URL
+  if (!dryRun) {
+    if (!databaseUrl) throw new Error("AAPRICE_DB_URL is required unless --dry-run is used")
+    databaseProcess(databaseUrl, "select 1;")
+    console.log("Database connection verified; starting catalog fetch")
+  }
   const products = await fetchCatalog()
   const { rows, rejectedVariants } = buildRows(products)
   const availableRows = rows.filter((row) => row.available).length
@@ -275,10 +283,11 @@ async function main() {
   if (rows.length < MINIMUM_CATALOG_SIZE) {
     throw new Error(`Catalog safety check failed: expected at least ${MINIMUM_CATALOG_SIZE.toLocaleString("en-US")} rows`)
   }
-  if (dryRun) return
+  if (dryRun) {
+    console.log("Dry run complete: no database connection, writes or alerts queued")
+    return
+  }
 
-  const databaseUrl = process.env.AAPRICE_DB_URL
-  if (!databaseUrl) throw new Error("AAPRICE_DB_URL is required unless --dry-run is used")
   console.log(databaseProcess(databaseUrl, syncSql(rows)))
 }
 

@@ -58,4 +58,6 @@ AAPRICE_DB_URL=postgresql://... npm run sundrug:sync
 
 脚本使用 Sandrug 公开目录，只接受有效 JAN 和正整数日元价格。它会先完成全量抓取及数量校验，再以单一事务更新商品、追加当前可售价格并生成符合条件的降价提醒；同商品同价格在 20 小时内重复执行不会再次写入。公开源最多返回 25,000 件商品，已有但未出现在本轮源数据中的历史商品不会被删除。
 
-GitHub Actions 每周运行一次 `.github/workflows/sync-sundrug.yml`。在仓库 Actions Secrets 配置仅供服务端使用的 `SUPABASE_DB_URL`；未配置时任务会安全跳过。可用 `npm run sundrug:sync -- --dry-run` 只验证上游数据，不连接数据库。
+GitHub Actions 每周运行一次 `.github/workflows/sync-sundrug.yml`。在仓库 Settings → Secrets and variables → Actions 配置仅供服务端使用的 `SUPABASE_DB_URL`；未配置时正式同步会明确失败，不会显示成功或跳过。连接串从 Supabase 的 Connect 面板获取，使用支持运行环境网络的 PostgreSQL 连接方式并启用 SSL；不要提交到代码或日志。
+
+手动 Run workflow 默认勾选 `dry_run`，只抓取和校验上游目录，不连接数据库、不写入价格、不触发提醒。确认统计正常并配置密钥后，取消勾选才会正式同步。定时运行始终执行正式同步；正式同步在抓取前验证数据库连接。也可本地运行 `npm run sundrug:sync -- --dry-run`。抓取或最低目录数量校验失败都会返回失败，不能将 dry run 成功视为生产数据已更新。

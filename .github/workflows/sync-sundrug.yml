@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "20 17 * * 0"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate source catalog only (no database writes)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -24,7 +29,12 @@ jobs:
       - name: Refresh catalog and price snapshots
         env:
           AAPRICE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
         run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            npm run sundrug:sync -- --dry-run
+            exit 0
+          fi
           if [ -z "$AAPRICE_DB_URL" ]; then
             echo "::error::SUPABASE_DB_URL is not configured."
             exit 1
