@@ -1,6 +1,18 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { csvCell, normalizeProduct, syncSql } from "../scripts/sync-sundrug.mjs"
+import { buildRows, csvCell, normalizeProduct, syncSql } from "../scripts/sync-sundrug.mjs"
+
+test("rejects malformed and fractional yen without truncating, and counts rejected variants", () => {
+  const valid = ["980", "980.00", "1,280.00", " 2400 ", 1, "2147483647"]
+  const invalid = ["980.50", "980abc", "9,80", "1e3", "0", "-1", "", null, "2147483648", "Infinity", "1 000"]
+  const variants = [...valid, ...invalid].map((price, index) => ({ barcode: String(4901234567800 + index), price }))
+  const product = { title: "商品", variants }
+  const { rows, rejectedVariants } = buildRows([product, { title: "duplicate", variants: [variants[0]] }])
+  assert.deepEqual(rows.map((row) => row.priceYen), [980, 980, 1280, 2400, 1, 2147483647])
+  assert.equal(rejectedVariants, invalid.length)
+  assert.equal(rows[0].name, "duplicate")
+  assert.equal(buildRows([{ title: "", variants: [variants[0]] }]).rejectedVariants, 1)
+})
 
 test("normalizes priced Sandrug variants without inventing identifiers", () => {
   const rows = normalizeProduct({

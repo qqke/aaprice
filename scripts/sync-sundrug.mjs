@@ -33,8 +33,10 @@ export function normalizeProduct(product) {
 
   return (product?.variants || []).flatMap((variant) => {
     const barcode = barcodeOf(variant, product)
-    const priceYen = Number.parseInt(text(variant?.price).replaceAll(",", ""), 10)
-    if (!barcode || !Number.isInteger(priceYen) || priceYen <= 0) return []
+    const rawPrice = text(variant?.price)
+    const priceYen = Number(rawPrice.replaceAll(",", ""))
+    if (!barcode || !/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.0+)?$/.test(rawPrice)
+      || !Number.isInteger(priceYen) || priceYen <= 0 || priceYen > 2_147_483_647) return []
 
     return [{
       barcode,
@@ -111,12 +113,15 @@ export async function fetchCatalog() {
   return products
 }
 
-function buildRows(products) {
+export function buildRows(products) {
   const rows = new Map()
+  let rejectedVariants = 0
   for (const product of products) {
-    for (const row of normalizeProduct(product)) rows.set(row.barcode, row)
+    const normalized = normalizeProduct(product)
+    rejectedVariants += (product?.variants?.length || 0) - normalized.length
+    for (const row of normalized) rows.set(row.barcode, row)
   }
-  return [...rows.values()]
+  return { rows: [...rows.values()], rejectedVariants }
 }
 
 function databaseProcess(databaseUrl, input) {
@@ -262,10 +267,11 @@ commit;
 async function main() {
   const dryRun = process.argv.includes("--dry-run")
   const products = await fetchCatalog()
-  const rows = buildRows(products)
+  const { rows, rejectedVariants } = buildRows(products)
   const availableRows = rows.filter((row) => row.available).length
 
   console.log(`Normalized ${rows.length.toLocaleString("en-US")} variants (${availableRows.toLocaleString("en-US")} available)`)
+  console.log(`Rejected ${rejectedVariants.toLocaleString("en-US")} variants with missing names/JANs or invalid prices`)
   if (rows.length < MINIMUM_CATALOG_SIZE) {
     throw new Error(`Catalog safety check failed: expected at least ${MINIMUM_CATALOG_SIZE.toLocaleString("en-US")} rows`)
   }

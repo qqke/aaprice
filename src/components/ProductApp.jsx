@@ -1,6 +1,6 @@
 import { motion } from "motion/react"
 import { ArrowLeft, BadgeJapaneseYen, Heart, LoaderCircle, LocateFixed, MapPin, Save, Scale, Store } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +55,8 @@ export default function ProductApp() {
   const [priceLoading, setPriceLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(false)
   const [savingPrice, setSavingPrice] = useState(false)
+  const priceSaveBusy = useRef(false)
+  const savedPersonalEntries = useRef(new Set())
   const [status, setStatus] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
   const [historyLimit, setHistoryLimit] = useState(12)
@@ -203,22 +205,38 @@ export default function ProductApp() {
 
   const savePrice = async (event) => {
     event.preventDefault()
-    if (savingPrice) return
+    if (priceSaveBusy.current) return
     if (form.share_to_public && !form.store_id) { setStatus("提交公共价格时必须选择门店。"); return }
+    priceSaveBusy.current = true
     setSavingPrice(true)
     setStatus("正在保存价格…")
+    let personalSaved = false
     try {
       const entry = { product_id: productId, store_id: form.store_id || null, price_yen: Number(form.price_yen), note: form.note.trim(), purchased_at: new Date().toISOString().slice(0, 10) }
-      await savePersonalLog(entry)
+      const entryKey = JSON.stringify([session.user.id, entry])
+      // This checkpoint only covers confirmed saves while this page remains open.
+      if (!savedPersonalEntries.current.has(entryKey)) {
+        await savePersonalLog(entry)
+        savedPersonalEntries.current.add(entryKey)
+      }
+      personalSaved = true
       if (form.share_to_public) {
         await submitStorePrice({ ...entry, store_id: form.store_id, evidence_url: form.evidence_url.trim(), share_to_public: true })
         if (taskFlow) void recordTelemetryEvent("task_submitted", { product_id: productId, has_store: true }).catch(() => {})
       }
       setForm({ store_id: "", price_yen: "", note: "", evidence_url: "", share_to_public: false })
-      const refreshedLogs = await fetchPersonalLogs(session.user.id)
-      setLogs(refreshedLogs.filter((item) => String(item.product_id) === String(productId)))
-      setStatus(taskFlow ? "补价任务已提交审核，审核通过后发放积分。" : form.share_to_public ? "个人记录已保存，公共价格已提交审核。" : "个人价格记录已保存。")
-    } catch (error) { setStatus(friendlyApiError(error)) } finally { setSavingPrice(false) }
+      savedPersonalEntries.current.delete(entryKey)
+      const successMessage = form.share_to_public ? taskFlow ? "补价任务已提交审核，审核通过后发放积分。" : "个人记录已保存，公共价格已提交审核。" : "个人价格记录已保存。"
+      setStatus(successMessage)
+      try {
+        const refreshedLogs = await fetchPersonalLogs(session.user.id)
+        setLogs(refreshedLogs.filter((item) => String(item.product_id) === String(productId)))
+      } catch {
+        setStatus(`${successMessage} 记录列表暂未刷新，请刷新页面查看。`)
+      }
+    } catch (error) {
+      setStatus(personalSaved ? `个人记录已保存，但公共提交未确认成功：${friendlyApiError(error)}。请先查看个人中心的提交记录；本页重试不会重复保存相同的私人记录。` : friendlyApiError(error))
+    } finally { priceSaveBusy.current = false; setSavingPrice(false) }
   }
 
   if (loading) return <AppShell title="商品详情"><AppLoading label="正在读取商品" /></AppShell>
@@ -260,7 +278,7 @@ export default function ProductApp() {
               {commercialSection}
 
               <section id="record-price" className="scroll-mt-24 rounded-2xl border bg-card p-6">
-                <div><h2 className="text-xl font-semibold">{taskFlow ? "完成补价任务" : "记录价格"}</h2><p className="mt-2 text-sm text-muted-foreground">{taskFlow ? requestedStoreId ? "任务门店已预选；保存时会同时提交公共价格审核。" : "选择门店并输入价格；保存时会同时提交公共价格审核。" : "只需选择门店并输入价格。"}</p></div>
+                <div><h2 className="text-xl font-semibold">{taskFlow ? "完成补价任务" : "记录价格"}</h2><p className="mt-2 text-sm text-muted-foreground">{taskFlow ? !form.share_to_public ? "当前仅保存私人记录，不会提交任务审核。" : requestedStoreId ? "任务门店已预选；保存时会同时提交公共价格审核。" : "选择门店并输入价格；保存时会同时提交公共价格审核。" : "只需选择门店并输入价格。"}</p></div>
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label><p className="mt-2 text-xs text-muted-foreground" role="status">{storeSearch ? `匹配 ${filteredStores.length} 家门店` : `可选 ${filteredStores.length} 家门店`}{storeSearch && !filteredStores.length ? "，试试城市或连锁名称。" : ""}</p></div>
                   <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{filteredStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
