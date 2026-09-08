@@ -61,3 +61,5 @@ AAPRICE_DB_URL=postgresql://... npm run sundrug:sync
 GitHub Actions 每周运行一次 `.github/workflows/sync-sundrug.yml`。在仓库 Settings → Secrets and variables → Actions 配置仅供服务端使用的 `SUPABASE_DB_URL`；未配置时正式同步会明确失败，不会显示成功或跳过。连接串从 Supabase 的 Connect 面板获取，使用支持运行环境网络的 PostgreSQL 连接方式并启用 SSL；不要提交到代码或日志。
 
 手动 Run workflow 默认勾选 `dry_run`，只抓取和校验上游目录，不连接数据库、不写入价格、不触发提醒。确认统计正常并配置密钥后，取消勾选才会正式同步。定时运行始终执行正式同步；正式同步在抓取前验证数据库连接。也可本地运行 `npm run sundrug:sync -- --dry-run`。抓取或最低目录数量校验失败都会返回失败，不能将 dry run 成功视为生产数据已更新。
+
+若 GitHub 运行器连接 `db.<project>.supabase.co` 报 IPv6 `Network is unreachable`，请从 Supabase → Connect → Session pooler 复制 IPv4 连接串（端口 5432），更新同名 Secret。主机和用户名都以面板为准，不要只替换端口；保留 `sslmode=require`，替换密码占位符并对密码中的 URI 特殊字符进行编码。此问题无需修改数据库结构或关闭 SSL。参考：[Supabase 连接指南](https://supabase.com/docs/guides/database/connecting-to-postgres)。
