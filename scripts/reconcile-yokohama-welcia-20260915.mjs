@@ -1,0 +1,20 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const out='artifacts/drugstores-yokohama-welcia-2026-09-15';
+const read=async p=>JSON.parse(await readFile(p,'utf8'));
+const db=await read('artifacts/drugstores-yokohama-2026-09-15/database-before.json'),stores=await read(`${out}/stores.json`),report=await read(`${out}/report.json`);
+const source=JSON.parse((await read(`${out}/sundrug/search-response.json`)).html).locations;
+const retail=stores.filter(x=>x.id.startsWith('sundrug-'));
+const mappings=retail.map(s=>({databaseId:`sundrug-${s.sourceStoreCode}`,crawlId:s.id,name:s.name,sourceUrl:s.sourceUrl,officialListingId:s.sourceStoreCode}));
+assert(mappings.every(m=>db.some(x=>x.id===m.databaseId)));
+const discrepancies=db.filter(x=>x.id.startsWith('sundrug-')&&!mappings.some(m=>m.databaseId===x.id)).map(s=>{const official=source.find(x=>`sundrug-${x.id}`===s.id);assert(official&&/薬局|調剤/.test(official.name));return {databaseId:s.id,name:s.name,address:s.address,category:'dispensing_pharmacy',reason:'Current official directory identifies a pharmacy/dispensing department; excluded from retail drugstore catalog',officialName:official.name,sourceUrl:official.website,officialListingId:official.id}});
+const welciaExcluded=report.excluded.filter(x=>x.source.startsWith('welcia')).map(x=>{const id=`welcia-${x.id}`;return {...x,databaseId:db.find(s=>s.id===id)?.id||null,expectedId:id,databaseName:db.find(s=>s.id===id)?.name||null,sourceUrl:`https://store.welcia.co.jp/welcia/spot/detail?code=${x.id}`}});
+const result={generatedAt:new Date().toISOString(),databaseModified:false,sundrug:{databaseBefore:35,retailRefreshed:22,dispensingExcluded:discrepancies.length,closed:0,missingRetail:0,idSchemeNote:'Historical database IDs use official API listing id; parser output uses official website code. Map by sourceStoreCode to preserve IDs and avoid duplicates.',retailIdMappings:mappings,discrepancies},welcia:{dispensingExcluded:welciaExcluded.length,databaseMatches:welciaExcluded.filter(x=>x.databaseId).length,rows:welciaExcluded}};
+assert.equal(discrepancies.length,13);assert.equal(welciaExcluded.length,11);
+const mappingEvidence=[];
+const mapped=stores.map(s=>{const target=s.id.startsWith('sundrug-')?`sundrug-${s.sourceStoreCode}`:s.id.startsWith('welcia-')?`welcia-${s.id.split('-').at(-1)}`:s.id;const old=db.find(x=>x.id===target);mappingEvidence.push({crawlId:s.id,databaseId:old?.id||null,outputId:old?.id||s.id,matchMethod:old?'official source code':'new record',originalRecord:old||null,sourceRecord:s});return old?{...s,id:old.id,name:old.name,chain_name:old.chain_name,sourceName:s.name,sourceChainName:s.chain_name,sourceCrawlId:s.id}:s});
+assert.equal(mapped.length,new Set(mapped.map(x=>x.id)).size);
+result.mapping={total:mapped.length,existing:mappingEvidence.filter(x=>x.databaseId).length,new:mappingEvidence.filter(x=>!x.databaseId).length,rows:mappingEvidence};
+await writeFile(`${out}/mapped-stores.json`,JSON.stringify(mapped,null,2));
+await writeFile(`${out}/reconciliation.json`,JSON.stringify(result,null,2));console.log(JSON.stringify({sundrugDiscrepancies:discrepancies.length,welciaDatabaseMatches:result.welcia.databaseMatches,mapped:result.mapping.total,existing:result.mapping.existing,new:result.mapping.new}));
+

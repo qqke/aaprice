@@ -124,7 +124,7 @@ export function buildRows(products) {
   return { rows: [...rows.values()], rejectedVariants }
 }
 
-function databaseProcess(databaseUrl, input) {
+export function databaseProcess(databaseUrl, input) {
   let parsed
   try {
     parsed = new URL(databaseUrl)

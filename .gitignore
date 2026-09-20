@@ -22,3 +22,10 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Raw public crawl evidence (normalized exports remain reviewable)
+artifacts/drugstore-sources/
+artifacts/drugstores-*/cache/
+# Crawl runs, raw probes, and generated import batches stay local.
+artifacts/
+supabase/.temp/

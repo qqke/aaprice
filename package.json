@@ -10,6 +10,7 @@
     "build": "astro build",
     "test": "node --test",
     "sundrug:sync": "node scripts/sync-sundrug.mjs",
+    "drugstores:crawl": "node scripts/crawl-drugstores.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

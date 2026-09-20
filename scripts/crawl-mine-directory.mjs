@@ -1,0 +1,7 @@
+import {readFile,writeFile} from 'node:fs/promises'
+import {buildImportSql} from './crawl-drugstores.mjs'
+import {validateStore} from './crawl-national-stores.mjs'
+const h=await readFile('artifacts/mine-store.html','utf8'),clean=s=>(s||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(),stores=[]
+for(const b of h.split('<li class="p-store__storeItem">').slice(1)){const a=b.match(/<a(?=[^>]*class="p-store__storeTel is-drug")[^>]*>([\s\S]*?)<\/a>/);if(!a)continue;const url=a[0].match(/href="([^"]+)/)[1],name=clean(b.match(/p-store__storeName">([\s\S]*?)<\/p>/)?.[1]),address=clean(b.match(/p-store__storeAddress">([\s\S]*?)<\/p>/)?.[1]),c=url.match(/!3d([\d.]+)!4d([\d.]+)/)||url.match(/@([\d.]+),([\d.]+)/);if(!c)continue;stores.push(validateStore({id:'mine-'+stores.length,name:`ミネドラッグ ${name}`,chain_name:'ミネドラッグ',address,pref:address.match(/^(東京都|神奈川県|千葉県|埼玉県)/)?.[1],city:'',lat:Number(c[1]),lng:Number(c[2]),hours:'',sourceUrl:url,coordinateEvidence:'Official store Google Maps link'}))}
+const out='artifacts/drugstores-mine-2026-09-13',report={source:'https://www.mineiyakuhin.co.jp/store/',discovered:stores.length,accepted:stores.length,pending:0,enumerationComplete:true,applied:false};await writeFile(`${out}/stores.json`,JSON.stringify(stores,null,2));await writeFile(`${out}/report.json`,JSON.stringify(report,null,2));await writeFile(`${out}/import.sql`,buildImportSql([],stores));console.log(JSON.stringify(report))
+

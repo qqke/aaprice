@@ -1,0 +1,6 @@
+import {writeFile} from 'node:fs/promises'
+import {buildImportSql} from './crawl-drugstores.mjs'
+import {validateStore} from './crawl-national-stores.mjs'
+const api='https://store.welcia.co.jp/welcia/api/proxy2/shop/list?category=21&ex-code=only.prior&ignore-i18n=true&limit=200'
+const j=await (await fetch(api)).json();const stores=j.items.filter(x=>x.status==='normal'&&x.coord?.lat&&x.coord?.lon).map(x=>validateStore({id:`welpark-${x.code}`,name:x.name,chain_name:'ウエルパーク',address:x.address_name,pref:x.address_name.match(/^(東京都|北海道|[^市区町村]{2,3}[県府])/ )?.[1],city:'',lat:Number(x.coord.lat),lng:Number(x.coord.lon),phone:x.phone||'',hours:'',sourceUrl:`https://store.welcia.co.jp/welcia/?shop=${encodeURIComponent(x.code)}`,coordinateEvidence:'Official Welcia shop API coord',collectedAt:new Date().toISOString()}))
+const out='artifacts/drugstores-welpark-2026-09-13';const report={source:api,expected:j.count.total,discovered:j.items.length,accepted:stores.length,pending:j.items.length-stores.length,enumerationComplete:j.items.length===j.count.total,applied:false};for(const [f,v] of Object.entries({'stores.json':stores,'report.json':report}))await writeFile(`${out}/${f}`,JSON.stringify(v,null,2));await writeFile(`${out}/import.sql`,buildImportSql([],stores));console.log(JSON.stringify(report))

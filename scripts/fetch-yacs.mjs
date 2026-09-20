@@ -1,0 +1,4 @@
+import {writeFile} from 'node:fs/promises';const r=await fetch('https://yacs.jp/drug-store/');await writeFile('artifacts/yacs-drug-store.html',await r.text());
+const q=await fetch('https://yacs.jp/search/?&store_cat%5B%5D=drug_store');const t=await q.text();await writeFile('artifacts/yacs-search.html',t);console.log(t.length,(t.match(/store-item|shop-item|店舗/g)||[]).length,(t.match(/iframe/g)||[]).length)
+const a=await(await fetch('https://arka.co.jp/')).text();await writeFile('artifacts/arka.html',a);console.log('ARKA',a.length,[...a.matchAll(/href="([^"]+)"/g)].map(m=>m[1]).filter(x=>/shop|store|店舗/i.test(x)).slice(0,50).join('\n'))
+const al=await(await fetch('https://arka.co.jp/list.php?ct=%E7%A5%9E%E6%88%B8%E5%B8%82%E8%A5%BF%E5%8C%BA')).text();await writeFile('artifacts/arka-list.html',al);console.log('AL',al.length,(al.match(/detail\.php/g)||[]).length,(al.match(/google/g)||[]).length,al.match(/detail\.php[^" ]*/g)?.slice(0,5))

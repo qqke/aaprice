@@ -63,3 +63,48 @@ GitHub Actions 每周运行一次 `.github/workflows/sync-sundrug.yml`。在仓�
 手动 Run workflow 默认勾选 `dry_run`，只抓取和校验上游目录，不连接数据库、不写入价格、不触发提醒。确认统计正常并配置密钥后，取消勾选才会正式同步。定时运行始终执行正式同步；正式同步在抓取前验证数据库连接。也可本地运行 `npm run sundrug:sync -- --dry-run`。抓取或最低目录数量校验失败都会返回失败，不能将 dry run 成功视为生产数据已更新。
 
 若 GitHub 运行器连接 `db.<project>.supabase.co` 报 IPv6 `Network is unreachable`，请从 Supabase → Connect → Session pooler 复制 IPv4 连接串（端口 5432），更新同名 Secret。主机和用户名都以面板为准，不要只替换端口；保留 `sslmode=require`，替换密码占位符并对密码中的 URI 特殊字符进行编码。此问题无需修改数据库结构或关闭 SSL。参考：[Supabase 连接指南](https://supabase.com/docs/guides/database/connecting-to-postgres)。
+
+## 其他药妆店商品与实体门店采集
+
+全国药妆连锁门店目录扩充：
+
+```sh
+node scripts/crawl-national-stores.mjs --out=artifacts/drugstores-national-2026-09-12
+```
+
+中断后可加 `--resume` 复用同批缓存（保留原采集时间），只请求缺失页面；新鲜度更新应开启新输出目录。2026-09-13 新增新生堂、アカカベ、ゴダイ目录，完成 Cosmos 补采；本批入库及待坐标记录见 [并行采集结果](docs/drugstore-parallel-results-2026-09-13.md)。Mori、ZAGZAG 和サンキュードラッグ仅有地址或地图中心的记录，不作为精确门店坐标入库。
+
+本次接入官方公开目录并导入门店资料：鹤羽、松本清／Cocokara、杉药局、Cosmos、Create SD、Tomod’s、Satsudora、V・Drug、Seki、Drug Yutaka、Cawachi、Kirindo、药王堂、青木、大国药妆。门店目录和线上价格分开处理；没有官方公开价格入口的连锁不会产生猜测价格。行业协会企业名录仅用于追踪未接入连锁，不作为完整分母。
+
+```sh
+npm run drugstores:crawl -- --limit=300 --stores=200 --welcia-stores=3000
+```
+
+从鹤羽、Welcia、松本清／Cocokara 的官方公开页面采集价格。默认每个网店最多检查 300 个商品页面；鹤羽集团和松本清／Cocokara 各检查最多 200 个实体门店，Welcia 官方目录最多读取 3,000 条并排除非药妆店、非药局业态。松本清的候选 JAN 优先取自已抓到的商品，以增加相同商品的跨店比较。商品采集是有上限的首批覆盖，不代表全量目录。
+
+输出位于 `artifacts/drugstores-YYYY-MM-DD/`（目录日期为运行开始时的 UTC 日期）：
+
+- `products.json`：商品、原始含税价格、JAN、来源链接、实际采集时间、是否适合比较及复核原因。
+- `stores.json`：实体门店名称、地址、坐标和营业时间；不会给实体分店复制网店价。
+- `report.json`：覆盖数、跨来源匹配数、复核与失败记录；采集时 `databaseApplied` 为 `false`，经数据库复查后才可标记已导入。
+- `review.json`：按来源页面保留全部待复核报价；组合装即使沿用单件 JAN，也不会覆盖合格的单件报价。
+- `import.sql`：事务式导入，按 JAN 复用现有商品，只给独立的“オンライン”网店记录写入合格价格。同价 20 小时内去重，超过 7 天的价格不导入；不覆盖现有商品详情、不删除历史数据、不调用提醒发送函数。
+
+只接受通过校验位验证的 JAN-8/JAN-13。缺货、组合装或小数含税价会保留为待复核记录，不擅自取整。价格不含运费、优惠券或积分抵扣。页面内容与来源时间保存在被 Git 忽略的 `cache/`，缓存使用期为 24 小时，遇到 403/429 停止对应来源。
+
+中断后，指定同一输出目录可继续采集；也可完全离线重解析已抓到的页面，保留原时间戳并按来源/JAN 和门店 ID 去重：
+
+```sh
+npm run drugstores:crawl -- --out=artifacts/drugstores-2026-09-10
+npm run drugstores:crawl -- --offline --out=artifacts/drugstores-2026-09-10
+```
+
+离线重解析会包含缓存中的所有已采集记录，因此数量可能超过单次运行上限；它无法恢复未成功下载页面的 HTTP 错误记录。线上导入需要单独提供真实服务端数据库连接（公开 anon key 和带密码占位符的连接串不能写入）。在本地 `.env` 配置 `AAPRICE_DB_URL` 并安装 `psql`，审核报告后执行：
+
+```sh
+node --env-file=.env scripts/crawl-drugstores.mjs --import=artifacts/drugstores-2026-09-10/import.sql
+```
+
+首次导入前需要应用 `supabase/migrations/20260911143635_allow_online_store_null_coordinates.sql`，允许网店使用空坐标，同时保留实体门店必须有坐标的约束。本次数据库已应用该迁移。
+
+导入复用 Sundrug 的数据库连接方法，通过环境变量将密码传给 `psql`，默认强制 SSL。采集报告不会因后续单独导入而自动改写；导入是否成功以命令退出状态和数据库复查为准。不要把服务端连接串提交到仓库。已完成的首批导入见 [2026-09-11 采集报告](docs/drugstore-expansion-2026-09-11.md)。
