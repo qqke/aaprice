@@ -2,7 +2,7 @@
 import '@/styles/global.css';
 
 const {
-  title = 'AAPRICE | 日本药妆商品比价',
+  title = 'LOWPRICE | 日本药妆商品比价',
   description = '比较日本药妆商品、门店价格与单位价格。',
   noindex = false,
 } = Astro.props;
@@ -47,7 +47,7 @@ const socialImageUrl = new URL(`${base}/favicon.ico`, site);
     <slot />
     <footer class="border-t bg-background">
       <div class="mx-auto flex max-w-[1320px] flex-col gap-3 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-        <p>© 2026 AAPRICE · 价格仅供参考，请以商家结算页面为准。</p>
+        <p>© 2026 LOWPRICE · 你省的，远远不止这一点。价格仅供参考，请以商家结算页面为准。</p>
         <nav class="flex flex-wrap gap-x-5 gap-y-2" aria-label="站点说明">
           <a href={`${base}/privacy/`} class="min-h-11 content-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">隐私与数据</a>
           <a href={`${base}/disclosure/`} class="min-h-11 content-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">联盟与服务说明</a>

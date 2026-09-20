@@ -334,7 +334,7 @@ export default function MeApp() {
   const reviewLabels = { pending: "待审核", approved: "已通过", rejected: "未通过" }
 
   if (loading) return <AppShell title="个人中心"><AppLoading label="正在同步账户" /></AppShell>
-  if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务会同步到你的 AAPRICE 账号。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/me/"))}`)}>登录或注册</a></Button></div></AppShell>
+  if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务会同步到你的 LOWPRICE 账号。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/me/"))}`)}>登录或注册</a></Button></div></AppShell>
 
   return (
     <AppShell title={profile?.full_name || "我的账户"} description={session.user.email} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportAccountData} disabled={exporting}><Download /> 导出数据</Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>}>

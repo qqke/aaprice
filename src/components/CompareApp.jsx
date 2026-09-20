@@ -338,7 +338,7 @@ function LoginDialog({ open, onOpenChange, onSignedIn, priceIntent = false }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[min(440px,calc(100vw-2rem))] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{priceIntent ? "登录后继续查价" : "登录 AAPRICE"}</DialogTitle>
+          <DialogTitle>{priceIntent ? "登录后继续查价" : "登录 LOWPRICE"}</DialogTitle>
           <DialogDescription>{priceIntent ? "登录后将自动继续查询价格，当前比价清单不会丢失。" : "登录后可查询价格、收藏商品并查看个人记录。"}</DialogDescription>
         </DialogHeader>
         <form className="mt-2 space-y-3" onSubmit={submit}>
@@ -833,7 +833,7 @@ export default function CompareApp({ initialScan = false }) {
     <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href={appPath("/")} className="flex min-h-11 items-center gap-3" aria-label="AAPRICE 首页"><span className="grid size-9 place-items-center rounded-xl bg-primary font-mono text-sm font-bold text-primary-foreground">AA</span><span><span className="block font-semibold leading-none tracking-[-0.04em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span></a>
+          <a href={appPath("/")} className="flex min-h-11 items-center gap-3" aria-label="LOWPRICE 首页"><img src="/lowprice-logo.png" alt="LOWPRICE" className="h-11 w-auto object-contain" /></a>
           <div className="flex items-center gap-1">
             <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="#catalog">商品比价</a></Button>
             <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>

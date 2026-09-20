@@ -203,7 +203,7 @@ export default function ProductApp() {
     setCommercialStatus("正在前往合作商店…")
     try { window.location.assign(await recordCommercialClick(commercialOffer.id, "product")) } catch (error) { setCommercialStatus(friendlyApiError(error)); setCommercialBusy(false) }
   }
-  const commercialSection = commercialOffer && <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="border-y py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs text-muted-foreground">合作链接 · 购买可能为 AAPRICE 带来收益</p><h2 className="mt-1 font-semibold">楽天市场购买</h2></div><Button variant="outline" onClick={openCommercialOffer} disabled={commercialBusy}>{commercialBusy ? <LoaderCircle className="animate-spin" /> : <ArrowLeft className="rotate-180" />}{commercialBusy ? "跳转中" : "合作购买"}</Button></div>{commercialStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{commercialStatus}</p>}</motion.section>
+  const commercialSection = commercialOffer && <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="border-y py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs text-muted-foreground">合作链接 · 购买可能为 LOWPRICE 带来收益</p><h2 className="mt-1 font-semibold">楽天市场购买</h2></div><Button variant="outline" onClick={openCommercialOffer} disabled={commercialBusy}>{commercialBusy ? <LoaderCircle className="animate-spin" /> : <ArrowLeft className="rotate-180" />}{commercialBusy ? "跳转中" : "合作购买"}</Button></div>{commercialStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{commercialStatus}</p>}</motion.section>
 
   const favoriteStore = async (storeId) => {
     try {

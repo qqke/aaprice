@@ -34,9 +34,8 @@ export default function AppShell({ children, eyebrow, title, description, sessio
       <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href={appPath("/")} className="group flex min-h-11 items-center gap-3" aria-label="AAPRICE 首页">
-            <span className="grid size-9 place-items-center rounded-[0.8rem] bg-primary font-mono text-xs font-bold tracking-tight text-primary-foreground shadow-[0_8px_24px_color-mix(in_oklab,var(--primary)_22%,transparent)] transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105">AA</span>
-            <span><span className="block font-semibold leading-none tracking-[-0.045em]">AAPRICE</span><span className="mt-1 block text-[10px] leading-none text-muted-foreground">日本药妆比价</span></span>
+          <a href={appPath("/")} className="group flex min-h-11 items-center gap-3" aria-label="LOWPRICE 首页">
+            <img src="/lowprice-logo.png" alt="LOWPRICE" className="h-11 w-auto object-contain transition-transform duration-300 group-hover:scale-[1.02]" />
           </a>
           <nav className="flex items-center gap-1" aria-label="主导航">
             <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
