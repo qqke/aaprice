@@ -59,6 +59,7 @@ export default function ProductApp() {
   const savedPersonalEntries = useRef(new Set())
   const [status, setStatus] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
+  const [visibleStoreLimit, setVisibleStoreLimit] = useState(20)
   const [historyLimit, setHistoryLimit] = useState(12)
   const [form, setForm] = useState({ store_id: requestedStoreId, price_yen: "", note: "", evidence_url: "", share_to_public: taskFlow })
 
@@ -149,9 +150,17 @@ export default function ProductApp() {
   const physicalStores = stores.filter((store) => !isOnlineStore(store))
   const filteredStores = useMemo(() => {
     const needle = storeSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
-    if (!needle) return physicalStores
-    return physicalStores.filter((store) => [store.name, store.chain_name, store.pref, store.city, store.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle))
-  }, [storeSearch, stores])
+    const matches = needle ? physicalStores.filter((store) => [store.name, store.chain_name, store.pref, store.city, store.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : physicalStores
+    return matches.toSorted((a, b) => {
+      if (location) {
+        const da = Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng)) ? distanceKm(location.lat, location.lng, Number(a.lat), Number(a.lng)) : Infinity
+        const db = Number.isFinite(Number(b.lat)) && Number.isFinite(Number(b.lng)) ? distanceKm(location.lat, location.lng, Number(b.lat), Number(b.lng)) : Infinity
+        if (da !== db) return da - db
+      }
+      return String(a.name || "").localeCompare(String(b.name || ""), "ja")
+    })
+  }, [storeSearch, stores, location])
+  const visibleStores = filteredStores.slice(0, visibleStoreLimit)
   const selectedStoreOutsideSearch = physicalStores.find((store) => String(store.id) === String(form.store_id) && !filteredStores.some((match) => match.id === store.id))
   const locate = () => {
     if (!navigator.geolocation) { setStatus("当前浏览器不支持定位，请手动搜索门店。"); return }
@@ -159,6 +168,7 @@ export default function ProductApp() {
     navigator.geolocation.getCurrentPosition(async ({ coords }) => {
       const next = { lat: coords.latitude, lng: coords.longitude }
       setLocation(next)
+      setVisibleStoreLimit(20)
       const nearestStore = physicalStores
         .filter((store) => Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng)))
         .map((store) => ({ ...store, distance: distanceKm(next.lat, next.lng, Number(store.lat), Number(store.lng)) }))
@@ -280,8 +290,8 @@ export default function ProductApp() {
               <section id="record-price" className="scroll-mt-24 rounded-2xl border bg-card p-6">
                 <div><h2 className="text-xl font-semibold">{taskFlow ? "完成补价任务" : "记录价格"}</h2><p className="mt-2 text-sm text-muted-foreground">{taskFlow ? !form.share_to_public ? "当前仅保存私人记录，不会提交任务审核。" : requestedStoreId ? "任务门店已预选；保存时会同时提交公共价格审核。" : "选择门店并输入价格；保存时会同时提交公共价格审核。" : "只需选择门店并输入价格。"}</p></div>
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label><p className="mt-2 text-xs text-muted-foreground" role="status">{storeSearch ? `匹配 ${filteredStores.length} 家门店` : `可选 ${filteredStores.length} 家门店`}{storeSearch && !filteredStores.length ? "，试试城市或连锁名称。" : ""}</p></div>
-                  <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{filteredStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+                  <div className="sm:col-span-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => { setStoreSearch(event.target.value); setVisibleStoreLimit(20) }} placeholder="店名、连锁、城市或地址" /></label><p className="mt-2 text-xs text-muted-foreground" role="status">{storeSearch ? `匹配 ${filteredStores.length} 家门店` : `可选 ${filteredStores.length} 家门店`}{location ? " · 已按 GPS 距离排序" : " · 点击定位后按距离排序"}{storeSearch && !filteredStores.length ? "，试试城市或连锁名称。" : ""}</p></div>
+                  <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{visibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}{location && Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng)) ? ` · ${formatDistance(distanceKm(location.lat, location.lng, Number(store.lat), Number(store.lng)))}` : ""}</option>)}</select>{filteredStores.length > visibleStores.length && <Button type="button" variant="ghost" size="sm" className="mt-2 px-0" onClick={() => setVisibleStoreLimit((value) => value + 20)}>加载更多（还有 {filteredStores.length - visibleStores.length} 家）</Button>}</label>
                   <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
                   <details className="sm:col-span-2">
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground">补充信息与公共提交（可选）</summary>
