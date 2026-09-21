@@ -1,3 +1,4 @@
+import { readLocation, requestLocation } from "@/lib/location.mjs"
 import { motion } from "motion/react"
 import { ArrowLeft, BadgeJapaneseYen, Heart, LoaderCircle, LocateFixed, MapPin, Save, Scale, Store } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -50,7 +51,9 @@ export default function ProductApp() {
   const [commercialOffer, setCommercialOffer] = useState(null)
   const [commercialBusy, setCommercialBusy] = useState(false)
   const [commercialStatus, setCommercialStatus] = useState("")
-  const [location, setLocation] = useState(null)
+  const [location, setLocation] = useState(readLocation)
+  const [locating, setLocating] = useState(false)
+  const [locationStatus, setLocationStatus] = useState("")
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(false)
@@ -162,20 +165,16 @@ export default function ProductApp() {
   }, [storeSearch, stores, location])
   const visibleStores = filteredStores.slice(0, visibleStoreLimit)
   const selectedStoreOutsideSearch = physicalStores.find((store) => String(store.id) === String(form.store_id) && !filteredStores.some((match) => match.id === store.id))
-  const locate = () => {
-    if (!navigator.geolocation) { setStatus("当前浏览器不支持定位，请手动搜索门店。"); return }
-    setStatus("正在定位附近门店…")
-    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
-      const next = { lat: coords.latitude, lng: coords.longitude }
-      setLocation(next)
+  const locate = async () => {
+    if (locating) return
+    setLocating(true)
+    setLocationStatus("正在获取当前位置…")
+    try {
+      setLocation(await requestLocation())
       setVisibleStoreLimit(20)
-      const nearestStore = physicalStores
-        .filter((store) => Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng)))
-        .map((store) => ({ ...store, distance: distanceKm(next.lat, next.lng, Number(store.lat), Number(store.lng)) }))
-        .toSorted((a, b) => a.distance - b.distance)[0]
-      if (nearestStore) setForm((value) => ({ ...value, store_id: nearestStore.id }))
-      setStatus(nearestStore ? `已选择最近门店：${nearestStore.name}（${formatDistance(nearestStore.distance)}）。` : "已保存位置，查询后将按距离排序。")
-    }, (error) => setStatus(`定位失败：${error.message}`), { timeout: 10000, maximumAge: 30000 })
+      setLocationStatus("已获取位置，实体店报价按距离排序；记录价格前请确认门店。")
+    } catch (error) { setLocationStatus(error.message) }
+    finally { setLocating(false) }
   }
 
   const selectStore = (storeId) => {
@@ -253,7 +252,7 @@ export default function ProductApp() {
   if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath("/")}>返回搜索</a></Button></div></AppShell>
 
   return (
-    <AppShell title={product.name} description={[product.maker, product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" / ")} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href={appPath("/?restore=1#catalog")}><ArrowLeft /> 返回结果</a></Button><Button variant="outline" onClick={compareProduct}><Scale />加入比价</Button>{session && <><Button variant="outline" onClick={locate} disabled={priceLoading}><LocateFixed /> 定位门店</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
+    <AppShell title={product.name} description={[product.maker, product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" / ")} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href={appPath("/?restore=1#catalog")}><ArrowLeft /> 返回结果</a></Button><Button variant="outline" onClick={compareProduct}><Scale />加入比价</Button>{session && <><Button variant="outline" onClick={locate} disabled={locating}><LocateFixed /> {locating ? "正在定位…" : "获取当前位置"}</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
       <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-32 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:pb-24">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-3xl border bg-card shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">
@@ -269,6 +268,7 @@ export default function ProductApp() {
           ) : (
             <>
               <section id="store-prices">
+                <p className="mb-4 text-sm text-muted-foreground" role="status" aria-live="polite">{locationStatus || (location ? "已使用当前位置计算门店距离。" : "尚未定位，请先获取当前位置，查询附近门店报价。")}</p>
                 <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">可用价格</h2>{offers.length > 0 && <p className="mt-2 text-sm text-muted-foreground">{offers.length} 个报价来源 · {location && offers.some((offer) => !isOnlineStore(offer)) ? "实体店按距离排序" : "按价格排序"} · <span className={freshness.stale ? "text-amber-700 dark:text-amber-400" : "text-foreground"}>{freshness.label}</span></p>}</div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
                 {offers.length ? <><div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
                   const isFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(offer.id))
@@ -290,7 +290,7 @@ export default function ProductApp() {
               <section id="record-price" className="scroll-mt-24 rounded-2xl border bg-card p-6">
                 <div><h2 className="text-xl font-semibold">{taskFlow ? "完成补价任务" : "记录价格"}</h2><p className="mt-2 text-sm text-muted-foreground">{taskFlow ? !form.share_to_public ? "当前仅保存私人记录，不会提交任务审核。" : requestedStoreId ? "任务门店已预选；保存时会同时提交公共价格审核。" : "选择门店并输入价格；保存时会同时提交公共价格审核。" : "只需选择门店并输入价格。"}</p></div>
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => { setStoreSearch(event.target.value); setVisibleStoreLimit(20) }} placeholder="店名、连锁、城市或地址" /></label><p className="mt-2 text-xs text-muted-foreground" role="status">{storeSearch ? `匹配 ${filteredStores.length} 家门店` : `可选 ${filteredStores.length} 家门店`}{location ? " · 已按 GPS 距离排序" : " · 点击定位后按距离排序"}{storeSearch && !filteredStores.length ? "，试试城市或连锁名称。" : ""}</p></div>
+                  <div className="sm:col-span-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => { setStoreSearch(event.target.value); setVisibleStoreLimit(20) }} placeholder="店名、连锁、城市或地址" /></label><div className="mt-2 flex flex-wrap items-center gap-3"><p className="text-xs text-muted-foreground" role="status">{storeSearch ? `匹配 ${filteredStores.length} 家门店` : `可选 ${filteredStores.length} 家门店`}{location ? " · 已按 GPS 距离排序" : " · 尚未定位，结果可能不是附近门店"}{storeSearch && !filteredStores.length ? "，试试城市或连锁名称。" : ""}</p>{!location && <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={locate} disabled={locating}><LocateFixed />{locating ? "正在定位…" : "获取当前位置"}</Button>}</div></div>
                   <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{visibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}{location && Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng)) ? ` · ${formatDistance(distanceKm(location.lat, location.lng, Number(store.lat), Number(store.lng)))}` : ""}</option>)}</select>{filteredStores.length > visibleStores.length && <Button type="button" variant="ghost" size="sm" className="mt-2 px-0" onClick={() => setVisibleStoreLimit((value) => value + 20)}>加载更多（还有 {filteredStores.length - visibleStores.length} 家）</Button>}</label>
                   <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
                   <details className="sm:col-span-2">
