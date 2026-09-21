@@ -1,3 +1,5 @@
+import { getCatalogCategory } from "./catalog-category.mjs"
+
 export const MAX_COMPARE = 6
 export const MAX_PRICE = 3200
 export const MIN_PRICE = 500
@@ -289,7 +291,7 @@ export const getUnitPrice = (product) => {
   return price === null ? null : price / product.amount
 }
 
-export function filterProducts(items, { query = "", segment = "全部", maxPrice = MAX_PRICE, sort = "score", location = null } = {}) {
+export function filterProducts(items, { query = "", segment = "全部", brand = "", maxPrice = MAX_PRICE, sort = "score", location = null } = {}) {
   const needle = query.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
   const janNeedle = cleanJanCode(query)
   const filtered = items.filter((product) => {
@@ -299,7 +301,8 @@ export function filterProducts(items, { query = "", segment = "全部", maxPrice
       .toLocaleLowerCase("ja-JP")
     const matchesQuery = !needle || text.includes(needle) || (janNeedle.length >= 4 && product.barcode.includes(janNeedle))
     return matchesQuery
-      && (segment === "全部" || product.category === segment)
+      && (segment === "全部" || product.category === segment || getCatalogCategory(product) === segment)
+      && (!brand || product.maker === brand)
       && (getPriceStats(product).min === null || getPriceStats(product).min <= maxPrice)
   })
 

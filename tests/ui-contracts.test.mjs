@@ -36,7 +36,7 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(compare, /价格筛选将在查价后启用/)
   assert.match(compare, /budget\[0\] === MAX_PRICE \? Infinity : budget\[0\]/)
   assert.match(compare, /budget\[0\] === MAX_PRICE \? "不限"/)
-  assert.match(compare, /<h3 className=\{`mt-1 font-semibold tracking-tight/)
+  assert.match(compare, /<h3\b[^>]*><a href=/, "product names remain accessible heading links")
   assert.match(compare, /fetchPublicCatalogPricePreviews\(products\.map/)
   assert.match(compare, /preview\?\.storeCount/)
   assert.match(compare, /priceIntent=\{Boolean\(pendingPriceId\)\}/)

@@ -9,6 +9,8 @@ test("catalog return preserves view state and rejects stale or malformed caches"
   assert.equal(restored.scrollY, 720)
   assert.equal(restored.budget, 2500)
   assert.equal(restored.userId, "user-1")
+  assert.equal(restored.brand, "")
+  assert.equal(readCatalogState(JSON.stringify({ ...state, brand: "DHC" }), 1000001).brand, "DHC")
   assert.equal(readCatalogState(JSON.stringify(state), 2000000), null)
   assert.equal(readCatalogState(JSON.stringify(state), 1), null)
   assert.equal(readCatalogState("bad"), null)

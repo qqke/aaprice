@@ -13,6 +13,7 @@ export function readCatalogState(raw, now = Date.now()) {
       location: Number.isFinite(value.location?.lat) && Math.abs(value.location.lat) <= 90 && Number.isFinite(value.location?.lng) && Math.abs(value.location.lng) <= 180 ? value.location : null,
       query: typeof value.query === "string" ? value.query.slice(0, 300) : "",
       segment: typeof value.segment === "string" ? value.segment : "全部",
+      brand: typeof value.brand === "string" ? value.brand : "",
       budget: Number.isFinite(value.budget) ? value.budget : 10000,
       sort: ["score", "price", "unit", "saving", "distance"].includes(value.sort) ? value.sort : "score",
       filtersOpen: value.filtersOpen === true,

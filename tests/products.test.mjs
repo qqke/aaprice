@@ -1,5 +1,30 @@
 import test from "node:test"
+import { getCatalogCategory } from "../src/lib/catalog-category.mjs"
 import assert from "node:assert/strict"
+
+test("catalog groups separate tax/brand labels and preserve every product and source category", () => {
+  const samples = [
+    ["軽減税率", "天然ビタミンE", "营养保健"],
+    ["ｄプログラム", "ヘア&スカルプ シャンプー", "日常护理"],
+    ["基礎化粧品（クリーム・ジェル）", "クリーム", "护肤美妆"],
+    ["犬用ドライフード", "犬用 オールスキンバリア", "宠物用品"],
+    ["育児用品", "哺乳びん", "母婴用品"],
+    ["医药品", "龍角散ダイレクト", "医药品"],
+    ["日用品・洗剤", "洗濯洗剤", "家居日用"],
+    ["食品", "お茶", "食品饮料"],
+    ["未识别品牌", "未识别商品", "其他"],
+  ]
+  const items = samples.map(([category, name], index) => ({ ...products[0], id: String(index), category, name, maker: index % 2 ? "B" : "A" }))
+  const before = structuredClone(items)
+  const categories = [...new Set(items.map(getCatalogCategory))]
+  assert.equal(categories.length, 9, "no seven-category truncation")
+  assert.deepEqual(items.map(getCatalogCategory), samples.map(([, , expected]) => expected))
+  const found = categories.flatMap((segment) => filterProducts(items, { segment }).map(({ id }) => id))
+  assert.equal(new Set(found).size, items.length)
+  assert.deepEqual(filterProducts(items, { segment: "日常护理", brand: "B" }).map(({ id }) => id), ["1"])
+  assert.equal(filterProducts(items, { segment: "日常护理", brand: "A" }).length, 0)
+  assert.deepEqual(items, before)
+})
 import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getImageSrcSet, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseCommercialOfferRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
 
