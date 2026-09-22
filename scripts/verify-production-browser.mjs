@@ -21,8 +21,12 @@ const browser = await chromium.launch({ executablePath, headless: true })
 try {
   const page = await browser.newPage({ locale: "zh-CN" })
   await page.goto(siteUrl, { waitUntil: "domcontentloaded" })
-  await page.getByRole("heading", { name: /款可比较商品/ }).waitFor({ timeout: 20_000 })
-  await page.getByText(/\d+ 源/, { exact: true }).first().waitFor({ timeout: 20_000 })
+  // Verify anonymous catalog value without coupling the smoke test to heading copy.
+  const pricedProduct = page.locator("#catalog article").filter({ has: page.getByText(/^[￥¥]\s*[\d,]+(?:\.\d+)?$/, { exact: true }) }).first()
+  await pricedProduct.waitFor({ timeout: 20_000 })
+  await pricedProduct.getByText(/[1-9]\d* 个来源/).waitFor({ timeout: 20_000 })
+  const productHref = await pricedProduct.getByRole("heading").getByRole("link").getAttribute("href")
+  if (!productHref) throw new Error("catalog did not expose a priced product detail link")
 
   await page.getByRole("button", { name: "登录", exact: true }).click()
   await page.getByRole("link", { name: "注册账号", exact: true }).waitFor()
@@ -34,9 +38,6 @@ try {
   await page.getByRole("heading", { name: "创建账号", exact: true }).waitFor({ timeout: 20_000 })
   await page.getByRole("link", { name: "隐私与数据说明", exact: true }).waitFor()
 
-  await page.goto(siteUrl, { waitUntil: "domcontentloaded" })
-  const productHref = await page.locator('a[href*="/product/?id="]').first().getAttribute("href")
-  if (!productHref) throw new Error("catalog did not expose a product detail link")
   await page.goto(new URL(productHref, siteUrl).href, { waitUntil: "domcontentloaded" })
   await page.getByText("匿名价格预览", { exact: true }).waitFor({ timeout: 20_000 })
   const body = await page.locator("body").innerText()
