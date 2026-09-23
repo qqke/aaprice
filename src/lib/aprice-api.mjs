@@ -136,8 +136,9 @@ export async function fetchProductsByIds(ids = []) {
   return request("products", { query: { select: "*", id: `in.(${quoted})`, limit: values.length } })
 }
 
-export async function searchStores(term = "", limit = 100) {
+export async function searchStores(term = "", limit = 100, offset = 0) {
   const query = { select: "*", order: "name.asc", limit: Math.max(1, Math.min(Number(limit) || 100, 500)) }
+  if (Number.isInteger(Number(offset)) && Number(offset) > 0) query.offset = Number(offset)
   const value = String(term || "").trim()
   if (value) {
     const pattern = `%${escapeIlike(value)}%`

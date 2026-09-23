@@ -68,7 +68,7 @@ export default function ProductApp() {
 
   const loadPrivate = async (id, activeSession) => {
     const [storeResult, favoriteResult, logResult, summaryResult] = await Promise.allSettled([
-      searchStores("", 300), fetchFavorites(activeSession.user.id), fetchPersonalLogs(activeSession.user.id), fetchCreditSummary(),
+      Promise.all(Array.from({ length: 50 }, (_, page) => searchStores("", 500, page * 500))).then((pages) => pages.flat()), fetchFavorites(activeSession.user.id), fetchPersonalLogs(activeSession.user.id), fetchCreditSummary(),
     ])
     if (storeResult.status === "fulfilled") setStores(storeResult.value)
     if (favoriteResult.status === "fulfilled") {
@@ -153,7 +153,11 @@ export default function ProductApp() {
   const physicalStores = stores.filter((store) => !isOnlineStore(store))
   const filteredStores = useMemo(() => {
     const needle = storeSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
-    const matches = needle ? physicalStores.filter((store) => [store.name, store.chain_name, store.pref, store.city, store.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : physicalStores
+    const aliases = needle === "スギ薬局" || needle === "スギドラッグ" || needle === "すぎ薬局" ? ["スギ薬局", "スギドラッグ", "ドラッグスギ"] : []
+    const matches = needle ? physicalStores.filter((store) => {
+      const haystack = [store.name, store.chain_name, store.pref, store.city, store.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP")
+      return aliases.length ? aliases.some((alias) => haystack.includes(alias.toLocaleLowerCase("ja-JP"))) : haystack.includes(needle)
+    }) : physicalStores
     return matches.toSorted((a, b) => {
       if (location) {
         const da = Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng)) ? distanceKm(location.lat, location.lng, Number(a.lat), Number(a.lng)) : Infinity
