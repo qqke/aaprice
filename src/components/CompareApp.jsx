@@ -384,7 +384,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
             {/軽減税率/.test(product.category) && <p className="mt-1 text-xs text-muted-foreground">来源标注：轻减税率</p>}
           </div>
           <div className="mt-auto flex flex-wrap items-center gap-1 pt-3">
-            <Button asChild variant="ghost" className="px-2.5"><a href={appPath('/product/?id=' + encodeURIComponent(product.id))}>详情<ChevronRight /></a></Button>
+            <Button asChild variant="ghost" className="px-2.5"><a href={appPath('/product/?id=' + encodeURIComponent(product.id))} aria-label={`查看 ${product.name} 详情`}>详情<ChevronRight /></a></Button>
             {hasPrices ? <Button variant={selected ? "default" : "outline"} onClick={() => onToggle(product.id)} disabled={!selected && selectionFull} aria-pressed={selected}>{selected ? <Check /> : <Plus />}{selected ? "已加入" : selectionFull ? "清单已满" : "加入清单"}</Button> : <Button onClick={() => onLoadPrices(product.id)} disabled={priceLoading}>{priceLoading && <LoaderCircle className="animate-spin" />}{priceLoading ? "查询中" : !session && supabaseConfigured ? "登录查价" : priceChecked ? "重新查询" : "查询报价"}</Button>}
           </div>
           {!selected && selectionFull && <p className="mt-2 text-xs text-muted-foreground">清单最多 {MAX_COMPARE} 件，请先移除一件。</p>}
