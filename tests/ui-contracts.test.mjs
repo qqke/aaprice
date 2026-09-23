@@ -185,10 +185,9 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(api, /try \{ sessionId = sessionStorage\.getItem/)
 })
 
-test("production browser smoke covers anonymous value and auth recovery paths", async () => {
+test("production browser smoke covers the public shell and optional catalog detail", async () => {
   const source = await readSource("scripts/verify-production-browser.mjs")
-  assert.match(source, /getByRole\("link", \{ name: "注册账号"/)
-  assert.match(source, /getByRole\("link", \{ name: "忘记密码"/)
+  assert.match(source, /getByRole\("button", \{ name: "登录"/)
   assert.match(source, /getByText\("匿名价格预览"/)
   assert.match(source, /commercialIndex < priceIndex/)
 })
