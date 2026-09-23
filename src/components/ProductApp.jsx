@@ -55,6 +55,7 @@ export default function ProductApp() {
   const [locating, setLocating] = useState(false)
   const [locationStatus, setLocationStatus] = useState("")
   const [loading, setLoading] = useState(true)
+  const [loadRetry, setLoadRetry] = useState(0)
   const [priceLoading, setPriceLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(false)
   const [savingPrice, setSavingPrice] = useState(false)
@@ -131,7 +132,7 @@ export default function ProductApp() {
       }
     })()
     return () => { active = false }
-  }, [])
+  }, [loadRetry])
 
   useEffect(() => {
     if (!loading && window.location.hash === "#record-price") requestAnimationFrame(() => document.getElementById("record-price")?.scrollIntoView({ block: "start" }))
@@ -253,14 +254,14 @@ export default function ProductApp() {
   }
 
   if (loading) return <AppShell title="商品详情"><AppLoading label="正在读取商品" /></AppShell>
-  if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto max-w-[1440px] px-4 pb-24"><Button asChild><a href={appPath("/")}>返回搜索</a></Button></div></AppShell>
+  if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto flex max-w-[1440px] flex-wrap gap-2 px-4 pb-24"><Button onClick={() => { setStatus(""); setLoading(true); setLoadRetry((value) => value + 1) }}><LoaderCircle className={loading ? "animate-spin" : "hidden"} />重试</Button><Button asChild variant="outline"><a href={appPath("/")}>返回搜索</a></Button></div></AppShell>
 
   return (
     <AppShell title={product.name} description={[product.maker, product.pack !== "规格未登记" && product.pack, product.barcode && `JAN ${product.barcode}`].filter(Boolean).join(" / ")} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="ghost"><a href={appPath("/?restore=1#catalog")}><ArrowLeft /> 返回结果</a></Button><Button variant="outline" onClick={compareProduct}><Scale />加入比价</Button>{session && <><Button variant="outline" onClick={locate} disabled={locating}><LocateFixed /> {locating ? "正在定位…" : "获取当前位置"}</Button><Button variant={productFavorite ? "default" : "outline"} onClick={favoriteProduct}><Heart className={productFavorite ? "fill-current" : ""} /> {productFavorite ? "已收藏" : "收藏"}</Button></>}</div>}>
       <section className="mx-auto grid max-w-[1320px] gap-8 px-4 pb-32 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:pb-24">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-3xl border bg-card shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">
-            <div className="aspect-[4/3] bg-muted"><img src={product.image} srcSet={getImageSrcSet(product.image)} sizes="(min-width: 1024px) 40vw, 100vw" width="1200" height="900" alt={product.name} fetchPriority="high" decoding="async" referrerPolicy="no-referrer" className="h-full w-full bg-white object-contain p-4" /></div>
+            <div className="aspect-[4/3] bg-muted"><img src={product.image} srcSet={getImageSrcSet(product.image)} sizes="(min-width: 1024px) 40vw, 100vw" width="1200" height="900" alt={product.name} fetchPriority="high" decoding="async" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.src = "/lowprice-logo.png"; event.currentTarget.srcset = "" }} className="h-full w-full bg-white object-contain p-4" /></div>
             <div className="p-6"><div className="flex flex-wrap gap-2"><Badge>{product.category}</Badge>{product.pack !== "规格未登记" && <Badge variant="outline">{product.pack}</Badge>}</div>{product.active !== "商品说明未登记" && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{product.active}</p>}</div>
           </motion.div>
           {credit && <div className="mt-4 flex items-center justify-between rounded-xl border px-4 py-3 text-sm"><span>价格查询额度</span><span className="font-mono">积分 {credit.balance ?? 0}</span></div>}
