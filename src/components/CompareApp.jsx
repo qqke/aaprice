@@ -47,6 +47,7 @@ import {
   fetchCommercialOffers,
   fetchPublicCatalogPricePreviews,
   fetchJancodeProductDraft,
+  fetchRakutenProductDraft,
   fetchProductByBarcode,
   fetchProductById,
   friendlyApiError,
@@ -174,8 +175,9 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
       if (!row) {
         setStatus(`后台没有找到 JAN ${barcode}，正在尝试补全商品信息…`)
         const external = await fetchJancodeProductDraft(barcode).catch(() => null)
+          || await fetchRakutenProductDraft(barcode).catch(() => null)
         setDraft(external || { id: barcode, barcode, name: "", brand: "", pack: "", category: "", tone: "sunset", description: "", image_url: "" })
-        setStatus(external ? "已从 JANCODE 预填，请确认后提交审核。" : "JANCODE 也没有记录，请手动填写后提交审核。")
+        setStatus(external ? (external.source_url ? "已从乐天预填，请确认后提交审核。" : "已从 JANCODE 预填，请确认后提交审核。") : "JANCODE 和乐天都没有记录，请手动填写后提交审核。")
         return
       }
       stopCamera()

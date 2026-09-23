@@ -1,5 +1,9 @@
 ## Development
 
+## Release rule
+
+完成改动后必须提交并推送到远程仓库；推送后检查对应 GitHub Actions 部署工作流，确认成功或明确报告失败原因。
+
 When starting the dev server, use background mode:
 
 ```

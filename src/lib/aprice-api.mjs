@@ -458,6 +458,25 @@ export async function fetchJancodeProductDraft(value) {
   return parseJancodeProductDraft(await response.text(), barcode)
 }
 
+export function parseRakutenProductDraft(markdown, value) {
+  const barcode = String(value || "").replace(/\D/g, "")
+  const clean = (text = "") => String(text).replace(/!\[[^\]]*\]\([^)]+\)/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
+  const links = [...String(markdown || "").matchAll(/\[([^\]]{2,200})\]\((https?:\/\/item\.rakuten\.co\.jp\/[^)]+)\)/gi)]
+  const match = links.find(([, , url]) => url.includes(barcode)) || links[0]
+  if (!barcode || !match) return null
+  const name = clean(match[1])
+  if (!name) return null
+  return { id: barcode, barcode, name, brand: "", pack: "", category: "", tone: "sunset", description: "", image_url: "", source_url: match[2] }
+}
+
+export async function fetchRakutenProductDraft(value) {
+  const barcode = String(value || "").replace(/\D/g, "")
+  if (!barcode) return null
+  const response = await fetch(`https://r.jina.ai/http://search.rakuten.co.jp/search/mall/${barcode}/`, { headers: { Accept: "text/plain" } })
+  if (!response.ok) return null
+  return parseRakutenProductDraft(await response.text(), barcode)
+}
+
 export async function fetchAppSettings() {
   const result = await rpc("fetch_app_settings")
   return Array.isArray(result) ? result[0] || {} : result || {}
