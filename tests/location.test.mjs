@@ -17,7 +17,7 @@ test("location is shared briefly across pages and geolocation failures stay acti
     assert.equal(readLocation(), null)
     assert.deepEqual(await requestLocation(), { lat: 35.5, lng: 139.6 })
     assert.deepEqual(readLocation(), { lat: 35.5, lng: 139.6 })
-    saved = JSON.stringify({ lat: 35.5, lng: 139.6, savedAt: Date.now() - 300001 })
+    saved = JSON.stringify({ lat: 35.5, lng: 139.6, savedAt: Date.now() - 1800001 })
     assert.equal(readLocation(), null)
     for (const [code, message] of [[1, /权限被拒绝/], [2, /定位服务/], [3, /超时/]]) {
       fail = code

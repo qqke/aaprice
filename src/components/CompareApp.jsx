@@ -822,7 +822,7 @@ export default function CompareApp({ initialScan = false }) {
             </motion.div>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <Button variant="outline" onClick={locate} disabled={locationStatus === "loading"}><MapPin />{locationCopy}</Button>
-              <p className="text-xs text-muted-foreground" role="status" aria-live="polite">{locationError || (location ? "已获取位置，实体门店按距离比较。" : "尚未定位，报价门店可能不在你附近。")} <span className="text-muted-foreground/75">位置仅用于附近排序，5 分钟后自动失效。</span></p>
+              <p className="text-xs text-muted-foreground" role="status" aria-live="polite">{locationError || (location ? "已获取位置，实体门店按距离比较。" : "尚未定位，报价门店可能不在你附近。")} <span className="text-muted-foreground/75">位置仅用于附近排序，30 分钟后自动失效。</span></p>
             </div>
           </motion.div>
         </section>

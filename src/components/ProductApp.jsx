@@ -170,6 +170,9 @@ export default function ProductApp() {
   }, [storeSearch, stores, location])
   const visibleStores = filteredStores.slice(0, visibleStoreLimit)
   const selectedStoreOutsideSearch = physicalStores.find((store) => String(store.id) === String(form.store_id) && !filteredStores.some((match) => match.id === store.id))
+  useEffect(() => {
+    if (!form.store_id && filteredStores[0]?.id) selectStore(filteredStores[0].id)
+  }, [form.store_id, filteredStores])
   const locate = async () => {
     if (locating) return
     setLocating(true)
@@ -273,7 +276,7 @@ export default function ProductApp() {
           ) : (
             <>
               <section id="store-prices">
-                <p className="mb-4 text-sm text-muted-foreground" role="status" aria-live="polite">{locationStatus || (location ? "已使用当前位置计算门店距离。" : "尚未定位，请先获取当前位置，查询附近门店报价。")} <span className="text-muted-foreground/75">位置仅用于附近排序，5 分钟后自动失效。</span></p>
+                <p className="mb-4 text-sm text-muted-foreground" role="status" aria-live="polite">{locationStatus || (location ? "已使用当前位置计算门店距离。" : "尚未定位，请先获取当前位置，查询附近门店报价。")} <span className="text-muted-foreground/75">位置仅用于附近排序，30 分钟后自动失效。</span></p>
                 <div className="flex items-end justify-between gap-4"><div><p className="text-sm text-muted-foreground">最近一次有效报价</p><h2 className="mt-1 text-2xl font-semibold">可用价格</h2>{offers.length > 0 && <p className="mt-2 text-sm text-muted-foreground">{offers.length} 个报价来源 · {location && offers.some((offer) => !isOnlineStore(offer)) ? "实体店按距离排序" : "按价格排序"} · <span className={freshness.stale ? "text-amber-700 dark:text-amber-400" : "text-foreground"}>{freshness.label}</span></p>}</div>{priceLoading && <LoaderCircle className="animate-spin text-primary" />}</div>
                 {offers.length ? <><div className="mt-5 divide-y border-y">{offers.toSorted((a, b) => (location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : a.price - b.price)).map((offer) => {
                   const isFavorite = favorites.some((item) => item.entity_type === "store" && String(item.entity_id) === String(offer.id))
