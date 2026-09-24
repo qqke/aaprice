@@ -1,6 +1,6 @@
 import { motion } from "motion/react"
 import { Download, ListChecks, LoaderCircle, LogOut, Save, SkipForward, Sparkles, Trash2 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
 import { Badge } from "@/components/ui/badge"
@@ -82,6 +82,7 @@ export default function MeApp() {
   const [logForm, setLogForm] = useState({ product_id: "", store_id: "", price_yen: "", note: "" })
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" })
   const [alertForm, setAlertForm] = useState(blankAlert)
+  const priceInputRef = useRef(null)
 
   const load = async () => {
     setLoading(true)
@@ -171,11 +172,12 @@ export default function MeApp() {
     setSavingLog(true)
     try {
       await savePersonalLog({ ...logForm, price_yen: Number(logForm.price_yen), store_id: logForm.store_id || null, purchased_at: new Date().toISOString().slice(0, 10) })
-      setLogForm({ product_id: "", store_id: "", price_yen: "", note: "" })
+      setLogForm((value) => ({ ...value, price_yen: "", note: "" }))
       const nextLogs = await fetchPersonalLogs(session.user.id, { limit: 30 })
       setLogs(nextLogs)
       setHistoryMore((value) => ({ ...value, logs: nextLogs.length === 30 }))
       setStatus("价格记录已保存。")
+      globalThis.requestAnimationFrame?.(() => priceInputRef.current?.focus())
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setSavingLog(false) }
   }
 
@@ -369,12 +371,12 @@ export default function MeApp() {
             <motion.section id="quick-log" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className={`${panelClass} scroll-mt-24`}>
               <div><h2 className="text-xl font-semibold">快速记录价格</h2><p className="mt-1 text-sm text-muted-foreground">选择商品并输入价格即可。</p></div>
               <form onSubmit={saveLog} className="mt-6 space-y-4">
-                <label><span className="mb-2 block text-sm font-medium">搜索商品</span><Input type="search" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="商品名、品牌或 JAN 码" /></label>
+                <label><span className="mb-2 block text-sm font-medium">搜索商品</span><Input type="search" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && filteredProducts[0]) { event.preventDefault(); setLogForm((value) => ({ ...value, product_id: String(filteredProducts[0].id) })) } }} placeholder="商品名、品牌或 JAN 码" /></label>
                 {productSearch && <p className={`text-xs ${productSearchError ? "text-destructive" : "text-muted-foreground"}`} role={productSearchError ? "alert" : "status"}>{productSearchBusy ? "正在搜索完整目录…" : productSearchError || `匹配 ${filteredProducts.length} 件商品`}</p>}
                 {productSearch.trim() && !productSearchBusy && !productSearchError && filteredProducts.length === 0 && <div className="rounded-xl border border-dashed p-3 text-sm"><p>没有找到商品信息，可以先补录商品，再记录价格。</p><Button asChild size="sm" variant="outline" className="mt-3"><a href={appPath(`/scan/${/^\\d{8}$|^\\d{12,14}$/.test(productSearch.trim()) ? `?jan=${encodeURIComponent(productSearch.trim())}` : ""}`)}>去补录商品</a></Button></div>}
                 <label><span className="mb-2 block text-sm font-medium">商品</span><select value={logForm.product_id} onChange={(event) => { const productId = event.target.value; const selected = filteredProducts.find((item) => String(item.id) === productId); if (selected && !products.some((item) => String(item.id) === productId)) setProducts((items) => [...items, selected]); setLogForm({ ...logForm, product_id: productId }) }} className="h-11 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择商品</option>{selectedProductOutsideSearch && <option value={selectedProductOutsideSearch.id}>{selectedProductOutsideSearch.name}（已选择）</option>}{filteredProducts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-                <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={logForm.price_yen} onChange={(event) => setLogForm({ ...logForm, price_yen: event.target.value })} required /></label>
-                <details open><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground">门店与备注（可选）</summary><div className="mt-2 space-y-4"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} placeholder="店名、连锁、城市或地址" /></label><label><span className="mb-2 block text-sm font-medium">门店</span><select value={logForm.store_id} onChange={(event) => setLogForm({ ...logForm, store_id: event.target.value })} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={logForm.note} onChange={(event) => setLogForm({ ...logForm, note: event.target.value })} placeholder="促销、会员价等" /></label></div></details>
+                <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input ref={priceInputRef} type="number" min="1" inputMode="numeric" value={logForm.price_yen} onChange={(event) => setLogForm({ ...logForm, price_yen: event.target.value })} required /></label>
+                <details open><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground">门店与备注（可选）</summary><div className="mt-2 space-y-4"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && filteredStores[0]) { event.preventDefault(); setLogForm((value) => ({ ...value, store_id: String(filteredStores[0].id) })) } }} placeholder="店名、连锁、城市或地址" /></label><label><span className="mb-2 block text-sm font-medium">门店</span><select value={logForm.store_id} onChange={(event) => setLogForm({ ...logForm, store_id: event.target.value })} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={logForm.note} onChange={(event) => setLogForm({ ...logForm, note: event.target.value })} placeholder="促销、会员价等" /></label></div></details>
                 <Button type="submit" className="w-full" disabled={savingLog}>{savingLog ? <LoaderCircle className="animate-spin" /> : <Save />}{savingLog ? "正在保存" : "保存记录"}</Button>
               </form>
             </motion.section>

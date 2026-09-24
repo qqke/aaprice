@@ -60,6 +60,7 @@ export default function ProductApp() {
   const [pricesLoaded, setPricesLoaded] = useState(false)
   const [savingPrice, setSavingPrice] = useState(false)
   const priceSaveBusy = useRef(false)
+  const priceInputRef = useRef(null)
   const savedPersonalEntries = useRef(new Set())
   const [status, setStatus] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
@@ -251,6 +252,7 @@ export default function ProductApp() {
       } catch {
         setStatus(`${successMessage} 记录列表暂未刷新，请刷新页面查看。`)
       }
+      globalThis.requestAnimationFrame?.(() => priceInputRef.current?.focus())
     } catch (error) {
       setStatus(personalSaved ? `个人记录已保存，但公共提交未确认成功：${friendlyApiError(error)}。请先查看个人中心的提交记录；本页重试不会重复保存相同的私人记录。` : friendlyApiError(error))
     } finally { priceSaveBusy.current = false; setSavingPrice(false) }
@@ -300,7 +302,7 @@ export default function ProductApp() {
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => { setStoreSearch(event.target.value); setVisibleStoreLimit(20) }} placeholder="店名、连锁、城市或地址" /></label><div className="mt-2 flex flex-wrap items-center gap-3"><p className="text-xs text-muted-foreground" role="status">{location ? "已按 GPS 距离排序" : "尚未定位，请先获取当前位置"}{storeSearch && !filteredStores.length ? "；请尝试店名、城市或连锁名称。" : ""}</p>{!location && <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={locate} disabled={locating}><LocateFixed />{locating ? "正在定位…" : "获取当前位置"}</Button>}</div></div>
                   <label><span className="mb-2 block text-sm font-medium">门店</span><select value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{visibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}{location && Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng)) ? ` · ${formatDistance(distanceKm(location.lat, location.lng, Number(store.lat), Number(store.lng)))}` : ""}</option>)}</select>{filteredStores.length > visibleStores.length && <Button type="button" variant="ghost" size="sm" className="mt-2 px-0" onClick={() => setVisibleStoreLimit((value) => value + 20)}>加载更多</Button>}</label>
-                  <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input type="number" min="1" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
+                  <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input ref={priceInputRef} type="number" min="1" inputMode="numeric" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
                   <details className="sm:col-span-2">
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground">补充信息与公共提交（可选）</summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="会员价、促销等" /></label><label><span className="mb-2 block text-sm font-medium">凭证 URL</span><Input type="url" value={form.evidence_url} onChange={(event) => setForm({ ...form, evidence_url: event.target.value })} /></label><label className="flex items-center gap-3 self-end pb-2 text-sm"><input type="checkbox" checked={form.share_to_public} onChange={(event) => setForm({ ...form, share_to_public: event.target.checked })} /> 提交公共比价审核</label></div>

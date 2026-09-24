@@ -271,7 +271,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
         <p className="text-sm text-muted-foreground empty:hidden" role="status" aria-live="polite">{status}</p>
         {draft && <form className="space-y-3 rounded-2xl border bg-muted/35 p-4" onSubmit={submitMissing}>
           <div><p className="font-medium">补录缺失商品</p><p className="mt-1 text-xs text-muted-foreground">JAN {draft.barcode} · 提交后由管理员审核</p></div>
-          <label className="block"><span className="mb-2 block text-sm font-medium">商品名称</span><Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
+          <label className="block"><span className="mb-2 block text-sm font-medium">商品名称</span><Input autoFocus value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium text-muted-foreground marker:text-muted-foreground">补充品牌与规格（可选）</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-2 block text-sm font-medium">品牌</span><Input value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value })} /></label><label className="block"><span className="mb-2 block text-sm font-medium">规格</span><Input value={draft.pack} onChange={(event) => setDraft({ ...draft, pack: event.target.value })} placeholder="例如 30 片" /></label></div>
