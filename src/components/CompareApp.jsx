@@ -133,6 +133,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
   const [draft, setDraft] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const initialLookupRef = useRef(false)
+  const manualInputRef = useRef(null)
 
   const stopCamera = () => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current)
@@ -144,7 +145,10 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
   }
 
   useEffect(() => {
-    if (!open) stopCamera()
+    if (!open) {
+      initialLookupRef.current = false
+      stopCamera()
+    }
     return stopCamera
   }, [open])
 
@@ -166,6 +170,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
     }
     if (lookingUp) return
     setLookingUp(true)
+    setManualCode("")
     setDraft(null)
     setStatus(`正在查询 ${barcode}…`)
     try {
@@ -184,7 +189,10 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
       onFound(supabaseConfigured ? mapProductRow(row) : row)
     } catch (error) {
       setStatus(friendlyApiError(error))
-    } finally { setLookingUp(false) }
+    } finally {
+      setLookingUp(false)
+      requestAnimationFrame(() => { if (open) manualInputRef.current?.focus() })
+    }
   }
 
   const submitMissing = async (event) => {
@@ -237,12 +245,18 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
     }
   }
 
+  useEffect(() => {
+    if (!open) return undefined
+    if (!initialLookupRef.current) void startCamera()
+    return undefined
+  }, [open])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90dvh] max-w-[min(560px,calc(100vw-2rem))] flex-col overflow-y-auto sm:max-w-xl [&>*]:shrink-0" onCloseAutoFocus={(event) => { event.preventDefault(); document.getElementById("product-search")?.focus() }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><ScanLine className="size-5 text-primary" /> 扫码检索</DialogTitle>
-          <DialogDescription>启动相机扫描条码，或手动输入 JAN 码。</DialogDescription>
+          <DialogDescription>相机会自动启动；也可以连续手动输入 JAN 码。</DialogDescription>
         </DialogHeader>
         <div className={`relative overflow-hidden rounded-xl border bg-slate-950 ${scanning ? "h-[min(36dvh,260px)]" : "h-32"}`}>
           <video ref={videoRef} muted playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="条码扫描相机预览" />
@@ -252,7 +266,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
         {scanning ? <Button variant="outline" onClick={stopCamera}><Camera /> 停止相机</Button> : <Button onClick={startCamera}><Camera /> 启动相机</Button>}
         <form onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
           <label htmlFor="manual-jan" className="mb-2 block text-sm font-medium">手动输入 JAN 码</label>
-          <div className="flex gap-2"><Input id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" disabled={lookingUp} /><Button type="submit" variant="secondary" disabled={lookingUp}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询"}</Button></div>
+          <div className="flex gap-2"><Input ref={manualInputRef} id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" disabled={lookingUp} /><Button type="submit" variant="secondary" disabled={lookingUp}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询"}</Button></div>
         </form>
         <p className="text-sm text-muted-foreground empty:hidden" role="status" aria-live="polite">{status}</p>
         {draft && <form className="space-y-3 rounded-2xl border bg-muted/35 p-4" onSubmit={submitMissing}>
