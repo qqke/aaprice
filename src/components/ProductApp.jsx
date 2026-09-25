@@ -39,6 +39,7 @@ export default function ProductApp() {
   const productId = pageParams.get("id") || ""
   const taskFlow = pageParams.get("task") === "1"
   const requestedStoreId = String(pageParams.get("store") || "").slice(0, 128)
+  const scannedPrice = pageParams.get("price") || ""
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [product, setProduct] = useState(null)
@@ -66,7 +67,7 @@ export default function ProductApp() {
   const [storeSearch, setStoreSearch] = useState("")
   const [visibleStoreLimit, setVisibleStoreLimit] = useState(20)
   const [historyLimit, setHistoryLimit] = useState(12)
-  const [form, setForm] = useState({ store_id: requestedStoreId, price_yen: "", note: "", evidence_url: "", share_to_public: taskFlow })
+  const [form, setForm] = useState({ store_id: requestedStoreId, price_yen: /^\d+$/.test(scannedPrice) ? scannedPrice : "", note: "", evidence_url: "", share_to_public: taskFlow })
 
   const loadPrivate = async (id, activeSession) => {
     const [storeResult, favoriteResult, logResult, summaryResult] = await Promise.allSettled([

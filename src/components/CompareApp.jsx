@@ -124,24 +124,56 @@ function ThemeButton() {
 
 function ScannerDialog({ open, onOpenChange, onFound, session }) {
   const videoRef = useRef(null)
+  const canvasRef = useRef(null)
   const streamRef = useRef(null)
   const frameRef = useRef(null)
+  const ocrTimerRef = useRef(null)
+  const ocrWorkerRef = useRef(null)
+  const recognizedPriceRef = useRef("")
   const [manualCode, setManualCode] = useState("")
   const [status, setStatus] = useState("")
   const [scanning, setScanning] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
   const [draft, setDraft] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [recognizedPrice, setRecognizedPrice] = useState("")
   const initialLookupRef = useRef(false)
   const manualInputRef = useRef(null)
 
   const stopCamera = () => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current)
     frameRef.current = null
+    if (ocrTimerRef.current) clearTimeout(ocrTimerRef.current)
+    ocrTimerRef.current = null
+    ocrWorkerRef.current?.terminate?.().catch(() => {})
+    ocrWorkerRef.current = null
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setScanning(false)
+  }
+
+  const readPrice = async () => {
+    if (!videoRef.current || !canvasRef.current || !streamRef.current || ocrWorkerRef.current?.busy) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video.videoWidth) return
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext("2d", { willReadFrequently: true }).drawImage(video, 0, 0, canvas.width, canvas.height)
+    try {
+      const { createWorker } = await import("tesseract.js")
+      if (!ocrWorkerRef.current) ocrWorkerRef.current = await createWorker("eng")
+      const result = await ocrWorkerRef.current.recognize(canvas)
+      const values = [...String(result.data.text || "").matchAll(/(?:¥|￥)?\s*(\d{2,6}(?:,\d{3})?)/g)]
+        .map((match) => Number(match[1].replaceAll(",", "")))
+        .filter((value) => value >= 50 && value <= 100000)
+      if (values.length) {
+        const price = String(Math.min(...values))
+        recognizedPriceRef.current = price
+        setRecognizedPrice(price)
+      }
+    } catch {}
   }
 
   useEffect(() => {
@@ -171,6 +203,8 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
     if (lookingUp) return
     setLookingUp(true)
     setManualCode("")
+    recognizedPriceRef.current = ""
+    setRecognizedPrice("")
     setDraft(null)
     setStatus(`正在查询 ${barcode}…`)
     try {
@@ -186,7 +220,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
         return
       }
       stopCamera()
-      onFound(supabaseConfigured ? mapProductRow(row) : row)
+      onFound(supabaseConfigured ? mapProductRow(row) : row, recognizedPriceRef.current)
     } catch (error) {
       setStatus(friendlyApiError(error))
     } finally {
@@ -227,6 +261,11 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
       }
       const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "code_128"] })
       setStatus("正在寻找条码，请将条码放入取景框。")
+      const ocrLoop = async () => {
+        await readPrice()
+        if (streamRef.current) ocrTimerRef.current = setTimeout(ocrLoop, 1800)
+      }
+      void ocrLoop()
       const scan = async () => {
         if (!streamRef.current) return
         try {
@@ -260,9 +299,11 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
         </DialogHeader>
         <div className={`relative overflow-hidden rounded-xl border bg-slate-950 ${scanning ? "h-[min(36dvh,260px)]" : "h-32"}`}>
           <video ref={videoRef} muted playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="条码扫描相机预览" />
+          <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
           {scanning && <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 bg-primary" />}
           {!scanning && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/80"><Camera className="size-7" />相机尚未启动</div>}
         </div>
+        {recognizedPrice && <p className="text-sm text-primary" role="status">已识别价格：¥{Number(recognizedPrice).toLocaleString("ja-JP")}（进入商品页后可确认）</p>}
         {scanning ? <Button variant="outline" onClick={stopCamera}><Camera /> 停止相机</Button> : <Button onClick={startCamera}><Camera /> 启动相机</Button>}
         <form onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
           <label htmlFor="manual-jan" className="mb-2 block text-sm font-medium">手动输入 JAN 码</label>
@@ -785,10 +826,12 @@ export default function CompareApp({ initialScan = false }) {
     setCatalog((items) => items.map((product) => ({ ...product, offers: [] })))
   }
 
-  const handleScannedProduct = (product) => {
+  const handleScannedProduct = (product, price = "") => {
     if (supabaseConfigured) {
       setScanOpen(false)
-      window.location.assign(appPath(`/product/?id=${encodeURIComponent(product.id)}`))
+      const params = new URLSearchParams({ id: product.id })
+      if (/^\d+$/.test(String(price))) params.set("price", price)
+      window.location.assign(appPath(`/product/?${params.toString()}`))
       return
     }
     setCatalog(demoProducts)
