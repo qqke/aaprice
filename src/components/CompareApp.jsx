@@ -45,6 +45,7 @@ import { Slider } from "@/components/ui/slider"
 import {
   fetchPricesForProduct,
   fetchCommercialOffers,
+  fetchCurrentProfile,
   fetchPublicCatalogPricePreviews,
   fetchJancodeProductDraft,
   fetchRakutenProductDraft,
@@ -122,7 +123,7 @@ function ThemeButton() {
   )
 }
 
-function ScannerDialog({ open, onOpenChange, onFound, session }) {
+function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
@@ -154,7 +155,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
   }
 
   const readPrice = async () => {
-    if (!videoRef.current || !canvasRef.current || !streamRef.current || ocrWorkerRef.current?.busy) return
+    if (!enableOcr || !videoRef.current || !canvasRef.current || !streamRef.current || ocrWorkerRef.current?.busy) return
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video.videoWidth) return
@@ -261,11 +262,6 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
       }
       const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "code_128"] })
       setStatus("正在寻找条码，请将条码放入取景框。")
-      const ocrLoop = async () => {
-        await readPrice()
-        if (streamRef.current) ocrTimerRef.current = setTimeout(ocrLoop, 1800)
-      }
-      void ocrLoop()
       const scan = async () => {
         if (!streamRef.current) return
         try {
@@ -289,6 +285,16 @@ function ScannerDialog({ open, onOpenChange, onFound, session }) {
     if (!initialLookupRef.current) void startCamera()
     return undefined
   }, [open])
+
+  useEffect(() => {
+    if (!enableOcr || !scanning || ocrTimerRef.current) return undefined
+    const ocrLoop = async () => {
+      await readPrice()
+      if (streamRef.current) ocrTimerRef.current = setTimeout(ocrLoop, 1800)
+    }
+    void ocrLoop()
+    return undefined
+  }, [enableOcr, scanning])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -545,6 +551,7 @@ export default function CompareApp({ initialScan = false }) {
   const [scanOpen, setScanOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [session, setSession] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [pendingPriceId, setPendingPriceId] = useState("")
   const [reopenCompareAfterAuth, setReopenCompareAfterAuth] = useState(false)
   const [priceLoading, setPriceLoading] = useState({})
@@ -647,6 +654,13 @@ export default function CompareApp({ initialScan = false }) {
     }
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    if (!session) { setIsAdmin(false); return undefined }
+    fetchCurrentProfile().then((profile) => { if (active) setIsAdmin(profile?.role === "admin") }).catch(() => { if (active) setIsAdmin(false) })
+    return () => { active = false }
+  }, [session])
 
   useEffect(() => {
     if (!selectionReady) return
@@ -830,7 +844,7 @@ export default function CompareApp({ initialScan = false }) {
     if (supabaseConfigured) {
       setScanOpen(false)
       const params = new URLSearchParams({ id: product.id })
-      if (/^\d+$/.test(String(price))) params.set("price", price)
+      if (isAdmin && /^\d+$/.test(String(price))) params.set("price", price)
       window.location.assign(appPath(`/product/?${params.toString()}`))
       return
     }
@@ -917,7 +931,7 @@ export default function CompareApp({ initialScan = false }) {
       <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-md rounded-xl border bg-popover p-3 shadow-lg"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">已选 {selectedProducts.length} 件</p><Button id="view-compare" onClick={() => setCompareOpen(true)}>查看清单<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
 
       <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} commercialOffers={commercialOffers} onCommercial={openCommercialOffer} onRemove={toggleProduct} onLoadPrices={loadComparePrices} priceLoading={priceLoading} priceChecked={priceChecked} priceErrors={priceErrors} session={session} onClear={() => setSelected([])} />
-      <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} />
+      <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} enableOcr={isAdmin} />
       <LoginDialog open={authOpen} onOpenChange={handleAuthOpenChange} onSignedIn={handleSignedIn} priceIntent={Boolean(pendingPriceId)} />
     </div>
   )
