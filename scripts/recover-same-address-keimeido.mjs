@@ -6,12 +6,14 @@ import { parseOfficialEmbedMarker, verifyMarkerAddress } from './official-embed-
 import { normalizeAddress } from './crawl-eastern-license-registry.mjs'
 import { databaseProcess } from './sync-sundrug.mjs'
 
-const out = 'artifacts/drugstores-keimeido-same-address-2026-10-03'
+const out = process.argv.find(arg => arg.startsWith('--out='))?.slice(6) || 'artifacts/drugstores-keimeido-same-address-2026-10-03'
+const offset = Number(process.argv.find(arg => arg.startsWith('--offset='))?.slice(9) || 0)
+const limit = Number(process.argv.find(arg => arg.startsWith('--limit='))?.slice(8) || 80)
 const hash = value => createHash('sha256').update(value).digest('hex')
 const names = /^(コクミン|ハッピードラッグ|スーパードラッグアサヒ|スーパーシティアサヒ|薬王堂|マルトパワードラッグ|ココカラファイン|薬 マツモトキヨシ)/
 await mkdir(out, { recursive: true })
 const ledger = JSON.parse(await readFile('artifacts/drugstores-keimeido-retailers-2026-10-03/directory-ledger.json', 'utf8'))
-const selected = ledger.filter(row => row.status === 'same-address-review' && row.phone && names.test(row.name)).slice(0, 80)
+const selected = ledger.filter(row => row.status === 'same-address-review' && row.phone && names.test(row.name)).slice(offset, offset + limit)
 const dbRaw = databaseProcess(process.env.AAPRICE_DB_URL, "\\pset tuples_only on\n\\pset format unaligned\nselect json_agg(s) from (select id,name,address,lat,lng from public.stores) s;")
 const db = JSON.parse(dbRaw.slice(dbRaw.indexOf('[')))
 const get = await createFetcher(out, false, true)
