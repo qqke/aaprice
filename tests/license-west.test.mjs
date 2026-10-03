@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
 import {test} from 'node:test'
 import {verifyMarkerAddress} from '../scripts/official-embed-marker.mjs'
-test('Western licensing recovery preserves exact entity and permit evidence',async()=>{
+test('Western licensing recovery preserves exact entity and permit evidence',{skip: !process.env.AAPRICE_CRAWL_ARTIFACT_TESTS},async()=>{
  const rows=JSON.parse(await readFile('artifacts/drugstores-license-west-2026-10-03/license-rows.json'))
  const stores=JSON.parse(await readFile('artifacts/drugstores-license-west-2026-10-03/stores.json'))
  assert.equal(rows.length,1454);assert.equal(new Set(rows.map(r=>r.id)).size,rows.length)

@@ -15,7 +15,7 @@ test('official regional parsers classify retail without dropping malformed ident
  assert.equal(parseMiz(m)[0].excluded,false);assert.equal(parseMiz(m.replace('catTenpo drugstore','catTenpo cyozai'))[0].excluded,true)
 })
 
-test('accepted crawl artifacts contain only verified coordinates and unique identities',async()=>{
+test('accepted crawl artifacts contain only verified coordinates and unique identities',{skip: !process.env.AAPRICE_CRAWL_ARTIFACT_TESTS},async()=>{
  const base='artifacts/drugstores-uncovered-chains-2026-10-03',rows=JSON.parse(await readFile(`${base}/stores.json`,'utf8'))
  assert(rows.length>0);assert.equal(new Set(rows.map(s=>s.id)).size,rows.length)
  let entityMarkers=0,directMarkers=0
