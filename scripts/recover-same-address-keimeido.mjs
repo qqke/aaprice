@@ -10,7 +10,7 @@ const out = process.argv.find(arg => arg.startsWith('--out='))?.slice(6) || 'art
 const offset = Number(process.argv.find(arg => arg.startsWith('--offset='))?.slice(9) || 0)
 const limit = Number(process.argv.find(arg => arg.startsWith('--limit='))?.slice(8) || 80)
 const hash = value => createHash('sha256').update(value).digest('hex')
-const names = /^(コクミン|ハッピードラッグ|スーパードラッグアサヒ|スーパーシティアサヒ|薬王堂|マルトパワードラッグ|ココカラファイン|薬 マツモトキヨシ)/
+const names = /薬|ドラッグ|ファーマシー|ファルマ|くすり|マツモトキヨシ|ココカラファイン|コクミン|ウエルシア|ツルハ|サンドラッグ|スギ薬局|クスリのアオキ/
 await mkdir(out, { recursive: true })
 const ledger = JSON.parse(await readFile('artifacts/drugstores-keimeido-retailers-2026-10-03/directory-ledger.json', 'utf8'))
 const selected = ledger.filter(row => row.status === 'same-address-review' && row.phone && names.test(row.name)).slice(offset, offset + limit)
