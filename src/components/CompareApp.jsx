@@ -58,6 +58,8 @@ import {
   recordTelemetryEvent,
   recordCommercialClick,
   searchProducts,
+  searchStores,
+  savePersonalLog,
   signInWithEmailPassword,
   signOut,
   subscribeAuthState,
@@ -79,6 +81,7 @@ import {
   getImageSrcSet,
   getMapUrl,
   getPriceStats,
+  isOnlineStore,
   MAX_COMPARE,
   MAX_PRICE,
   MIN_PRICE,
@@ -89,6 +92,7 @@ import {
 import { appPath } from "@/lib/paths.mjs"
 import { CATALOG_STATE_KEY, readCatalogState } from "@/lib/catalog-state.mjs"
 import { getCatalogCategory } from "@/lib/catalog-category.mjs"
+import { parseShelfPrice } from "@/lib/scan-price.mjs"
 
 const formatDate = (value) => {
   const date = new Date(value)
@@ -123,14 +127,22 @@ function ThemeButton() {
   )
 }
 
-function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false }) {
+function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = true }) {
+  const openRef = useRef(open)
+  openRef.current = open
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
   const frameRef = useRef(null)
-  const ocrTimerRef = useRef(null)
+  const scanBusyRef = useRef(false)
+  const saveBusyRef = useRef(false)
+  const savedScansRef = useRef(new Set())
+  const [saveMode, setSaveMode] = useState("manual")
+  const [pendingProduct, setPendingProduct] = useState(null)
+  const [storeQuery, setStoreQuery] = useState("")
+  const [scanStores, setScanStores] = useState([])
+  const [scanStore, setScanStore] = useState(null)
   const ocrWorkerRef = useRef(null)
-  const recognizedPriceRef = useRef("")
   const [manualCode, setManualCode] = useState("")
   const [status, setStatus] = useState("")
   const [scanning, setScanning] = useState(false)
@@ -144,45 +156,77 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false
   const stopCamera = () => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current)
     frameRef.current = null
-    if (ocrTimerRef.current) clearTimeout(ocrTimerRef.current)
-    ocrTimerRef.current = null
-    ocrWorkerRef.current?.terminate?.().catch(() => {})
-    ocrWorkerRef.current = null
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setScanning(false)
   }
 
-  const readPrice = async () => {
-    if (!enableOcr || !videoRef.current || !canvasRef.current || !streamRef.current || ocrWorkerRef.current?.busy) return
+  const readPrice = async (bounds) => {
+    if (!enableOcr || !videoRef.current || !canvasRef.current || !streamRef.current) return { price: "", automatic: false }
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video.videoWidth) return
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext("2d", { willReadFrequently: true }).drawImage(video, 0, 0, canvas.width, canvas.height)
+    if (!video.videoWidth || !bounds?.width || !bounds?.height) return { price: "", automatic: false }
+    // ponytail: upright shelf labels only; rotated labels need a perspective crop.
+    const x = Math.max(0, bounds.x - bounds.width * 0.25)
+    const y = Math.max(0, bounds.y - bounds.width * 0.9)
+    const width = Math.min(video.videoWidth - x, bounds.width * 1.5)
+    const height = Math.min(video.videoHeight - y, bounds.y - y)
+    if (width <= 0 || height <= 0) return { price: "", automatic: false }
+    canvas.width = Math.round(width * 2)
+    canvas.height = Math.round(height * 2)
+    canvas.getContext("2d", { willReadFrequently: true }).drawImage(video, x, y, width, height, 0, 0, canvas.width, canvas.height)
+    setStatus("已找到条码，正在识别上方价签…")
     try {
       const { createWorker } = await import("tesseract.js")
-      if (!ocrWorkerRef.current) ocrWorkerRef.current = await createWorker("eng")
-      const result = await ocrWorkerRef.current.recognize(canvas)
-      const values = [...String(result.data.text || "").matchAll(/(?:¥|￥)?\s*(\d{2,6}(?:,\d{3})?)/g)]
-        .map((match) => Number(match[1].replaceAll(",", "")))
-        .filter((value) => value >= 50 && value <= 100000)
-      if (values.length) {
-        const price = String(Math.min(...values))
-        recognizedPriceRef.current = price
-        setRecognizedPrice(price)
-      }
-    } catch {}
+      if (!ocrWorkerRef.current) ocrWorkerRef.current = createWorker("eng+jpn")
+      const worker = await ocrWorkerRef.current
+      const result = await worker.recognize(canvas)
+      if (!streamRef.current) return { price: "", automatic: false }
+      const price = parseShelfPrice(result.data.text, result.data.confidence)
+      setRecognizedPrice(price.price)
+      return price
+    } catch {
+      return { price: "", automatic: false }
+    }
   }
 
   useEffect(() => {
+    if (!open || !session) return
+    let active = true
+    const timer = setTimeout(() => {
+      searchStores(storeQuery, 30).then((rows) => { if (active) setScanStores(rows.filter((store) => !isOnlineStore(store))) }).catch((error) => { if (active) setStatus(friendlyApiError(error)) })
+    }, 250)
+    return () => { active = false; clearTimeout(timer) }
+  }, [open, session, storeQuery])
+
+  const saveScan = async (product, price) => {
+    if (!session || saveBusyRef.current) return
+    if (!scanStore || !/^\d+$/.test(String(price)) || Number(price) <= 0 || Number(price) > 100000) { setStatus("请选择门店并填写有效的日元价格（1–100000）。"); return }
+    const key = JSON.stringify([product.id, scanStore.id, Number(price)])
+    if (savedScansRef.current.has(key)) { setStatus("本次扫描已保存过该商品、门店和价格。"); return }
+    saveBusyRef.current = true
+    setSubmitting(true)
+    try {
+      await savePersonalLog({ product_id: product.id, store_id: scanStore.id, price_yen: Number(price), note: "价签扫描", purchased_at: new Date().toLocaleDateString("sv-SE") })
+      savedScansRef.current.add(key)
+      setPendingProduct(null)
+      setStatus(`已入库：${product.name} · ¥${price}。可以继续扫描。`)
+    } catch (error) { setStatus(friendlyApiError(error)) }
+    finally { saveBusyRef.current = false; setSubmitting(false) }
+  }
+
+  useEffect(() => {
+    const cleanup = () => {
+      stopCamera()
+      ocrWorkerRef.current?.then((worker) => worker.terminate()).catch(() => {})
+      ocrWorkerRef.current = null
+    }
     if (!open) {
       initialLookupRef.current = false
-      stopCamera()
+      cleanup()
     }
-    return stopCamera
+    return cleanup
   }, [open])
 
   useEffect(() => {
@@ -195,24 +239,29 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false
     }
   }, [open])
 
-  const lookup = async (value) => {
+  const lookup = async (value, bounds) => {
     const barcode = cleanJanCode(value)
     if (!/^\d{8}$|^\d{12,14}$/.test(barcode)) {
       setStatus("请输入 8 位或 12 到 14 位 JAN 条码。")
       return
     }
-    if (lookingUp) return
+    if (scanBusyRef.current || saveBusyRef.current) return
+    scanBusyRef.current = true
     setLookingUp(true)
     setManualCode("")
-    recognizedPriceRef.current = ""
     setRecognizedPrice("")
     setDraft(null)
+    setPendingProduct(null)
     setStatus(`正在查询 ${barcode}…`)
     try {
+      const priceResult = bounds ? await readPrice(bounds) : { price: "", automatic: false }
+      if (bounds && !streamRef.current) return
       const row = supabaseConfigured
         ? await fetchProductByBarcode(barcode)
         : demoProducts.find((product) => product.barcode === barcode)
+      if (!openRef.current || (bounds && !streamRef.current)) return
       if (!row) {
+        stopCamera()
         setStatus(`后台没有找到 JAN ${barcode}，正在尝试补全商品信息…`)
         const external = await fetchJancodeProductDraft(barcode).catch(() => null)
           || await fetchRakutenProductDraft(barcode).catch(() => null)
@@ -221,10 +270,16 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false
         return
       }
       stopCamera()
-      onFound(supabaseConfigured ? mapProductRow(row) : row, recognizedPriceRef.current)
+      const product = supabaseConfigured ? mapProductRow(row) : row
+      if (enableOcr && session && supabaseConfigured) {
+        setPendingProduct(product)
+        setStatus(priceResult.price ? "请确认商品、门店和含税价格。" : "未能确定含税价格，请手动填写后保存。")
+        if (saveMode === "auto" && scanStore && priceResult.automatic) await saveScan(product, priceResult.price)
+      } else onFound(product, priceResult.price)
     } catch (error) {
       setStatus(friendlyApiError(error))
     } finally {
+      scanBusyRef.current = false
       setLookingUp(false)
       requestAnimationFrame(() => { if (open) manualInputRef.current?.focus() })
     }
@@ -246,12 +301,16 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false
   }
 
   const startCamera = async () => {
+    if (streamRef.current || lookingUp || submitting) return
+    setPendingProduct(null)
+    setRecognizedPrice("")
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatus("当前浏览器不支持相机访问，请手动输入 JAN 码。")
       return
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
+      if (!openRef.current) { stream.getTracks().forEach((track) => track.stop()); return }
       streamRef.current = stream
       videoRef.current.srcObject = stream
       await videoRef.current.play()
@@ -266,8 +325,10 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false
         if (!streamRef.current) return
         try {
           const result = await detector.detect(videoRef.current)
-          if (result?.[0]?.rawValue) {
-            await lookup(result[0].rawValue)
+          if (result.length > 1) {
+            setStatus("画面中有多个条码，请靠近，只对准一张价签。")
+          } else if (result?.[0]?.rawValue) {
+            await lookup(result[0].rawValue, result[0].boundingBox)
             return
           }
         } catch {}
@@ -282,40 +343,43 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = false
 
   useEffect(() => {
     if (!open) return undefined
-    if (!initialLookupRef.current) void startCamera()
+    if (!initialLookupRef.current) setStatus("请选择入库方式和当前门店，然后启动相机。")
     return undefined
   }, [open])
-
-  useEffect(() => {
-    if (!enableOcr || !scanning || ocrTimerRef.current) return undefined
-    const ocrLoop = async () => {
-      await readPrice()
-      if (streamRef.current) ocrTimerRef.current = setTimeout(ocrLoop, 1800)
-    }
-    void ocrLoop()
-    return undefined
-  }, [enableOcr, scanning])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90dvh] max-w-[min(560px,calc(100vw-2rem))] flex-col overflow-y-auto sm:max-w-xl [&>*]:shrink-0" onCloseAutoFocus={(event) => { event.preventDefault(); document.getElementById("product-search")?.focus() }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><ScanLine className="size-5 text-primary" /> 扫码检索</DialogTitle>
-          <DialogDescription>相机会自动启动；也可以连续手动输入 JAN 码。</DialogDescription>
+          <DialogDescription>对准一张价签，同时识别条码和上方价格；首次识别需加载文字模型。</DialogDescription>
         </DialogHeader>
+        {session && <div className="space-y-3">
+          <label className="block text-sm font-medium">入库方式<select aria-label="入库方式" className="mt-2 w-full rounded-lg border bg-background p-2" value={saveMode} disabled={scanning || lookingUp || submitting} onChange={(event) => setSaveMode(event.target.value)}><option value="manual">手动确认后保存</option><option value="auto">自动入库（明确含税价时）</option></select></label>
+          <Input aria-label="搜索扫描入库门店" placeholder="搜索当前门店" value={storeQuery} disabled={scanning || lookingUp || submitting} onChange={(event) => setStoreQuery(event.target.value)} />
+          <select aria-label="扫描入库门店" className="w-full rounded-lg border bg-background p-2" value={scanStore?.id || ""} disabled={scanning || lookingUp || submitting} onChange={(event) => setScanStore(scanStores.find((store) => String(store.id) === event.target.value) || null)}><option value="">请选择当前门店</option>{scanStore && !scanStores.some((store) => store.id === scanStore.id) && <option value={scanStore.id}>{scanStore.name}</option>}{scanStores.map((store) => <option key={store.id} value={store.id}>{store.name} · {store.city || store.address}</option>)}</select>
+          <p className="text-xs text-muted-foreground">保存到我的价格记录。自动入库需先选门店；多价或模糊结果需手动确认。</p>
+        </div>}
         <div className={`relative overflow-hidden rounded-xl border bg-slate-950 ${scanning ? "h-[min(36dvh,260px)]" : "h-32"}`}>
           <video ref={videoRef} muted playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="条码扫描相机预览" />
           <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
           {scanning && <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 bg-primary" />}
           {!scanning && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/80"><Camera className="size-7" />相机尚未启动</div>}
         </div>
-        {recognizedPrice && <p className="text-sm text-primary" role="status">已识别价格：¥{Number(recognizedPrice).toLocaleString("ja-JP")}（进入商品页后可确认）</p>}
-        {scanning ? <Button variant="outline" onClick={stopCamera}><Camera /> 停止相机</Button> : <Button onClick={startCamera}><Camera /> 启动相机</Button>}
+        {recognizedPrice && <p className="text-sm text-primary" role="status">已识别价格：¥{Number(recognizedPrice).toLocaleString("ja-JP")}（请确认含税价）</p>}
+        {scanning ? <Button variant="outline" onClick={stopCamera}><Camera /> 停止相机</Button> : <Button onClick={startCamera} disabled={lookingUp || submitting}><Camera /> 启动相机</Button>}
         <form onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
           <label htmlFor="manual-jan" className="mb-2 block text-sm font-medium">手动输入 JAN 码</label>
-          <div className="flex gap-2"><Input ref={manualInputRef} id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" disabled={lookingUp} /><Button type="submit" variant="secondary" disabled={lookingUp}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询"}</Button></div>
+          <div className="flex gap-2"><Input ref={manualInputRef} id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" disabled={lookingUp || submitting} /><Button type="submit" variant="secondary" disabled={lookingUp || submitting}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询"}</Button></div>
         </form>
         <p className="text-sm text-muted-foreground empty:hidden" role="status" aria-live="polite">{status}</p>
+        {pendingProduct && <form className="space-y-3 rounded-xl border p-4" onSubmit={(event) => { event.preventDefault(); void saveScan(pendingProduct, recognizedPrice) }}>
+          <p className="font-medium">{pendingProduct.name}</p>
+          <p className="text-xs text-muted-foreground">JAN {pendingProduct.barcode}</p>
+          <label className="block text-sm font-medium">含税价格（日元）<Input className="mt-2" type="number" min="1" max="100000" step="1" required value={recognizedPrice} disabled={submitting} onChange={(event) => setRecognizedPrice(event.target.value)} /></label>
+          <Button type="submit" disabled={submitting || !scanStore}>{submitting ? "保存中…" : "保存入库"}</Button>
+          <Button type="button" variant="outline" disabled={submitting} onClick={() => onFound(pendingProduct, recognizedPrice)}>查看商品</Button>
+        </form>}
         {draft && <form className="space-y-3 rounded-2xl border bg-muted/35 p-4" onSubmit={submitMissing}>
           <div><p className="font-medium">补录缺失商品</p><p className="mt-1 text-xs text-muted-foreground">JAN {draft.barcode} · 提交后由管理员审核</p></div>
           <label className="block"><span className="mb-2 block text-sm font-medium">商品名称</span><Input autoFocus value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
@@ -844,7 +908,7 @@ export default function CompareApp({ initialScan = false }) {
     if (supabaseConfigured) {
       setScanOpen(false)
       const params = new URLSearchParams({ id: product.id })
-      if (isAdmin && /^\d+$/.test(String(price))) params.set("price", price)
+      if (/^\d+$/.test(String(price))) params.set("price", price)
       window.location.assign(appPath(`/product/?${params.toString()}`))
       return
     }
@@ -931,7 +995,7 @@ export default function CompareApp({ initialScan = false }) {
       <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-md rounded-xl border bg-popover p-3 shadow-lg"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">已选 {selectedProducts.length} 件</p><Button id="view-compare" onClick={() => setCompareOpen(true)}>查看清单<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
 
       <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} commercialOffers={commercialOffers} onCommercial={openCommercialOffer} onRemove={toggleProduct} onLoadPrices={loadComparePrices} priceLoading={priceLoading} priceChecked={priceChecked} priceErrors={priceErrors} session={session} onClear={() => setSelected([])} />
-      <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} enableOcr={isAdmin} />
+      <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} enableOcr />
       <LoginDialog open={authOpen} onOpenChange={handleAuthOpenChange} onSignedIn={handleSignedIn} priceIntent={Boolean(pendingPriceId)} />
     </div>
   )
