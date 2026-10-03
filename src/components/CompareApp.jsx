@@ -178,7 +178,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = true 
     canvas.getContext("2d", { willReadFrequently: true }).drawImage(video, x, y, width, height, 0, 0, canvas.width, canvas.height)
     setStatus("已找到条码，正在识别上方价签…")
     try {
-      const { createWorker } = await import("tesseract.js")
+      const { default: { createWorker } } = await import("tesseract.js/dist/tesseract.esm.min.js")
       if (!ocrWorkerRef.current) ocrWorkerRef.current = createWorker("eng+jpn")
       const worker = await ocrWorkerRef.current
       const result = await worker.recognize(canvas)
