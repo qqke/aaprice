@@ -9,7 +9,6 @@ const files=process.argv.slice(2).filter(x=>!x.startsWith('--'))
 if(!files.length)throw Error('Pass stores.json files to import')
 const snapshot=databaseProcess(process.env.AAPRICE_DB_URL,"\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(s),'[]'::json) from (select id,name,chain_name,address,pref,city,lat,lng,hours from public.stores order by id) s;")
 const before=JSON.parse(snapshot.slice(snapshot.indexOf('[')))
-await writeFile(`${out}/database-before.json`,JSON.stringify(before,null,2))
 const reviewIndex=indexExistingBranches(before)
 const existing=new Map(before.map(s=>[s.id,s])),rows=new Map(),excluded=[]
 const norm=s=>s.normalize('NFKC').replace(/[\s\p{P}\p{S}]/gu,'')

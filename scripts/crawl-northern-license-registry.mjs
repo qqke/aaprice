@@ -1,0 +1,33 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises'
+import {createHash} from 'node:crypto'
+import {databaseProcess} from './sync-sundrug.mjs'
+import {normalizeAddress} from './crawl-eastern-license-registry.mjs'
+import {parseOfficialEmbedMarker,verifyMarkerAddress} from './official-embed-marker.mjs'
+import {validateStore} from './crawl-national-stores.mjs'
+const out='artifacts/drugstores-license-north-2026-10-03'
+process.loadEnvFile('.env');await mkdir(out+'/cache',{recursive:true})
+const sources=JSON.parse(await readFile(out+'/source-index.json','utf8')),records=[]
+for(const source of sources){if(source.download!=='ok')continue;const rows=JSON.parse(await readFile(out+'/sources/'+source.key+'.rows.json','utf8'))
+ for(const r of rows){let name,address,phone='',holder,permit,start,expiry,status='licensed-snapshot-operation-unconfirmed'
+  if(source.key==='hakodate'){if(!/^\d+$/.test(r[0]||''))continue;[,permit,name,address,,,start,expiry,holder]=r;address='北海道函館市'+address}
+  if(source.key==='sendai'){if(!/^\d+$/.test(r[0]||''))continue;[,permit,name,address,phone,holder,start,expiry]=r;address='宮城県'+address}
+  if(source.key==='miyagi'){if(!/^\d+$/.test(r[0]||''))continue;[,,permit,name,address,holder,start,expiry]=r;address='宮城県'+address}
+  if(source.key==='akita-city'){if(r[7]!=='店舗販売業')continue;[holder,name,, ,address,phone,permit,,status,start,expiry]=r;address='秋田県秋田市'+address}
+  if(source.key==='aomori-city'){if(!/^\d+$/.test(r[0]||''))continue;[,name,address,phone,holder,,permit,expiry]=r;address='青森県青森市'+address.replace(/^\d{3}-\d{4}\s*/,'')}
+  if(!name||!address)continue
+  records.push({id:'license-'+source.key+'-'+createHash('sha256').update(permit+name+address).digest('hex').slice(0,16),name:name.normalize('NFKC'),chain_name:/^ドラッグヤマザワ/.test(name)?'ヤマザワ薬品':'独立薬店',address:address.normalize('NFKC'),phone,licenseHolder:holder,licenseNumber:permit,licenseStart:start,licenseExpiry:expiry,officialOperatingStatus:status,sourceKey:source.key,sourceUrl:source.url,licenseSourcePage:source.sourceUrl,licenseAsOf:source.asOf,collectedAt:source.downloadedAt,licenseScope:source.scope})
+ }
+}
+const raw=databaseProcess(process.env.AAPRICE_DB_URL,"\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(s),'[]'::json) from(select id,name,chain_name,address,pref,lat,lng from public.stores)s;")
+const db=JSON.parse(raw.slice(raw.indexOf('['))),addressKey=s=>normalizeAddress(String(s||'').replace(/^〒?\s*\d{3}-?\d{4}\s*/,'')),nameKey=s=>String(s||'').normalize('NFKC').replace(/[\s＆&]/g,'').replace(/ぺ/g,'ペ').toLowerCase(),ledger=[],candidates=[],stores=[],pending=[]
+const addressIndex=new Map(),nameIndex=new Map();for(const d of db){for(const [index,key]of [[addressIndex,addressKey(d.address)],[nameIndex,nameKey(d.name)]]){if(!index.has(key))index.set(key,[]);index.get(key).push(d)}}
+for(const row of records){const same=addressIndex.get(addressKey(row.address))||[],named=nameIndex.get(nameKey(row.name))||[],identity=same.find(d=>nameKey(d.name)===nameKey(row.name)||nameKey(d.name).includes(nameKey(row.name))||nameKey(row.name).includes(nameKey(d.name)))
+ row.dbMatch=identity?{id:identity.id,method:'same-full-address-compatible-name'}:same.length?{ids:same.map(d=>d.id),method:'same-address-requires-business-identity'}:named.length?{ids:named.map(d=>d.id),method:'same-name-address-differs'}:null
+ row.status=row.dbMatch?'existing-or-identity-review':/廃止|休止|閉店/.test(row.name+' '+row.officialOperatingStatus)?'inactive-annotation-review':!/薬|ドラッグ|くすり|漢方/.test(row.name)||/通販|オンライン|ネット|営業部|本社|コンタクト|メニコン/.test(row.name)?'retail-format-review':'unmatched-retail-candidate'
+ ledger.push(row);if(row.status==='unmatched-retail-candidate')candidates.push(row)
+}
+await writeFile(out+'/license-ledger.json',JSON.stringify(ledger,null,2));await writeFile(out+'/candidates.json',JSON.stringify(candidates,null,2));console.log('records',records.length,'db',db.length,'candidates',candidates.length)
+function near(a,b){const x=(a.lat-Number(b.lat))*111320,y=(a.lng-Number(b.lng))*111320*Math.cos(a.lat*Math.PI/180);return Math.hypot(x,y)<60}
+for(let i=0;i<candidates.length;i+=4){await Promise.all(candidates.slice(i,i+4).map(async row=>{if(String(row.phone||'').replace(/\D/g,'').length<9){pending.push({...row,reason:'Government registry omits phone; additional official business identity required'});return}const url='https://www.google.com/maps?q='+encodeURIComponent(row.name+' '+row.address)+'&output=embed&hl=ja',file=out+'/cache/'+createHash('sha256').update(url).digest('hex')+'.json';try{let page;try{page=JSON.parse(await readFile(file,'utf8'))}catch{const r=await fetch(url,{signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('HTTP '+r.status);page={url,collectedAt:new Date().toISOString(),html:await r.text()};await writeFile(file,JSON.stringify(page))}const marker=parseOfficialEmbedMarker(page.html,row);verifyMarkerAddress(marker,{...row,address:normalizeAddress(row.address)});const nearby=db.filter(d=>Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng))&&near(marker,d));if(nearby.length)throw Error('Existing database entity within60m: '+nearby.map(d=>d.id).join(','));if(stores.some(d=>near(marker,d)))throw Error('Another staged business within60m');stores.push(validateStore({...row,...marker,coordinateStatus:'verified-store-marker',coordinateAccuracy:'store-marker',coordinateSourceUrl:url,coordinateCollectedAt:page.collectedAt,coordinateEvidence:'Government OTC permit; exact business name/phone/full street address; no database store within60m; operation remains bounded by current license snapshot'}));console.log('verified',row.name)}catch(e){pending.push({...row,reason:e.message.split('\n')[0]})}}));await writeFile(out+'/stores.json',JSON.stringify(stores,null,2));await writeFile(out+'/pending.json',JSON.stringify(pending,null,2))}
+const report={generatedAt:new Date().toISOString(),databaseCount:db.length,fullDatabaseSnapshotRetained:false,sourceCount:sources.length,licenseRows:records.length,existingOrIdentityReview:ledger.filter(r=>r.dbMatch).length,unmatchedRetailCandidates:candidates.length,verifiedCandidates:stores.length,pending:pending.length,sourceCoverageComplete:false,nationalComplete:false,applied:false,counts:Object.fromEntries(sources.map(s=>[s.key,{asOf:s.asOf,licenses:records.filter(r=>r.sourceKey===s.key).length,matchedOrReview:ledger.filter(r=>r.sourceKey===s.key&&r.dbMatch).length,candidates:candidates.filter(r=>r.sourceKey===s.key).length,accepted:stores.filter(r=>r.sourceKey===s.key).length}]))}
+await writeFile(out+'/report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report))

@@ -17,3 +17,12 @@ test('Missing-only import reviews moves and same-source rebranding before insert
   assert.deepEqual(possibleExistingBranches({...old,id:'welcia-4',name:'ウエルシア東店',address:'東京都新宿区2-2'},[old]),[])
   assert.deepEqual(possibleExistingBranches({...old,id:'welcia-5',pref:'大阪府',address:'大阪府大阪市1-1'},[old]),[])
 })
+
+test('Government business names require existing-branch review despite brand labels and building address differences',()=>{
+  const existing={id:'mcc-10001686',name:'薬 マツモトキヨシ モリタウン昭島店',chain_name:'マツモトキヨシ',address:'東京都昭島市代官山二丁目3-1モリタウン本館1F',pref:'東京都'}
+  const permit={id:'license-tokyo-1',name:'薬マツモトキヨシ モリタウン昭島店',chain_name:'薬マツモトキヨシ モリタウン昭島店',address:'東京都昭島市代官山2-3-1',pref:'東京都'}
+  assert.deepEqual(possibleExistingBranches(permit,[existing]),[existing.id])
+  assert.deepEqual(possibleExistingBranches({...permit,name:'薬マツモトキヨシ 別店'},[existing]),[])
+  const group={...existing,id:'sundrug-1187',name:'サンドラッググループ 麻布台ヒルズ店',chain_name:'サンドラッググループ'}
+  assert.deepEqual(possibleExistingBranches({...permit,name:'サンドラッグ麻布台ヒルズ店',chain_name:'サンドラッグ麻布台ヒルズ店'},[group]),[group.id])
+})

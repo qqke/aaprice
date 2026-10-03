@@ -6,7 +6,7 @@ export function canonicalStoreIdentity(s){
 }
 
 // Same branch after a move or same-source rebranding needs review, not a new ID.
-const reviewKeys=s=>[`branch:${canonicalStoreIdentity({...s,address:''})}|${s.pref}`,`address:${s.id.split('-')[0]}|${normalizeIdentityText(s.address)}`]
+const reviewKeys=s=>[`branch:${canonicalStoreIdentity({...s,address:''})}|${s.pref}`,`name:${normalizeIdentityText(s.name).replaceAll('グループ','')}|${s.pref}`,`address:${s.id.split('-')[0]}|${normalizeIdentityText(s.address)}`]
 export function indexExistingBranches(existing){
   const index=new Map()
   for(const s of existing)for(const key of reviewKeys(s)){
