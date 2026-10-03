@@ -8,6 +8,11 @@ const raw=databaseProcess(process.env.AAPRICE_DB_URL,"\\pset tuples_only on\n\\p
 const chains=JSON.parse(raw.slice(raw.indexOf('[')))
 const snapshot={generatedAt:new Date().toISOString(),totalRows:chains.reduce((n,x)=>n+Number(x.stores),0),chains}
 await writeFile(`${out}/database-chain-counts.json`,JSON.stringify(snapshot,null,2))
+// Exact franchise bindings avoid assigning every Matsumoto Kiyoshi store to Yasui.
+const franchiseRaw=databaseProcess(process.env.AAPRICE_DB_URL,"\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(s),'[]'::json) from(select id,name,chain_name,address from public.stores where id in ('mcc-52204388','mcc-52204446'))s;")
+const franchiseRows=JSON.parse(franchiseRaw.slice(franchiseRaw.indexOf('[')))
+const franchiseProof=[{id:'mcc-52204388',name:'薬 マツモトキヨシ 西葛西駅前店',address:'東京都江戸川区西葛西6-16-1'},{id:'mcc-52204446',name:'薬 マツモトキヨシ 行徳駅前店',address:'千葉県市川市行徳駅前2-13-1'}]
+const yasuiBound=franchiseProof.filter(expected=>franchiseRows.some(row=>row.id===expected.id&&row.name===expected.name&&row.address===expected.address&&row.chain_name==='マツモトキヨシ'))
 const old=JSON.parse(await readFile('artifacts/drugstores-membership-2026-10-03/membership-coverage.json','utf8'))
 const extra={
 '株式会社ケアーズ':['ケアーズ','ケアーズドラッグ'],'株式会社くすりのコーエイ':['ドラッグコーエイ','くすりのコーエイ'],'株式会社クスリのサンロード':['クスリのサンロード'],'株式会社くすりのダイイチ':['くすりのダイイチ'],'株式会社くすりのマルト':['くすりのマルト'],'株式会社コメヤ薬局':['コメヤ薬局'],'株式会社サンキュードラッグ':['サンキュードラッグ'],'株式会社下川薬局':['シモカワ'],'株式会社同仁堂':['同仁堂'],'株式会社ザグザグ':['ザグザグ'],'株式会社奈良ドラッグ':['エムズドラッグ','MSドラッグ'],'株式会社ニシイチドラッグ':['ニシイチドラッグ'],'株式会社西本真生堂':['西本真生堂'],'株式会社ハシドラッグ':['ハシドラッグ'],'株式会社阪神薬局':['阪神薬局'],'光株式会社':['ドラッグひかり'],'株式会社ファーマシー木のうた':['木のうた'],'株式会社ホッタ晴信堂薬局':['ホッタ晴信堂薬局'],'株式会社三河薬品':['三河薬品'],'株式会社ミズ':['ミズ','溝上薬局'],'株式会社ミック・ジャパン':['ミック薬局','ミック・ジャパン'],'株式会社村源':['村源'],'株式会社明治堂薬品':['明治堂薬品'],'株式会社ヤスイ':['ヤスイ'],'株式会社ヤマザワ薬品':['ドラッグヤマザワ','ヤマザワ薬品'],'株式会社横浜ファーマシー':['スーパードラッグアサヒ'],'株式会社ヨネキ十字堂':['ヨネキ十字堂'],'株式会社大屋':['ドラッグストアmac','ドラッグストアmac（大屋）','ドラッグストアマック'],'山田薬品株式会社':['Cosmetics and Medical','コスメティクスアンドメディカル'],'ユニバーサルドラッグ株式会社':['ユニバーサルドラッグ']}
@@ -16,6 +21,8 @@ extra['株式会社ナチュラルホールディングス']=['ドラッグス�
 // CFIZ trade name is established by the current group company page and official integrated report.
 extra['株式会社なの花西日本']=['なの花ドラッグ']
 extra['(株)CFIZ']=['ココカラファインイズミヤ']
+extra['有限会社大手町薬局']=['大手町薬局']
+extra['株式会社タイキファーマシー']=['タイキファーマシー']
 extra['株式会社青葉堂グループ']=['青葉堂グループ']
 extra['株式会社アクシス']=['ウエーブ']
 extra['内山薬品株式会社']=['佐々木薬局']
@@ -30,6 +37,9 @@ extra['株式会社レークケア']=['レークケア']
 // Group directory spans several operators; these brands are group matches, not a legal-owner assignment per branch.
 extra['株式会社リーフ']=['ヒノミドラッグ','テン・ドラッグ','ウィング湘南','ドラッグなかがわ']
 const directories={
+'有限会社大手町薬局':'https://www.ohtemachi-ph.com/group',
+'株式会社タイキファーマシー':'https://taiki-p.com/',
+'株式会社ヤスイ':'https://www.e-kusuri.info/drugstore',
 '株式会社青葉堂グループ':'https://www.aobado.com/',
 '株式会社アクシス':'https://www.axisnet.jp/',
 '内山薬品株式会社':'https://www.uchiyama-sasaki.com/',
@@ -54,7 +64,7 @@ const previous=new Map(old.coverage.map(row=>[row.name,row]))
 old.coverage=members.map(member=>({...previous.get(member.name),...member,brandAliases:previous.get(member.name)?.brandAliases||[],status:previous.get(member.name)?.status||'unresolved_company_brand_mapping'}))
 old.topLevelEntries=members.filter(x=>!x.child).length;old.childEntries=members.filter(x=>x.child).length
 await writeFile(`${out}/jacds-member-links.json`,JSON.stringify({source:old.source,collectedAt:membershipPage.collectedAt,links:members},null,2))
-const coverage=old.coverage.map(x=>{const aliases=[...new Set([...x.brandAliases,...(extra[x.name]||[])])],matched=chains.filter(c=>aliases.includes(c.chain_name));return {...x,brandAliases:aliases,matchedChains:matched,databaseRows:matched.reduce((n,c)=>n+Number(c.stores),0),officialDirectoryUrl:directories[x.name]||null,status:matched.length?'brand_present_branch_reconciliation_required':x.status==='business_scope_review'?'business_scope_review':'unresolved_brand_or_zero_matching_rows'}})
+const coverage=old.coverage.map(x=>{const bound=x.name==='株式会社ヤスイ'?yasuiBound:[],aliases=[...new Set([...x.brandAliases,...(extra[x.name]||[])])],matched=bound.length?[{chain_name:'マツモトキヨシ',stores:bound.length,scope:'Only exact official franchise IDs, not all brand branches'}]:chains.filter(c=>aliases.includes(c.chain_name));return {...x,exactDatabaseBindings:bound,franchiseBindingSourceUrl:bound.length?'https://www.e-kusuri.info/drugstore':null,brandAliases:aliases,matchedChains:matched,databaseRows:matched.reduce((n,c)=>n+Number(c.stores),0),officialDirectoryUrl:directories[x.name]||null,status:matched.length?'brand_present_branch_reconciliation_required':x.status==='business_scope_review'?'business_scope_review':'unresolved_brand_or_zero_matching_rows'}})
 const stats={};for(const row of coverage)stats[row.status]=(stats[row.status]||0)+1
 await writeFile(`${out}/membership-coverage.json`,JSON.stringify({generatedAt:new Date().toISOString(),source:old.source,topLevelEntries:old.topLevelEntries,childEntries:old.childEntries,stats,scope:'JACDS companies and subsidiaries only. Brand presence does not establish complete branch coverage. Independent stores and other retailers require licensing universe reconciliation.',coverage},null,2))
 console.log(JSON.stringify({databaseRows:snapshot.totalRows,chains:chains.length,stats}))

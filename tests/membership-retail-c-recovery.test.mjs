@@ -1,0 +1,2 @@
+import test from'node:test';import assert from'node:assert/strict';import{recoveryName}from'../scripts/recover-membership-retail-c.mjs';
+test('documented map label aliases preserve unknown branch identity',()=>{assert.equal(recoveryName({name:'くすりのオダギリ 桜ヶ丘店'}),'くすりのオダギリ 桜ケ丘店');assert.equal(recoveryName({name:'ドラッグストアヒノミ 西小山店'}),'ヒノミドラッグ 西小山店');assert.equal(recoveryName({name:'ヒノミドラッグ 都立大学店'}),'ヒノミドラッグ 都立大店');assert.equal(recoveryName({name:'ヒノミドラッグ 都立大学駅前店'}),'ヒノミドラッグ 都立大学駅前店');assert.equal(recoveryName({name:'くすりのオダギリ 桜ヶ丘南店'}),'くすりのオダギリ 桜ヶ丘南店');});

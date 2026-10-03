@@ -1,0 +1,6 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {parseKeimeidoRetailers} from '../scripts/crawl-keimeido-retailers.mjs'
+const row=(name,phone,items)=>'<tr><td class="shop_name">'+name+'</td><td class="address">神奈川県大和市大和東1-4-2 スーパー内</td><td class="phone">'+phone+'</td><td>'+items+'</td></tr>'
+test('manufacturer medicine availability requires exact branch stock or order icon; historical comments excluded',()=>{const html='<!--'+row('旧店','123','')+'-->'+row('薬局本店','046-261-1193','<img src="./assets/img/shop/item1_stock.png" alt="恵命我神散Ｓ">')+row('取寄店','046-269-1593','<img src="./assets/img/shop/item2_order.png" alt="恵命我神散Ｓ">')+row('未確認','046-111-1111','<img src="./assets/img/legend.png" alt="恵命我神散Ｓ">');const rows=parseKeimeidoRetailers(html,'https://www.keimeido.co.jp/shop/kanagawa','2026-10-03');assert.equal(rows.length,3);assert.equal(rows[0].products[0].availability,'stock');assert.equal(rows[1].products[0].availability,'order');assert.equal(rows[2].products.length,0);assert.equal(rows[0].lat,undefined);assert.match(rows[0].address,/スーパー内/);})
+test('missing phone remains enumerated for contact review instead of losing the prefecture directory',()=>{const rows=parseKeimeidoRetailers(row('薬店','',''),'https://official.test','2026-10-03');assert.equal(rows.length,1);assert.ok(rows[0].contactIssue)})
