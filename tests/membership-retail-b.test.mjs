@@ -1,0 +1,9 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {parseMizDirectory,textOf,hasBranchOTCService,parseNaviiOTCSales} from '../scripts/crawl-membership-retail-b.mjs'
+test('retail directory preserves category and primary phone without treating pharmacy as exclusive',()=>{const rows=parseMizDirectory('<li><div class="tenpoIchiran"><span class="tenpoName"><a href="https://example.jp/store/1.html">溝上薬局 空港通り店</a></span><span class="catTenpo chozai">調剤</span><span class="catTenpo drug">ドラッグストア</span><table><th>住所</th><td>佐賀市袋288番地1</td><th>電話番号</th><td>0952-28-1513<br>080-6854-2371(時間外)</td></table></li>');assert.equal(rows.length,1);assert.equal(rows[0].phone,'0952-28-1513');assert.equal(rows[0].address,'佐賀県佐賀市袋288番地1');assert.deepEqual(rows[0].categories,['調剤','ドラッグストア'])})
+test('closed/commented directory entries do not survive normalization',()=>assert.equal(textOf('現店<!--古い閉店--> <script>旧店</script>'),'現店'))
+
+test('commented Miz store never enters directory parser',()=>{const row='<li><div class="tenpoIchiran"><span class="tenpoName"><a href="https://example.jp/store/1.html">閉店薬局</a></span></li>';assert.deepEqual(parseMizDirectory('<!--'+row+'-->'),[])})
+test('only actual branch service span proves OTC, comments and navigation do not',()=>{assert.equal(hasBranchOTCService('<nav>第一類医薬品取扱い</nav>'),false);assert.equal(hasBranchOTCService('<!--<span class="ttkouTxt">要指導医薬品</span>-->'),false);assert.equal(hasBranchOTCService('<span class="ttkouTxt">第一類医薬品取扱い</span>'),true)})
+test('government class-two and class-three affirmative sale rows are both required',()=>{const row=n=>'<tr><td>電話による販売を行う医薬品の区分(第'+n+'類医薬品)</td><td>有り</td></tr>';assert.equal(parseNaviiOTCSales(row(2)+row(3)),true);assert.equal(parseNaviiOTCSales(row(2)),false);assert.equal(parseNaviiOTCSales((row(2)+row(3)).replaceAll('有り','無し')),false)})
