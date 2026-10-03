@@ -24,6 +24,7 @@ const plain = (s = '') => String(s).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, 
 const weekdays = { MONDAY: '月', TUESDAY: '火', WEDNESDAY: '水', THURSDAY: '木', FRIDAY: '金', SATURDAY: '土', SUNDAY: '日', HOLIDAY: '祝', BEFORE_HOLIDAY: '祝前' }
 const closureNote = value => /閉店(?!時間)|休業中|一時休業|期間休業/.test(plain(value))
 export function validateStore(s) {
+  if (/オープン予定|開店予定|近日オープン|近日開店|閉店|休業中/.test(s.name || '')) throw Error('Closed or future retail store')
   if (!s.id || !s.name || !s.address || !Number.isFinite(s.lat) || !Number.isFinite(s.lng) || s.lat < 20 || s.lat > 46 || s.lng < 122 || s.lng > 154) throw Error('Missing identity/address or invalid Japan coordinates')
   return { ...s, pref: s.address.replace(/^〒?\d{3}-?\d{4}\s*/, '').match(/^(東京都|北海道|大阪府|京都府|.{2,3}県)/)?.[1] || '', city: s.city || '', hours: s.hours || '', channel: 'physical' }
 }
@@ -70,7 +71,7 @@ export function parseTsuruhaEntity(s, collectedAt) {
   const coord = s.yextDisplayCoordinate || s.displayCoordinate
   return validateStore({ id: `tsuruha-group-${new URL(url).pathname.slice(1)}`, name: s.name,
     chain_name: brands[s.c_brandFilter] || s.name.match(/ツルハドラッグ|くすりの福太郎|ウォンツ|ウェルネス|くすりのレデイ|杏林堂|ドラッグイレブン|B&D/)?.[0] || 'ツルハグループ',
-    address: `${s.address.region}${s.address.city}${s.address.line1}${s.address.line2 ? ' '+s.address.line2 : ''}`, city: s.address.city,
+    address: `${s.address.region}${s.address.city}${s.address.sublocality || ''}${s.address.line1}${s.address.line2 ? ' '+s.address.line2 : ''}`, city: s.address.city,
     lat: coord?.latitude, lng: coord?.longitude, phone: s.mainPhone || '', taxFree: s.c_sa_fs_service_DutyFreeShop ?? null,
     hours: Object.entries(s.hours || {}).filter(([day]) => weekdays[day.toUpperCase()]).map(([day,h]) => `${weekdays[day.toUpperCase()]} ${h.isClosed ? '休業' : (h.openIntervals || []).map(i => `${i.start}–${i.end}`).join(', ')}`).join('; '), sourceUrl: url, collectedAt })
 }
@@ -250,7 +251,7 @@ async function main() {
     } else if (source === 'aoki') {
       const seen = new Set()
       for(let page=1;page<=1000;page++) {
-        const saved=await get(`${directorySources.aoki.base}/result?searchword=&page=${page}&size=15`)
+        const saved=await get(`${directorySources.aoki.base}/result?searchword=&page=${page}&size=100`)
         const data=JSON.parse(saved.html.match(/var pageStores = (\{[\s\S]*?\});/)[1])
         c.discovered=data.totalElements
         for(const s of data.content) { if(seen.has(s.code)) throw Error('Repeated Aoki page'); seen.add(s.code); accept(source,s,()=>parseAokiStore(s,saved.collectedAt)) }

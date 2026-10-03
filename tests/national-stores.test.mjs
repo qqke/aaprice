@@ -9,12 +9,19 @@ test('national directory excludes dispensing-only, future and invalid physical l
   assert.throws(()=>parseCanlyStore('satudora',{...canly,checkBoxLabel:null},time),/drugstore/)
   assert.throws(()=>parseSugiStore({storeInfo:[{storeType:'pharmacy'}]},time,''),/Dispensing/)
   assert.throws(()=>validateStore({id:'bad',name:'bad',address:'東京都',lat:0,lng:0}),/coordinates/)
+  assert.throws(()=>validateStore({id:'future',name:'スギドラッグ 【10/8オープン予定】 店',address:'東京都',lat:35.7,lng:139.7}),/future/)
   assert.throws(()=>parseTsuruhaEntity({closed:false,c_sf_storeType:'PHARMACY'},time),/dispensing/)
   const m={id:1,name:'店舗',address:'東京都新宿区',latitude:35.7,longitude:139.7,icon:1,services:'0001',store_open_time_mon:'09:00:00',store_close_time_mon:'21:00:00'}
   const attrs={icon:[[1,'マツモトキヨシ']],services:[[4,'免税対応']]}
   assert.equal(parseMatsukiyoDirectory(m,attrs,time).taxFree,true)
   assert.throws(()=>parseMatsukiyoDirectory({...m,publish_start:'2027-01-01 00:00'},attrs,time),/publication/)
   assert.throws(()=>parseMatsukiyoDirectory({...m,store_open_time_mon:null},attrs,time),/retail hours/)
+})
+
+test('Tsuruha address includes the official sublocality before the street number',()=>{
+  const row={closed:false,c_sf_storeType:'DRUGSTORE',c_pagesURL:'https://shop.tsuruha-g.com/10019',name:'ツルハドラッグ 八戸鮫店',c_brandFilter:'TSURUHA_DRUG',
+    address:{region:'青森県',city:'八戸市',sublocality:'大字鮫町字二見町',line1:'21-1'},displayCoordinate:{latitude:40.5272,longitude:141.5549}}
+  assert.equal(parseTsuruhaEntity(row,'2026-10-03T00:00:00Z').address,'青森県八戸市大字鮫町字二見町21-1')
 })
 
 test('Daikoku data is parsed as data, never executed, and future/closed dates are excluded',()=>{

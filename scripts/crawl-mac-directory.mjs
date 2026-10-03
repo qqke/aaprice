@@ -5,6 +5,7 @@ import {pathToFileURL} from 'node:url'
 import {createFetcher,validateStore} from './crawl-national-stores.mjs'
 import {parseCoordinateLabel} from './crawl-sugiyama.mjs'
 import {buildImportSql} from './crawl-drugstores.mjs'
+import {getOfficialEmbedMarker} from './official-embed-marker.mjs'
 
 const source='https://www.daiya-grp.co.jp/store/'
 const clean=s=>(s||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim()
@@ -38,7 +39,17 @@ async function main(){
     assert.equal(JSON.parse(raw).success,true);await writeFile(`${out}/search.json`,raw)
   }
   const result=JSON.parse(raw);assert.equal(result.success,true)
-  const parsed=parseMac(result.data.html,p.collectedAt),stores=parsed.flatMap(x=>x.store?[x.store]:[]),pending=parsed.flatMap(x=>x.pending?[x.pending]:[])
+  const parsed=parseMac(result.data.html,p.collectedAt),blocks=result.data.html.split('<div class="store-item">').slice(1)
+  for(let i=0;i<parsed.length;i++){
+    const row=parsed[i].pending
+    if(!row||!/coordinate|embedded map/i.test(row.reason))continue
+    try{
+      const {reason,...identity}=row
+      parsed[i]={store:validateStore({...identity,...await getOfficialEmbedMarker(blocks[i],identity,out,{offline,resume})})}
+    }catch(e){row.reason=e.message}
+    if((i+1)%15===0)console.log(`Mac marker ${i+1}/${parsed.length}`)
+  }
+  const stores=parsed.flatMap(x=>x.store?[x.store]:[]),pending=parsed.flatMap(x=>x.pending?[x.pending]:[])
   assert.equal(parsed.length,Number(result.data.count),'Incomplete Mac directory')
   assert.equal(new Set([...stores,...pending].map(x=>x.id)).size,parsed.length)
   const report={generatedAt:new Date().toISOString(),source,expected:Number(result.data.count),discovered:parsed.length,accepted:stores.length,pending:pending.length,enumerationComplete:true,applied:false}

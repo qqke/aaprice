@@ -3,6 +3,7 @@ import {writeFile} from 'node:fs/promises'
 import {pathToFileURL} from 'node:url'
 import {createFetcher,validateStore} from './crawl-national-stores.mjs'
 import {buildImportSql} from './crawl-drugstores.mjs'
+import {parseEmbeddedMarker} from './crawl-missing-chains.mjs'
 
 const base='https://www.genky.co.jp/sp/stores/'
 const clean=s=>(s||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim()
@@ -10,7 +11,16 @@ export function parseGenkyIdentity(html,sourceUrl,collectedAt){
   const name=html.match(/new google\.maps\.Marker\(\{position:\s*myLatlng,map:\s*map,title:"([^"]+)"/)?.[1]
   const field=key=>clean(html.match(new RegExp(`<h2>${key}</h2>\\s*<p[^>]*>([\\s\\S]*?)</p>`))?.[1])
   return {id:`genky-${new URL(sourceUrl).searchParams.get('cont_no')}`,name,chain_name:'ゲンキー',
-    address:field('所在地').replace(/^〒[\d-]+\s*/,''),phone:field('TEL'),hours:field('営業時間'),taxFree:null,sourceUrl,collectedAt}
+    address:field('所在地').replace(/^〒?\d{3}-?\d{4}\s*/,''),phone:field('TEL'),hours:field('営業時間'),taxFree:null,sourceUrl,collectedAt}
+}
+export function parseGenkyEmbeddedMarker(html,mapUrl,row){
+  const marker=parseEmbeddedMarker(html,mapUrl)
+  const normalize=s=>String(s||'').normalize('NFKC').replace(/[\s\p{P}\p{S}]/gu,'')
+  assert(row.name&&row.hours&&!/閉店|休業|予定|近日/.test(row.name),'Missing name/hours or inactive store')
+  assert(normalize(marker.markerAddress).includes(normalize(row.name)),'Official embedded entity name differs from Genky branch')
+  const locality=row.address.match(/^(?:東京都|北海道|大阪府|京都府|.{2,3}県)(.+?[市区町村郡])/)?.[1]
+  assert(locality&&normalize(marker.markerAddress).includes(normalize(locality)),'Official embedded entity locality differs from Genky branch')
+  return marker
 }
 export function parseGenkyDetail(html,sourceUrl,collectedAt){
   html=html.replace(/<!--[\s\S]*?-->/g,'')
@@ -57,7 +67,15 @@ async function main(){
       let page
       for(let attempt=0;attempt<3;attempt++){try{page=await get(url);break}catch(e){if(attempt===2||process.argv.includes('--offline'))throw e}}
       try{stores.push(parseGenkyDetail(page.html,url,page.collectedAt))}
-      catch(e){pending.push({...parseGenkyIdentity(page.html,url,page.collectedAt),lat:null,lng:null,reason:e.message})}
+      catch(e){
+        const row=parseGenkyIdentity(page.html,url,page.collectedAt)
+        try{
+          const mapUrl=page.html.replace(/<!--[\s\S]*?-->/g,'').match(/<iframe[^>]+src="(https:\/\/www\.google\.com\/maps\/embed[^"<>]*)"/)?.[1]?.replace(/&amp;/g,'&')
+          assert(mapUrl,'No official embedded place marker')
+          const map=await get(mapUrl)
+          stores.push(validateStore({...row,...parseGenkyEmbeddedMarker(map.html,mapUrl,row),coordinateCollectedAt:map.collectedAt}))
+        }catch(mapError){pending.push({...row,lat:null,lng:null,reason:mapError.message,directMarkerReason:e.message})}
+      }
     }
     catch(e){failures.push({url,reason:e.message})}
     const done=stores.length+pending.length+failures.length

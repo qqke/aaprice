@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { createFetcher, validateStore } from './crawl-national-stores.mjs'
 import { buildImportSql } from './crawl-drugstores.mjs'
 
-const out = 'artifacts/drugstores-godai-2026-09-13'
+const out = process.argv.find(x=>x.startsWith('--out='))?.slice(6) || 'artifacts/drugstores-godai-2026-09-13'
 const api = 'https://www.godai.net/wp/wp-admin/admin-ajax.php?action=godai-shop-info_gettenpo'
 const get = await createFetcher(out,process.argv.includes('--offline'),process.argv.includes('--resume'))
 await get('https://www.godai.net/store/')

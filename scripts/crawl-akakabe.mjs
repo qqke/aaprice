@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { createFetcher, directorySources, parseCanlyStore } from './crawl-national-stores.mjs'
 import { buildImportSql } from './crawl-drugstores.mjs'
 
-const out = 'artifacts/drugstores-akakabe-2026-09-13'
+const out = process.argv.find(x=>x.startsWith('--out='))?.slice(6) || 'artifacts/drugstores-akakabe-2026-09-13'
 const base = 'https://tenpo.akakabe.com'
 const api = 'https://g9ey9rioe.api.hp.can-ly.com/v2/companies/842/shops/search?sort=alphabetical'
 directorySources.akakabe = {name:'アカカベ',base,api}
