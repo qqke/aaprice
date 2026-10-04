@@ -8,12 +8,14 @@ const out = arg('out') || `artifacts/drugstores-keimeido-existing-${offset}-${of
 await mkdir(out, { recursive: true })
 const ledger = JSON.parse(await readFile('artifacts/drugstores-keimeido-retailers-2026-10-03/directory-ledger.json', 'utf8'))
 const rows = ledger.filter(row => row.status === 'existing-identity-review').slice(offset, offset + limit)
-const raw = databaseProcess(process.env.AAPRICE_DB_URL, "\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(s),'[]'::json) from (select id,name,address,phone from public.stores) s;")
+// The current stores schema keeps address identity but does not have a phone column.
+// Preserve the phone check as false so this audit never treats missing DB data as a match.
+const raw = databaseProcess(process.env.AAPRICE_DB_URL, "\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(s),'[]'::json) from (select id,name,address from public.stores) s;")
 const db = new Map(JSON.parse(raw.slice(raw.indexOf('['))).map(row => [row.id, row]))
 const checks = rows.map(row => {
   const matches = row.existingIds.map(id => db.get(id)).filter(Boolean)
   const addressMatch = matches.some(match => normalizeAddress(match.address) === normalizeAddress(row.address))
-  const phoneMatch = matches.some(match => match.phone && row.phone && match.phone.replace(/\D/g, '') === row.phone.replace(/\D/g, ''))
+  const phoneMatch = false
   return { id: row.id, name: row.name, existingIds: row.existingIds, matchedDatabaseIds: matches.map(match => match.id), addressMatch, phoneMatch, covered: matches.length > 0 }
 })
 const result = { offset, selected: rows.length, covered: checks.filter(row => row.covered).length, addressMatch: checks.filter(row => row.addressMatch).length, phoneMatch: checks.filter(row => row.phoneMatch).length, unresolved: checks.filter(row => !row.covered).length, databaseRows: db.size, allRowsChecked: true }
