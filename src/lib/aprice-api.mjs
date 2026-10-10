@@ -93,7 +93,7 @@ export function parseCommercialOfferRows(value) {
   return items
 }
 
-export async function searchProducts(term = "", limit = 30, { offset = 0, curated = true } = {}) {
+export async function searchProducts(term = "", limit = 30, { offset = 0, curated = false } = {}) {
   const boundedLimit = Math.max(1, Math.min(Number(limit) || 30, 500))
   const boundedOffset = Math.max(0, Number(offset) || 0)
   const value = String(term || "").trim()
