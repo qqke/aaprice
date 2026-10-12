@@ -64,8 +64,7 @@ async function main(){
   }
   for(const url of links.values()){
     try{
-      let page
-      for(let attempt=0;attempt<3;attempt++){try{page=await get(url);break}catch(e){if(attempt===2||process.argv.includes('--offline'))throw e}}
+      const page=await get(url)
       try{stores.push(parseGenkyDetail(page.html,url,page.collectedAt))}
       catch(e){
         const row=parseGenkyIdentity(page.html,url,page.collectedAt)

@@ -3,3 +3,9 @@ test('MsDrug rejects closed branches and never uses address-map viewport coordin
 test('Universal excludes headquarters and dispensing-only branches',()=>{const h='本社\n〒114-0015\n東京都北区中里1-3-1\nTEL 03-5832-5780\n綾瀬店\n〒120-0005\n東京都足立区綾瀬4-9-24\nTEL 03-5616-8686\n鐘ヶ淵駅前調剤店\n〒131-0031\n東京都墨田区墨田3-30-7\nTEL 03-3613-1200';const rows=parseUniversal(h,'https://www.universal-drug.co.jp/stores','2026-10-03');assert.equal(rows.length,1);assert.match(rows[0].name,/綾瀬店/)});
 test('Yamada details require official telephone and full address',()=>{assert.throws(()=>parseYamada('<iframe src="?ll=35,139"></iframe>','店','https://cosmetics-medical.com/store/test/','2026-10-03'),/missing address/);const r=parseYamada('住所\n〒100-0005\n東京都千代田区丸の内1-6-2\n電話番号\n03-5223-8877','新丸の内センタービルドラッグ','https://cosmetics-medical.com/store/test/','2026-10-03');assert.equal(r.phone,'03-5223-8877');assert.equal(r.lat,undefined)});
 test('Government CSV parser preserves quoted delimiters, newlines and doubled quotation marks',()=>{assert.deepEqual(parseCsv('名,住所\r\n"A,B","建物\n2階"\r\n"A""B",C'),[['名','住所'],['A,B','建物\n2階'],['A"B','C']]);assert.deepEqual(parseCsv('名\t住所\r\n薬店\t台東区','\t'),[['名','住所'],['薬店','台東区']])});
+
+test('Yamada retains weekday/weekend hours without swallowing the holiday or access fields',()=>{
+ const html='住所\n〒103-0004\n東京都中央区東日本橋2-2-5\n電話番号\n03-5821-8609\n営業時間\n8:00～21:00（平日）\n10:00～19:00(土日祝日)\n定休日\n年末年始\n最寄駅\n東日本橋駅'
+ assert.equal(parseYamada(html,'東日本橋ドラッグ','https://cosmetics-medical.com/store/higashinihon/','2026-10-12').hours,'8:00～21:00（平日） 10:00～19:00(土日祝日)')
+ assert.equal(parseYamada(html.split('営業時間')[0],'東日本橋ドラッグ','https://cosmetics-medical.com/store/higashinihon/','2026-10-12').hours,'')
+})

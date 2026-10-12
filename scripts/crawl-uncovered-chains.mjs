@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import {readFile,writeFile} from 'node:fs/promises'
+import {writeFile} from 'node:fs/promises'
 import {createHash} from 'node:crypto'
 import {pathToFileURL} from 'node:url'
 import {createFetcher,validateStore} from './crawl-national-stores.mjs'
+import {databaseProcess} from './sync-sundrug.mjs'
 import {parseOfficialEmbedMarker,parseWebsiteVerifiedMarker,parseOfficialFeatureMarker,verifyMarkerAddress} from './official-embed-marker.mjs'
 export const clean=s=>(s||'').replace(/<!--[\s\S]*?-->/g,'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim()
 const active=s=>s.replace(/<!--[\s\S]*?-->/g,'')
@@ -30,7 +31,9 @@ export function parseHanshin(html,url){
 }
 async function main(){
  const out=process.argv.find(x=>x.startsWith('--out='))?.slice(6)||'artifacts/drugstores-uncovered-chains-2026-10-03',offline=process.argv.includes('--offline')
- const get=await createFetcher(out,offline,process.argv.includes('--resume')),db=JSON.parse(await readFile('artifacts/drugstores-nationwide-baseline-2026-10-03/database-before.json','utf8'))
+ const get=await createFetcher(out,offline,process.argv.includes('--resume'))
+ const raw=databaseProcess(process.env.AAPRICE_DB_URL,"\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(s),'[]'::json) from(select id,name,chain_name,address,pref,lat,lng from public.stores)s;")
+ const db=JSON.parse(raw.slice(raw.indexOf('[')))
  const stores=[],pending=[],excluded=[],existing=[],sources=[]
  async function save(){await Promise.all(Object.entries({'stores.json':stores,'pending.json':pending,'excluded.json':excluded,'existing.json':existing,'report.json':{generatedAt:new Date().toISOString(),baselineCount:db.length,sources,accepted:stores.length,pending:pending.length,excluded:excluded.length,existing:existing.length,applied:false}}).map(([f,v])=>writeFile(`${out}/${f}`,JSON.stringify(v,null,2))))}
  async function accept(candidate,at){
@@ -85,7 +88,6 @@ async function main(){
   return rows
  })
  await chain('mikawa',async r=>{r.sourceUrl='http://mikawa.la.coocan.jp/';r.discoverySourceUrl='https://www.nidrug.jp/organization';await get(r.sourceUrl);throw Error('Current retail directory unverified')})
- await chain('yokohama-pharmacy',async r=>{r.sourceUrl='https://drug-asahi.co.jp/ten.html';r.alreadyMappedBaselineCount=34;r.enumerationComplete=true;r.reason='Corporate member maps to already imported スーパードラッグアサヒ; unresolved format/marker ledger remains in original artifacts';return []})
  await save()
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(e=>{console.error(e);process.exitCode=1})

@@ -95,7 +95,7 @@ export function parseDaikokuData(js) {
   if (!text) throw Error('Unrecognized public Daikoku JSON module')
   return JSON.parse(text.replace(/\\(['\\])/g, '$1'))
 }
-const prefectures = '北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県'.split(' ')
+export const prefectures = '北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県'.split(' ')
 export function parseDaikokuStore(s, collectedAt) {
   const date = new Date(Date.parse(collectedAt)+9*3600000).toISOString().slice(0,10)
   if (s.o_date > date || s.c_date <= date || /閉店|休業/.test(s.memo || '')) throw Error('Not an active Daikoku store')
@@ -165,13 +165,21 @@ export async function createFetcher(out, offline = false, resume = false) {
     const file = `${out}/cache/${createHash('sha256').update(url).digest('hex')}.json`
     try { const cached = JSON.parse(await readFile(file, 'utf8')); if (offline || resume || Date.now() - Date.parse(cached.collectedAt) < 86400000) return cached } catch {}
     if (offline) throw Error('No offline cache')
-    await new Promise(r => setTimeout(r, Math.max(0, (last.get(origin) || 0) + 1000 - Date.now())))
-    last.set(origin, Date.now())
-    const response = await fetch(url, { headers: { 'User-Agent': 'AAPriceCatalog/1.0 (public drugstore directory)' }, signal: AbortSignal.timeout(25000) })
-    if (!response.ok && !(isRobots && response.status === 404)) throw Error(`HTTP ${response.status}`)
-    const saved = { url, collectedAt: new Date().toISOString(), html: response.status === 404 ? '' : await response.text() }
-    await writeFile(file, JSON.stringify(saved))
-    return saved
+    for(let attempt=0;;attempt++) {
+      await new Promise(r => setTimeout(r, Math.max(0, (last.get(origin) || 0) + 1000 - Date.now())))
+      last.set(origin, Date.now())
+      let response
+      try {
+        response = await fetch(url, { headers: { 'User-Agent': 'AAPriceCatalog/1.0 (public drugstore directory)' }, signal: AbortSignal.timeout(25000) })
+        if (!response.ok && !(isRobots && response.status === 404)) throw Error(`HTTP ${response.status}`)
+        const saved = { url, collectedAt: new Date().toISOString(), html: response.status === 404 ? '' : await response.text() }
+        await writeFile(file, JSON.stringify(saved))
+        return saved
+      } catch(error) {
+        const transient=error.name==='TimeoutError'||['ECONNRESET','ETIMEDOUT','EAI_AGAIN','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET','UND_ERR_BODY_TIMEOUT','UND_ERR_HEADERS_TIMEOUT'].includes(error.cause?.code)||[500,502,503,504].includes(response?.status)
+        if(attempt===2||!transient||response?.headers.get('retry-after'))throw error
+      }
+    }
   }
   return get
 }
