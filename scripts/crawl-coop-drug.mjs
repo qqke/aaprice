@@ -1,7 +1,7 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises'
 import {pathToFileURL} from 'node:url'
 import {validateStore} from './crawl-national-stores.mjs'
-const base='https://map.sapporo.coop',out='artifacts/drugstores-coop-drug-2026-10-03'
+const base='https://map.sapporo.coop',out=process.argv.find(s=>s.startsWith('--out='))?.slice(6)||'artifacts/drugstores-coop-drug-2026-10-03'
 export function nextPage(html){const text=html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)?.[1];if(!text)throw Error('Missing official Next data');return JSON.parse(text).props.pageProps}
 export function parseCoopDrug(shop,collectedAt){
  if(shop.openStatus!=='IS_ALREADY_OPEN')throw Error('Not currently established/open')
