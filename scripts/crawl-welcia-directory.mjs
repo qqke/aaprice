@@ -16,8 +16,8 @@ async function main() {
   const get=await createFetcher(out,process.argv.includes('--offline'),process.argv.includes('--resume'))
   const stores=[],excluded=[],seen=new Set()
   let expected
-  for(let offset=0;;offset+=500) {
-    const url=`https://store.welcia.co.jp/welcia/api/proxy2/shop/list?add=detail_group&datum=wgs84&limit=500&offset=${offset}&ex-code=only.prior&ignore-i18n=true`
+  for(let offset=0;;offset+=100) {
+    const url=`https://store.welcia.co.jp/welcia/api/proxy2/shop/list?add=detail_group&datum=wgs84&limit=100&offset=${offset}&ex-code=only.prior&ignore-i18n=true`
     const saved=await get(url),data=JSON.parse(saved.html)
     assert(Array.isArray(data.items)&&Number.isInteger(data.count?.total),'Invalid directory response')
     expected??=data.count.total
