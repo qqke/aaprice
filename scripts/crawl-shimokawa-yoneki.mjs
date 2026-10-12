@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import {readFile,writeFile} from 'node:fs/promises'
+import {writeFile} from 'node:fs/promises'
 import {createHash} from 'node:crypto'
 import {createFetcher} from './crawl-national-stores.mjs'
-const out='artifacts/drugstores-additional-chains-2026-10-03',get=await createFetcher(out,false,true)
+const out=process.argv.find(s=>s.startsWith('--out='))?.slice(6)||'artifacts/drugstores-shimokawa-yoneki-2026-10-13',get=await createFetcher(out,false,process.argv.includes('--resume'))
 const plain=s=>String(s||'').replace(/<script[^>]*>[\s\S]*?<\/script>|<style[^>]*>[\s\S]*?<\/style>/g,'').replace(/<[^>]*>/g,' ').replace(/&minus;/g,'−').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim()
 const field=(h,label)=>plain(h.match(new RegExp(`<dt>\\s*${label}\\s*</dt>\\s*<dd>([\\s\\S]*?)</dd>`))?.[1])
 const candidates=[],sources=[]
@@ -23,9 +23,8 @@ for(const [brand,url] of Object.entries({shimokawa:'https://www.shimokawa-ph.co.
   sources.push({brand,url,discovered:rows.length,accepted:0,pending:rows.length,enumerationComplete:true})
  }catch(e){sources.push({brand,url,error:e.message,enumerationComplete:false})}
 }
-const pending=JSON.parse(await readFile(`${out}/pending.json`,'utf8')),stores=JSON.parse(await readFile(`${out}/stores.json`,'utf8')),seen=new Set([...pending,...stores].map(x=>x.id))
-pending.push(...candidates.filter(x=>!seen.has(x.id)))
 await writeFile(`${out}/regional-candidates.json`,JSON.stringify(candidates,null,2))
-await writeFile(`${out}/pending.json`,JSON.stringify(pending,null,2))
-const report=JSON.parse(await readFile(`${out}/report.json`,'utf8'));report.sources=report.sources.filter(x=>!sources.some(s=>s.brand===x.brand));report.sources.push(...sources);report.pending=pending.length
+await writeFile(`${out}/pending.json`,JSON.stringify(candidates,null,2))
+await writeFile(`${out}/stores.json`,'[]')
+const report={generatedAt:new Date().toISOString(),sources,pending:candidates.length,applied:false}
 await writeFile(`${out}/report.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(sources))
