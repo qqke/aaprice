@@ -6,6 +6,7 @@ test('national directory excludes dispensing-only, future and invalid physical l
   const time='2026-09-12T00:00:00Z'
   const canly={storeCode:'1',nameKanji:'サツドラ 店',address:'北海道札幌市',latitude:'43',longitude:'141',openStatus:'IS_ALREADY_OPEN',checkBoxLabel:{checkBoxLabel:{items:[{label:'ドラッグストア',checked:true},{label:'免税対応店',checked:false}]}}}
   assert.equal(parseCanlyStore('satudora',canly,time).taxFree,false)
+  assert.equal(parseCanlyStore('satudora',{...canly,businessHours:[{name:'HOLIDAY',openTime:'',closeTime:'',hourType:0}]},time).hours,'祝 未公布')
   assert.throws(()=>parseCanlyStore('satudora',{...canly,checkBoxLabel:null},time),/drugstore/)
   assert.throws(()=>parseSugiStore({storeInfo:[{storeType:'pharmacy'}]},time,''),/Dispensing/)
   assert.throws(()=>validateStore({id:'bad',name:'bad',address:'東京都',lat:0,lng:0}),/coordinates/)
@@ -14,6 +15,7 @@ test('national directory excludes dispensing-only, future and invalid physical l
   const m={id:1,name:'店舗',address:'東京都新宿区',latitude:35.7,longitude:139.7,icon:1,services:'0001',store_open_time_mon:'09:00:00',store_close_time_mon:'21:00:00'}
   const attrs={icon:[[1,'マツモトキヨシ']],services:[[4,'免税対応']]}
   assert.equal(parseMatsukiyoDirectory(m,attrs,time).taxFree,true)
+  assert.match(parseMatsukiyoDirectory(m,attrs,time).hours,/祝 未公布/)
   assert.throws(()=>parseMatsukiyoDirectory({...m,publish_start:'2027-01-01 00:00'},attrs,time),/publication/)
   assert.throws(()=>parseMatsukiyoDirectory({...m,store_open_time_mon:null},attrs,time),/retail hours/)
 })

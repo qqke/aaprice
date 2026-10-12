@@ -39,7 +39,7 @@ export function parseCanlyStore(source, s, collectedAt) {
   const tax = labels.find(x => /免税/.test(x.label))
   return validateStore({ id: `${source}-${s.storeCode}`, name: s.nameKanji, chain_name: source === 'tomods' ? brand : config.name,
     address: s.address, lat: Number(s.latitude), lng: Number(s.longitude),
-    hours: (s.businessHours || []).map(h => `${weekdays[h.name] || h.name} ${h.openTime && h.closeTime ? `${h.openTime.slice(0,5)}–${h.closeTime.slice(0,5)}` : '休業'}`).join('; '),
+    hours: (s.businessHours || []).map(h => `${weekdays[h.name] || h.name} ${h.openTime && h.closeTime ? `${h.openTime.slice(0,5)}–${h.closeTime.slice(0,5)}` : '未公布'}`).join('; '),
     phone: s.tel || s.phoneNumber || '', taxFree: tax ? tax.checked : null,
     sourceUrl: `${config.base}/all/`, sourceApiUrl: config.api, sourceStoreCode: s.storeCode, collectedAt })
 }
@@ -87,7 +87,7 @@ export function parseMatsukiyoDirectory(s, attrs, collectedAt) {
   return validateStore({ id: `mcc-${s.id}`, name: s.name, chain_name: attrs.icon.find(x=>x[0]===s.icon)?.[1] || 'マツキヨココカラグループ',
     address: s.address, lat: s.latitude, lng: s.longitude, phone: s.phone_store || '',
     taxFree: taxIndex && typeof s.services === 'string' && s.services.length >= taxIndex ? s.services[taxIndex-1] === '1' : null,
-    hours: Object.entries({mon:'月',tue:'火',wed:'水',thu:'木',fri:'金',sat:'土',sun:'日',holiday:'祝'}).map(([d,n]) => `${n} ${s[`store_open_time_${d}`] ? `${s[`store_open_time_${d}`].slice(0,5)}–${s[`store_close_time_${d}`]?.slice(0,5) || '?'}` : '休業'}`).join('; '),
+    hours: Object.entries({mon:'月',tue:'火',wed:'水',thu:'木',fri:'金',sat:'土',sun:'日',holiday:'祝'}).map(([d,n]) => `${n} ${s[`store_open_time_${d}`] ? `${s[`store_open_time_${d}`].slice(0,5)}–${s[`store_close_time_${d}`]?.slice(0,5) || '?'}` : '未公布'}`).join('; '),
     sourceUrl: `https://www.matsukiyococokara-online.com/map?kid=${s.id}`, collectedAt })
 }
 export function parseDaikokuData(js) {
