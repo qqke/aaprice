@@ -93,6 +93,7 @@ import { appPath } from "@/lib/paths.mjs"
 import { CATALOG_STATE_KEY, readCatalogState } from "@/lib/catalog-state.mjs"
 import { getCatalogCategory } from "@/lib/catalog-category.mjs"
 import { parseShelfPrice } from "@/lib/scan-price.mjs"
+import { createBarcodeScanner } from "@/lib/barcode-scanner.mjs"
 
 const formatDate = (value) => {
   const date = new Date(value)
@@ -127,7 +128,9 @@ function ThemeButton() {
   )
 }
 
-function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = true }) {
+function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }) {
+  const [scanMode, setScanMode] = useState("barcode")
+  const enableOcr = isAdmin && scanMode === "shelf"
   const openRef = useRef(open)
   openRef.current = open
   const videoRef = useRef(null)
@@ -205,13 +208,13 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = true 
   }
 
   useEffect(() => {
-    if (!open || !session) return
+    if (!open || !session || !enableOcr) return
     let active = true
     const timer = setTimeout(() => {
       searchStores(storeQuery, 30).then((rows) => { if (active) setScanStores(rows.filter((store) => !isOnlineStore(store))) }).catch((error) => { if (active) setStatus(friendlyApiError(error)) })
     }, 250)
     return () => { active = false; clearTimeout(timer) }
-  }, [open, session, storeQuery])
+  }, [open, session, storeQuery, enableOcr])
 
   const saveScan = async (product, price) => {
     if (!session || saveBusyRef.current) return
@@ -347,14 +350,9 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = true 
       await videoRef.current.play()
       if (!openRef.current || streamRef.current !== stream) return
       setScanning(true)
-      if (!("BarcodeDetector" in window)) {
-        setStatus("相机已启动，但浏览器不支持自动识别，请手动输入 JAN 码。")
-        return
-      }
-      const formats = (await BarcodeDetector.getSupportedFormats()).filter((format) => ["ean_13", "ean_8", "code_128", "upc_a"].includes(format))
+      setStatus("正在加载条码识别…")
+      const detector = await createBarcodeScanner()
       if (!openRef.current || streamRef.current !== stream) return
-      if (!formats.length) { setStatus("浏览器不支持商品条码识别，请手动输入 JAN 码。"); return }
-      const detector = new BarcodeDetector({ formats })
       if (enableOcr) void prepareOcr().catch(() => {})
       const snapshot = document.createElement("canvas")
       let lastBarcode = ""
@@ -393,7 +391,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = true 
 
   useEffect(() => {
     if (!open) return undefined
-    if (!initialLookupRef.current) setStatus("请选择入库方式和当前门店，然后启动相机。")
+    if (!initialLookupRef.current) setStatus("启动相机，对准商品条形码即可查询。")
     return undefined
   }, [open])
 
@@ -402,9 +400,10 @@ function ScannerDialog({ open, onOpenChange, onFound, session, enableOcr = true 
       <DialogContent className="flex max-h-[90dvh] max-w-[min(560px,calc(100vw-2rem))] flex-col overflow-y-auto sm:max-w-xl [&>*]:shrink-0" onCloseAutoFocus={(event) => { event.preventDefault(); document.getElementById("product-search")?.focus() }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><ScanLine className="size-5 text-primary" /> 扫码检索</DialogTitle>
-          <DialogDescription>对准一张价签，识别条码和上方价格。保存后移开当前条码即可继续；首次启动会加载文字模型。</DialogDescription>
+          <DialogDescription>{enableOcr ? "对准一张价签，识别条码和上方价格。保存后移开当前条码即可继续；首次启动会加载文字模型。" : "启动相机，对准商品条形码即可查看商品和价格。"}</DialogDescription>
         </DialogHeader>
-        {session && <div className="space-y-3">
+        {isAdmin && <label className="block text-sm font-medium">扫描方式<select aria-label="扫描方式" className="mt-2 w-full rounded-lg border bg-background p-2" value={scanMode} disabled={scanning || lookingUp || submitting} onChange={(event) => { setScanMode(event.target.value); pendingProductRef.current = null; setPendingProduct(null); setRecognizedPrice("") }}><option value="barcode">条形码直接扫码</option><option value="shelf">价签扫描入库</option></select></label>}
+        {enableOcr && session && <div className="space-y-3">
           <label className="block text-sm font-medium">入库方式<select aria-label="入库方式" className="mt-2 w-full rounded-lg border bg-background p-2" value={saveMode} disabled={scanning || lookingUp || submitting} onChange={(event) => setSaveMode(event.target.value)}><option value="manual">手动确认后保存</option><option value="auto">自动入库（明确含税价时）</option></select></label>
           <Input aria-label="搜索扫描入库门店" placeholder="搜索当前门店" value={storeQuery} disabled={scanning || lookingUp || submitting} onChange={(event) => setStoreQuery(event.target.value)} />
           <select aria-label="扫描入库门店" className="w-full rounded-lg border bg-background p-2" value={scanStore?.id || ""} disabled={scanning || lookingUp || submitting} onChange={(event) => setScanStore(scanStores.find((store) => String(store.id) === event.target.value) || null)}><option value="">请选择当前门店</option>{scanStore && !scanStores.some((store) => store.id === scanStore.id) && <option value={scanStore.id}>{scanStore.name}</option>}{scanStores.map((store) => <option key={store.id} value={store.id}>{store.name} · {store.city || store.address}</option>)}</select>
@@ -1046,7 +1045,7 @@ export default function CompareApp({ initialScan = false }) {
       <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-md rounded-xl border bg-popover p-3 shadow-lg"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">已选 {selectedProducts.length} 件</p><Button id="view-compare" onClick={() => setCompareOpen(true)}>查看清单<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
 
       <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} commercialOffers={commercialOffers} onCommercial={openCommercialOffer} onRemove={toggleProduct} onLoadPrices={loadComparePrices} priceLoading={priceLoading} priceChecked={priceChecked} priceErrors={priceErrors} session={session} onClear={() => setSelected([])} />
-      <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} enableOcr />
+      <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} isAdmin={isAdmin} />
       <LoginDialog open={authOpen} onOpenChange={handleAuthOpenChange} onSignedIn={handleSignedIn} priceIntent={Boolean(pendingPriceId)} />
     </div>
   )

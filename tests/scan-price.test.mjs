@@ -62,6 +62,26 @@ test("scan saving requires store, prevents duplicate writes, preserves failed re
   assert.equal(cleared, 1)
 })
 
+test("ordinary barcode lookup opens the product without entering price confirmation", async () => {
+  let found = null
+  let stopped = false
+  const context = {
+    cleanJanCode: (value) => value, scanBusyRef: { current: false }, saveBusyRef: { current: false },
+    scanEpochRef: { current: 0 }, pendingProductRef: { current: null }, lookupRef: { current: null },
+    setLookingUp() {}, setManualCode() {}, setRecognizedPrice() {}, setDraft() {}, setStatus() {}, setPendingProduct() {},
+    streamRef: { current: {} }, openRef: { current: true }, supabaseConfigured: true,
+    async fetchProductByBarcode() { return { id: "product" } },
+    stopCamera() { stopped = true }, mapProductRow: (row) => row, enableOcr: false, session: {},
+    onFound(product) { found = product }, friendlyApiError: (error) => { throw error }, requestAnimationFrame() {},
+  }
+  const lookupSource = source.slice(source.indexOf("  const lookup = async"), source.indexOf("\n  const submitMissing"))
+  await new Function(...Object.keys(context), `${lookupSource}\nreturn lookup`)(...Object.values(context))("4901234567894")
+  assert.equal(found.id, "product")
+  assert.equal(stopped, true)
+  assert.match(source, /const enableOcr = isAdmin && scanMode === "shelf"/)
+  assert.match(source, /session=\{session\} isAdmin=\{isAdmin\}/)
+})
+
 test("catalog lookup starts before OCR finishes and keeps the camera for confirmation", async () => {
   let finishOcr
   let queried = false
@@ -121,7 +141,7 @@ test("camera loop pauses for confirmation, waits for barcode departure and uses 
     setPendingProduct() {}, setRecognizedPrice() {}, setStatus() {}, setScanning() {},
     navigator: { mediaDevices: { async getUserMedia() { return stream } } },
     openRef: { current: true }, videoRef: { current: { async play() {}, videoWidth: 1920, videoHeight: 1080 } },
-    window: { BarcodeDetector: Detector }, BarcodeDetector: Detector,
+    async createBarcodeScanner() { return new Detector({ formats: ["ean_13"] }) },
     enableOcr: true, prepareOcr() { warmed++; return Promise.resolve({}) },
     document: { createElement: () => snapshot },
     scanBusyRef: { current: false }, saveBusyRef: { current: false }, frameRef: { current: null },
@@ -168,7 +188,7 @@ test("OCR reads the captured frame with a bounded crop and leaves result updates
     setStatus() {}, parseShelfPrice,
     async prepareOcr() { preparations++; return { async recognize(image) { assert.equal(image, canvas); return { data: { text: "税込 1639 円", confidence: 90 } } } } },
   }
-  const readSource = source.slice(source.indexOf("  const readPrice = async"), source.indexOf("\n  useEffect(() => {\n    if (!open || !session)"))
+  const readSource = source.slice(source.indexOf("  const readPrice = async"), source.indexOf("\n  useEffect(() => {\n    if (!open || !session || !enableOcr)"))
   const read = new Function(...Object.keys(context), `${readSource}\nreturn readPrice`)(...Object.values(context))
   assert.deepEqual(await read({ x: 500, y: 2000, width: 1500, height: 100 }, snapshot), { price: "1639", automatic: true })
   assert.equal(drawn[0], snapshot)
