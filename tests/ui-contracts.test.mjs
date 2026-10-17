@@ -111,6 +111,7 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(layout, /property="og:url"/)
   assert.match(layout, /property="og:image"/)
   assert.match(layout, /http-equiv="Content-Security-Policy"/)
+  assert.match(layout, /img-src 'self' data: blob: https:/)
   assert.match(auth, /subscribeAuthState[\s\S]*?\.catch\(\(error\) =>/)
   assert.match(auth, /注册即表示你已阅读/)
   assert.match(auth, /\["register", "resetRequest", "reset"\]\.includes\(initialMode\)/)

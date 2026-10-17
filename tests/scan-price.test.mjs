@@ -73,11 +73,16 @@ test("ordinary barcode lookup opens the product without entering price confirmat
     async fetchProductByBarcode() { return { id: "product" } },
     stopCamera() { stopped = true }, mapProductRow: (row) => row, enableOcr: false, session: {},
     onFound(product) { found = product }, friendlyApiError: (error) => { throw error }, requestAnimationFrame() {},
+    async readPrice() { return { price: "", automatic: false } },
   }
   const lookupSource = source.slice(source.indexOf("  const lookup = async"), source.indexOf("\n  const submitMissing"))
   await new Function(...Object.keys(context), `${lookupSource}\nreturn lookup`)(...Object.values(context))("4901234567894")
   assert.equal(found.id, "product")
   assert.equal(stopped, true)
+  found = null
+  context.streamRef.current = null
+  await new Function(...Object.keys(context), `${lookupSource}\nreturn lookup`)(...Object.values(context))("4901234567894", { width: 200 }, {}, true)
+  assert.equal(found.id, "product")
   assert.match(source, /const enableOcr = isAdmin && scanMode === "shelf"/)
   assert.match(source, /session=\{session\} isAdmin=\{isAdmin\}/)
 })
@@ -136,7 +141,7 @@ test("camera loop pauses for confirmation, waits for barcode departure and uses 
     }
   }
   const context = {
-    streamRef: { current: null }, lookingUp: false, submitting: false,
+    streamRef: { current: null }, lookingUp: false, submitting: false, readingImage: false,
     scanEpochRef: { current: 0 }, pendingProductRef: { current: null },
     setPendingProduct() {}, setRecognizedPrice() {}, setStatus() {}, setScanning() {},
     navigator: { mediaDevices: { async getUserMedia() { return stream } } },
@@ -184,7 +189,7 @@ test("OCR reads the captured frame with a bounded crop and leaves result updates
   const canvas = { getContext: () => ({ drawImage(...args) { drawn = args } }) }
   const snapshot = { width: 4000, height: 3000 }
   const context = {
-    enableOcr: true, videoRef: { current: {} }, canvasRef: { current: canvas }, streamRef: { current: {} },
+    enableOcr: true, videoRef: { current: null }, canvasRef: { current: canvas }, streamRef: { current: null },
     setStatus() {}, parseShelfPrice,
     async prepareOcr() { preparations++; return { async recognize(image) { assert.equal(image, canvas); return { data: { text: "税込 1639 円", confidence: 90 } } } } },
   }
