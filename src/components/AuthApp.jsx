@@ -164,7 +164,7 @@ export default function AuthApp() {
   return (
     <AppShell session={session} profile={profile}>
       <section className="mx-auto max-w-lg px-4 py-10 pb-24 sm:px-6 sm:py-16">
-        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)] sm:p-8">
+        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
           {sessionLoading ? <div className="flex min-h-64 items-center justify-center text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" /> 读取会话</div> : session && mode === "login" ? (
             <div className="flex min-h-64 flex-col justify-between">
               <div><Badge className="gap-1"><CheckCircle2 className="size-3" /> 已登录</Badge><h2 className="mt-5 text-2xl font-semibold">{profile?.full_name || session.user.email}</h2><p className="mt-2 text-muted-foreground">角色：{profile?.role || "user"}</p></div>

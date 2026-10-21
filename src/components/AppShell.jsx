@@ -4,7 +4,7 @@ import { MotionConfig } from "motion/react"
 import { Button } from "@/components/ui/button"
 import { appPath } from "@/lib/paths.mjs"
 
-function ThemeButton() {
+export function ThemeButton() {
   const toggle = () => {
     const next = !document.documentElement.classList.contains("dark")
     document.documentElement.classList.toggle("dark", next)
@@ -13,9 +13,21 @@ function ThemeButton() {
   return <Button variant="ghost" size="icon" onClick={toggle} aria-label="切换颜色模式"><Moon className="dark:hidden" /><Sun className="hidden dark:block" /></Button>
 }
 
+export function SiteHeader({ children }) {
+  return <header className="site-header sticky top-0 z-30 border-b bg-card/95 backdrop-blur-xl">
+    <div className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+      <a href={appPath("/")} className="flex min-h-11 shrink-0 items-center gap-2" aria-label="LOWPRICE 首页">
+        <img src="/lowprice-logo.png" alt="LOWPRICE" className="h-10 w-auto object-contain" />
+        <span className="hidden text-base font-bold tracking-tight min-[375px]:inline">LOWPRICE</span>
+      </a>
+      <nav className="flex min-w-0 items-center gap-1" aria-label="主导航">{children}</nav>
+    </div>
+  </header>
+}
+
 export function AppLoading({ label = "正在加载" }) {
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6 lg:px-8" role="status" aria-live="polite">
+    <div className="mx-auto max-w-[1200px] px-4 pb-24 sm:px-6 lg:px-8" role="status" aria-live="polite">
       <span className="sr-only">{label}</span>
       <div className="grid gap-5 motion-safe:animate-pulse" aria-hidden="true">
         <div className="h-36 rounded-3xl bg-muted sm:h-44" />
@@ -32,26 +44,20 @@ export default function AppShell({ children, eyebrow, title, description, sessio
   return (
     <MotionConfig reducedMotion="user">
       <div className="min-h-[100dvh] bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href={appPath("/")} className="group flex min-h-11 items-center gap-3" aria-label="LOWPRICE 首页">
-            <img src="/lowprice-logo.png" alt="LOWPRICE" className="h-11 w-auto object-contain transition-transform duration-300 group-hover:scale-[1.02]" />
-          </a>
-          <nav className="flex items-center gap-1" aria-label="主导航">
-            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
-            <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath(session ? "/me/" : "/login/")} aria-label={session ? "我的账户" : "登录"}><UserRound /><span className="hidden sm:inline">{session ? "我的" : "登录"}</span></a></Button>
-            {profile?.role === "admin" && <Button asChild variant="ghost" size="sm" className="size-11 rounded-full px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/admin/")} aria-label="管理后台"><ShieldCheck /><span className="hidden sm:inline">管理</span></a></Button>}
+      <SiteHeader>
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex"><a href={appPath("/#catalog")}>商品比价</a></Button>
+            <Button asChild variant="ghost" size="sm" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
+            <Button asChild variant="ghost" size="sm" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath(session ? "/me/" : "/login/")} aria-label={session ? "我的账户" : "登录"}><UserRound /><span className="hidden sm:inline">{session ? "我的" : "登录"}</span></a></Button>
+            {profile?.role === "admin" && <Button asChild variant="ghost" size="sm" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/admin/")} aria-label="管理后台"><ShieldCheck /><span className="hidden sm:inline">管理</span></a></Button>}
             <ThemeButton />
-          </nav>
-        </div>
-      </header>
+      </SiteHeader>
       <main id="main-content" tabIndex={-1}>
         {(title || eyebrow) && (
-          <section className="app-enter mx-auto max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
-            <div className="grid gap-4 border-b pb-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <section className="app-enter mx-auto max-w-[1200px] px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
+            <div className="grid gap-5 border-b pb-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div className="min-w-0 max-w-5xl">
                 {eyebrow && <p className="text-xs font-semibold tracking-[0.08em] text-primary">{eyebrow}</p>}
-                {title && <h1 className="mt-1 break-words text-2xl font-semibold leading-[1.08] tracking-[-0.04em] sm:text-3xl lg:text-4xl">{title}</h1>}
+                {title && <h1 className="mt-1 break-words text-2xl font-semibold leading-tight tracking-[-0.035em] sm:text-3xl">{title}</h1>}
                 {description && <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{description}</p>}
               </div>
               {actions}

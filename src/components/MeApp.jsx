@@ -42,7 +42,7 @@ const formatDate = (value, withTime = false) => {
     ? new Intl.DateTimeFormat("zh-CN", withTime ? { dateStyle: "short", timeStyle: "short" } : { dateStyle: "medium" }).format(date)
     : "未知"
 }
-const panelClass = "rounded-2xl border bg-card p-5 sm:p-6"
+const panelClass = "rounded-xl border bg-card p-5 sm:p-6"
 const listClass = "mt-5 divide-y border-t"
 const rowClass = "flex items-center justify-between gap-4 py-4 transition-colors hover:bg-muted/35"
 const blankAlert = { product_id: "", target_price_yen: "", is_active: true }
@@ -336,15 +336,15 @@ export default function MeApp() {
   const reviewLabels = { pending: "待审核", approved: "已通过", rejected: "未通过" }
 
   if (loading) return <AppShell title="个人中心"><AppLoading label="正在同步账户" /></AppShell>
-  if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务会同步到你的 LOWPRICE 账号。"><div className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/me/"))}`)}>登录或注册</a></Button></div></AppShell>
+  if (!session) return <AppShell eyebrow="个人中心" title="登录后管理自己的价格。" description="收藏、记录、额度和任务会同步到你的 LOWPRICE 账号。"><div className="mx-auto max-w-[1200px] px-4 pb-24 sm:px-6 lg:px-8"><Button asChild><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath("/me/"))}`)}>登录或注册</a></Button></div></AppShell>
 
   return (
     <AppShell title={profile?.full_name || "我的账户"} description={session.user.email} session={session} profile={profile} actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportAccountData} disabled={exporting}><Download /> 导出数据</Button><Button variant="outline" onClick={logout}><LogOut /> 退出登录</Button></div>}>
-      <section className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-[1200px] px-4 pb-24 sm:px-6 lg:px-8">
         {status && <div className="mb-6 rounded-2xl border bg-card px-4 py-3 text-sm shadow-sm" role="status">{status}</div>}
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-3 gap-2 border-b pb-5 sm:gap-4 sm:pb-8">
-          {[["积分余额", credit?.balance ?? 0], ["已加载记录", logs.length], ["收藏", favorites.length]].map(([label, value]) => <div key={label} className="rounded-2xl bg-muted/60 p-3 sm:p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value}</p></div>)}
+          {[["积分余额", credit?.balance ?? 0], ["已加载记录", logs.length], ["收藏", favorites.length]].map(([label, value]) => <div key={label} className="border-l-2 border-primary/25 pl-3 py-2 sm:pl-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value}</p></div>)}
         </motion.div>
 
         {(task || needsCredits || recentViews.length > 1) && <div className="flex flex-wrap items-center justify-between gap-3 border-b py-4 text-sm"><p>{task ? "你有一项进行中的补价任务。" : needsCredits ? "查价积分不足，可通过补价任务获得积分。" : "继续比较最近浏览的商品。"}</p>{task || needsCredits ? <Button asChild size="sm" variant="outline"><a href="#price-tasks">{task ? "继续任务" : "获取积分"}</a></Button> : <Button size="sm" variant="outline" onClick={() => setDataTab("recent")}>查看最近浏览</Button>}</div>}
