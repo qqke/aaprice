@@ -14,7 +14,7 @@ export function splitPriceRange([low, high]) {
 }
 
 export async function fetchPricePartitions(get, observed, rows, existing, expectedTotal) {
-  const coverage = [], failures = [], tasks = [{ range: [0, null], number: 1 }]
+  const coverage = [], failures = [], priceObserved = new Set(), tasks = [{ range: [0, null], number: 1 }]
   let halted = false, pages = 0
   while (tasks.length && !halted) {
     await Promise.all(tasks.splice(0, 4).map(async task => {
@@ -47,6 +47,7 @@ export async function fetchPricePartitions(get, observed, rows, existing, expect
           const row = normalizeProduct(product)
           if (!row || !validGtin(row.barcode)) { failures.push({ url: url.href, barcode: product.sku, reason: "Invalid product/JAN" }); continue }
           group.observed.add(row.barcode)
+          priceObserved.add(row.barcode)
           observed.add(row.barcode)
           if (!existing.has(row.barcode)) rows.set(row.barcode, row)
         }
@@ -57,7 +58,7 @@ export async function fetchPricePartitions(get, observed, rows, existing, expect
       }
     }))
   }
-  return { pages, failures, halted, pendingRequests: tasks.length, coverage: coverage.map(({ observed: seen, signatures, ...group }) => ({ ...group, observedProducts: seen.size, difference: group.expectedProducts - seen.size })) }
+  return { pages, observedProducts: priceObserved.size, expectedLeafTotal: coverage.reduce((sum, group) => sum + group.expectedProducts, 0), failures, halted, pendingRequests: tasks.length, coverage: coverage.map(({ observed: seen, signatures, ...group }) => ({ ...group, observedProducts: seen.size, difference: group.expectedProducts - seen.size })) }
 }
 
 export async function fetchExtra(get, baseline, existing) {
@@ -98,9 +99,10 @@ export async function fetchExtra(get, baseline, existing) {
   }))
   const prices = observed.size === root.total ? null : await fetchPricePartitions(get, observed, rows, existing, root.total)
   if (prices) failures.push(...prices.failures)
+  const currentObserved = prices ? prices.observedProducts : observed.size
   return { products: [...rows.values()], report: { generatedAt: new Date().toISOString(), expectedProducts: root.total,
-    baselineProducts: baseline.size, combinedObservedProducts: observed.size, remainingDifference: root.total - observed.size,
-    newProducts: rows.size, coverage, pricePartitions: prices, failures, complete: observed.size === root.total && !failures.length && (!prices || !prices.halted && !prices.pendingRequests && prices.coverage.every(group => group.difference === 0)) } }
+    baselineProducts: baseline.size, combinedObservedProducts: observed.size, remainingDifference: root.total - currentObserved,
+    newProducts: rows.size, coverage, pricePartitions: prices, failures, complete: currentObserved === root.total && !failures.length && (!prices || prices.expectedLeafTotal === root.total && !prices.halted && !prices.pendingRequests && prices.coverage.every(group => group.difference === 0)) } }
 }
 
 async function main() {

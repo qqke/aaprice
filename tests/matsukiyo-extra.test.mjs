@@ -33,6 +33,8 @@ test("price partitions enumerate pages, preserve existing products and stop igno
   assert.equal(result.coverage[0].priceFrom, 0)
   assert.equal(result.coverage[0].priceTo, null)
   assert.equal(result.coverage[0].difference, 0)
+  assert.equal(result.observedProducts, 1)
+  assert.equal(result.expectedLeafTotal, 1)
   assert.equal(rows.size, 0)
   assert.equal(observed.size, 1)
   const bad = await fetchPricePartitions(async () => ({ html: html([barcode], 1) }), new Set(), new Map(), new Set(), 6001)
