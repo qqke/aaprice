@@ -83,6 +83,19 @@ node --env-file=.env scripts/import-new-products.mjs artifacts/products-2026-10-
 
 导入默认只校验并生成 SQL，添加 `--apply` 才写库。它校验 GTIN 校验位与官方来源域名，以条码/商品 ID 跳过已有项，冲突时忽略；事务提交前逐条校验旧商品指纹。此入口只插入 `products`，不写价格、门店或提醒，不更新旧商品时间戳。报告列出新增、跳过、排除和来源数量；重复执行不会重复插入。官方目录包含的停产商品只作为商品身份保留，不声明库存或当前价格。原有 `sundrug:sync` 仍用于需要更新商品和价格的同步任务。
 
+补采第一轮公开分类之外的商品、失败详情及色号/容量变体：
+
+```sh
+node --env-file=.env scripts/crawl-matsukiyo-extra.mjs
+node --env-file=.env scripts/crawl-sundrug-extra.mjs
+node scripts/retry-qols-products.mjs
+node --env-file=.env scripts/crawl-shiseido-variants.mjs --resume
+```
+
+结果与覆盖报告写入 `artifacts/products-round2-2026-10-22/`，不覆盖第一轮证据。继续使用 `import-new-products.mjs` 导入这些 JSON；采集进程不直接写库。覆盖统计区分已请求页面、验证通过的 JAN 和实际新增，官方标示总数或套餐内部编号不作为新增数量。
+
+Sundrug 优先使用分类和详情资料，剩余商品可用官方 sitemap 中相互匹配的合法 JAN、商品名及图片补充身份；未证实的品牌、容量和类别留空，报告单列 `sitemapAdded`。松本清使用官网公开价格区间递归拆分搜索窗口；资生堂只接受官方变体接口明确返回且通过校验位检查的 JAN。
+
 全国药妆连锁门店目录扩充：
 
 ```sh
