@@ -46,17 +46,22 @@ async function main() {
   const robotsResponse = await fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(30000) })
   if (!robotsResponse.ok && robotsResponse.status !== 404) throw Error(`robots HTTP ${robotsResponse.status}`)
   const robots = robotsResponse.status === 404 ? "" : await robotsResponse.text()
-  let nextRequest = 0
+  let nextRequest = 0, requestInterval = 500, workerLimit = 4
   async function load(url, key) {
     if (!robotsAllow(robots, url)) throw Error(`robots disallows ${url}`)
     const file = `${cache}/${key}`
     try { return await readFile(file, "utf8") } catch {}
     for (let attempt = 0; attempt < 3; attempt++) {
       const wait = Math.max(0, nextRequest - Date.now())
-      nextRequest = Math.max(nextRequest, Date.now()) + 500
+      nextRequest = Math.max(nextRequest, Date.now()) + requestInterval
       await new Promise(r => setTimeout(r, wait))
       const response = await fetch(url, { signal: AbortSignal.timeout(30000) })
-      if (response.status === 429) { await new Promise(r => setTimeout(r, 10000 * (attempt + 1))); continue }
+      if (response.status === 429) {
+        requestInterval = 1000; workerLimit = 2
+        nextRequest = Math.max(nextRequest, Date.now() + 10000 * (attempt + 1))
+        await new Promise(r => setTimeout(r, 10000 * (attempt + 1)))
+        continue
+      }
       if (!response.ok) throw Error(`HTTP ${response.status} ${url}`)
       const bytes = new Uint8Array(await response.arrayBuffer())
       const text = url.endsWith(".gz") ? gunzipSync(bytes).toString() : new TextDecoder().decode(bytes)
@@ -65,9 +70,9 @@ async function main() {
     }
     throw Error(`Rate limited ${url}`)
   }
-  async function parallel(items, fn) {
+  async function parallel(items, fn, workers = 2) {
     let cursor = 0
-    await Promise.all([0, 1].map(async () => { while (cursor < items.length) { const item = items[cursor++]; try { await fn(item) } catch (e) { report.failures.push({ item, error: e.message }) } } }))
+    await Promise.all(Array.from({ length: workers }, (_, id) => id).map(async id => { while (cursor < items.length && id < workerLimit) { const item = items[cursor++]; try { await fn(item) } catch (e) { report.failures.push({ item, error: e.message }) } } }))
   }
   const known = new Set(JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(barcode),'[]'::json) from public.products;")).map(v => v.padStart(14, "0")))
   const home = await load(origin, "home.html")
@@ -121,7 +126,7 @@ async function main() {
     if (!verifyTomodsProduct(html, p)) { report.excluded.push({ sourceUrl: p.sourceUrl, reason: "Detail product code/mpn/name/image mismatch" }); return }
     products.push({ ...p, evidenceType: "official-product-mpn-code-image" })
     if (report.detailPages % 100 === 0) { await save(); console.log(`Tomods verified ${report.detailPages}/${pending.length}`) }
-  })
+  }, 4)
   report.currentPagesComplete = report.failures.length === 0 && report.categories.every(c => c.pages === Math.ceil(c.expected / 100))
   report.expectedCategorySum = report.categories.reduce((sum, c) => sum + c.expected, 0)
   report.observedCategorySum = report.categories.reduce((sum, c) => sum + c.observed, 0)

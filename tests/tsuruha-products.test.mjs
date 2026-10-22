@@ -10,6 +10,7 @@ test("Tsuruha uses labelled JAN, never the internal product ID or related items"
   assert.equal(row.imageUrl, "https://shop.tsuruha.co.jp/p.jpg?a=1&b=2")
   assert.equal(parseTsuruhaProduct(html.replace("4987433110185", "4987433110184"), row.sourceUrl), null)
   assert.equal(parseTsuruhaProduct(html.replace(/商品番号\(JANコード\)/, "商品番号"), row.sourceUrl), null)
+  assert.equal(parseTsuruhaProduct(html.replace("商品 &amp; 名前", "《セット販売》商品3個"), row.sourceUrl), null)
   assert.throws(() => parseTsuruhaProduct(html, "https://example.com/10171467.html"))
 })
 

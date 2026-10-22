@@ -94,7 +94,7 @@ async function main() {
           if (seenSkus.has(product.sku)) throw Error("Duplicate API SKU")
           seenSkus.add(product.sku)
           let parsed
-          try { parsed = parseTsuruhaApi(product, expected) } catch (error) { report.invalid++; report.invalidSkus.push({ sku: product.sku, reason: error.message }); continue }
+          try { parsed = parseTsuruhaApi(product, expected) } catch (error) { report.invalid++; report.invalidSkus.push({ sku: product.sku, urlKey: product.url_key, reason: error.message }); continue }
           if (!parsed) { report.invalid++; report.invalidSkus.push({ sku: product.sku, reason: "Missing/invalid labelled JAN or name" }) }
           else if (identities.has(parsed.barcode.padStart(14, "0"))) report.existing++
           else results.set(parsed.barcode.padStart(14, "0"), parsed)
@@ -107,6 +107,25 @@ async function main() {
       await checkpoint(); console.log(`Tsuruha ${report.attempted}/${report.apiRootCount}: ${results.size} new`)
     }
   }))
+  report.recoveredDetails = []
+  for (const invalid of [...report.invalidSkus]) {
+    if (invalid.reason !== "API SKU/URL mismatch" || !/^\d{8,13}$/.test(invalid.sku)) continue
+    const url = `${origin}/${invalid.sku}.html`
+    try {
+      let parsed = parseTsuruhaProduct(await load(url, `${invalid.sku}.html`), url)
+      if (!parsed && /^[a-z0-9-]+$/.test(invalid.urlKey || "")) {
+        const canonical = `${origin}/${invalid.urlKey}.html`
+        parsed = parseTsuruhaProduct(await load(canonical, `${invalid.urlKey}.html`), url)
+        if (parsed) parsed.sourceUrl = canonical
+      }
+      if (!parsed) continue
+      if (identities.has(parsed.barcode.padStart(14, "0"))) report.existing++
+      else results.set(parsed.barcode.padStart(14, "0"), parsed)
+      report.invalidSkus = report.invalidSkus.filter(p => p.sku !== invalid.sku)
+      report.invalid--
+      report.recoveredDetails.push({ sku: invalid.sku, barcode: parsed.barcode })
+    } catch (error) { report.failures.push({ url, reason: error.message }) }
+  }
   report.missingSkus = [...sitemapSkus].filter(sku => !seenSkus.has(sku))
   report.apiOnlySkus = [...seenSkus].filter(sku => !sitemapSkus.has(sku))
   report.observedUniqueSkus = seenSkus.size
