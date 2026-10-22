@@ -20,6 +20,9 @@ export function parseTomodsList(html) {
     const name = plain(card.match(/class="js-enhanced-ecommerce-goods-name">([\s\S]*?)<\/a>/)?.[1] || "")
     const image = decode(card.match(/data-src="([^"]+)"/)?.[1] || "")
     const cartCode = decode(card.match(/cart\.aspx\?goods=([^&"]+)/)?.[1] || "")
+    if (/^2\d{12}$/.test(barcode)) {
+      excluded.push({ sourceUrl, barcode, reason: "Restricted-circulation 20–29 prefix is not a global product identity" }); continue
+    }
     if (!validGtin(barcode) || /^0{5}/.test(barcode) || (cartCode && cartCode !== barcode) || !new RegExp(`^${barcode}(?:[^0-9]|$)`).test(new URL(image || "/", origin).pathname.split("/").pop()) || !name) {
       excluded.push({ sourceUrl, barcode, reason: "Invalid product/image code or conflicting cart code" }); continue
     }
@@ -123,6 +126,7 @@ async function main() {
   report.expectedCategorySum = report.categories.reduce((sum, c) => sum + c.expected, 0)
   report.observedCategorySum = report.categories.reduce((sum, c) => sum + c.observed, 0)
   report.sitemapNote = "Index lastmod is 2021-11-01; old sitemap URLs do not describe the current catalog and are not treated as current missing products."
+  report.identityNote = "13-digit codes with 20–29 prefixes are local/restricted-circulation identifiers, including store bundles, and are excluded; manufacturer multipack GTINs remain eligible."
   report.complete = report.currentPagesComplete && report.categories.every(c => c.observed === c.expected)
   await save()
   console.log(JSON.stringify({ ...report, excluded: report.excluded.length, sitemapOutsideList: report.sitemapOutsideList.length }, null, 2))

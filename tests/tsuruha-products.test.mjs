@@ -24,4 +24,7 @@ test("Tsuruha API reads JAN attribute and checks its SKU/URL association", () =>
   assert.throws(() => parseTsuruhaApi({ ...product, url_key: "different" }, new Set([product.sku])))
   assert.equal(parseTsuruhaApi({ ...product, custom_attributesV2: { items: [] } }, new Set([product.sku])), null)
   assert.equal(parseTsuruhaApi({ ...product, custom_attributesV2: { items: [{ code: "tgmd_jan_code", value: "10171467" }] } }, new Set([product.sku])), null)
+  assert.throws(() => parseTsuruhaApi({ ...product, name: "《セット販売》商品3個セット" }, new Set([product.sku])), /bundle/)
+  assert.throws(() => parseTsuruhaApi({ ...product, name: "《セット》商品3個" }, new Set([product.sku])), /bundle/)
+  assert.equal(parseTsuruhaApi({ ...product, name: "メーカー トライアルセット" }, new Set([product.sku])).barcode, "4987433110185")
 })

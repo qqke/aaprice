@@ -21,6 +21,14 @@ test("Tomods sold-out cards can become detail candidates without cart links", ()
   assert.equal(parsed.products[0].evidenceType, "official-catalog-image-code")
   assert.equal(parseTomodsList(card.replace("goods=4536117051506", "goods=4901301465108")).products.length, 0)
 })
+test("Tomods excludes local-circulation store codes without rejecting manufacturer multipacks", () => {
+  const storeSet = card.replaceAll("4536117051506", "2220000000253").replace("Name &amp; test", "【セット品】APS クレンジングオイル / 洗顔フォーム")
+  const parsed = parseTomodsList(storeSet)
+  assert.equal(parsed.products.length, 0)
+  assert.match(parsed.excluded[0].reason, /Restricted-circulation/)
+  const factoryPack = card.replaceAll("4536117051506", "4903111046447").replace("Name &amp; test", "シルコット詰替 100枚×2個")
+  assert.equal(parseTomodsList(factoryPack).products.length, 1)
+})
 test("Tomods detail requires code and Product mpn/name/image agreement", () => {
   const expected = { barcode: "4536117051506", name: "Name & test" }
   const html = '<dd id="spec_goods">4536117051506</dd><script type="application/ld+json">' + JSON.stringify({ "@type": "Product", mpn: expected.barcode, name: expected.name, image: "https://tomods-ap.com/img/goods/S/4536117051506a.jpg" }) + '</script>'

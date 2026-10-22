@@ -13,6 +13,7 @@ export function parseTsuruhaProduct(html, sourceUrl) {
   if (new URL(sourceUrl).origin !== origin || !/^\/\d{8,13}\.html$/.test(new URL(sourceUrl).pathname)) throw Error("Unexpected product URL")
   const barcode = plain(html.match(/商品番号\(JANコード\)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/)?.[1] || "")
   const name = plain(html.match(/<span[^>]*itemprop="name"[^>]*>([\s\S]*?)<\/span>/)?.[1] || "")
+  if (/《セット販売》|《セット》/.test(name)) return null
   if (!validGtin(barcode) || !name) return null
   return { barcode, name, brand: "", pack: "", category: "", description: "", imageUrl: decode(html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/)?.[1] || ""), catalogSource: "tsuruha", sourceUrl }
 }
@@ -26,6 +27,7 @@ export function parseTsuruhaSitemap(xml) {
 
 export function parseTsuruhaApi(product, expectedSkus) {
   if (!expectedSkus.has(product.sku) || product.url_key !== product.sku) throw Error("API SKU/URL mismatch")
+  if (/《セット販売》|《セット》/.test(product.name || "")) throw Error("Store-created bundle has no verified package GTIN")
   const barcodes = [...new Set((product.custom_attributesV2?.items || []).filter(a => a.code === "tgmd_jan_code").map(a => a.value))]
   if (barcodes.length !== 1 || !validGtin(barcodes[0]) || typeof product.name !== "string" || !product.name.trim()) return null
   return { barcode: barcodes[0], name: plain(product.name), brand: "", pack: "", category: "", description: "", imageUrl: product.image?.url || "", catalogSource: "tsuruha", sourceUrl: `${origin}/${product.url_key}.html` }
