@@ -18,10 +18,18 @@ test("deduplicates by GTIN and excludes invalid or untrusted records", () => {
   assert.equal(result.excluded.length, 3)
 })
 
+test("UPC and zero-prefixed EAN forms share one identity without changing the source barcode", () => {
+  const result = prepareRows([{ ...product, barcode: "705928001206" }, { ...product, barcode: "0705928001206" }])
+  assert.equal(result.rows.length, 1)
+  assert.equal(result.rows[0].barcode, "705928001206")
+  assert.equal(result.duplicates, 1)
+})
+
 test("import SQL inserts only with collision guards and verifies old records before commit", () => {
   const sql = insertSql(prepareRows([product]).rows)
   assert.match(sql, /on conflict do nothing/)
   assert.match(sql, /p.barcode = s.barcode or p.id = s.barcode/)
+  assert.match(sql, /lpad\(p.barcode, 14, '0'\) = lpad\(s.barcode, 14, '0'\)/)
   assert.match(sql, /md5\(to_jsonb\(p\)::text\) <> b.fingerprint/)
   assert.match(sql, /lock table public.products in share row exclusive mode/)
   assert.doesNotMatch(sql, /\bupdate public\.|\bdelete\b|insert into public.prices|enqueue_price_alert/i)

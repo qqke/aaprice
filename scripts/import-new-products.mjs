@@ -30,7 +30,8 @@ export function prepareRows(products) {
         row[key] = (product[key] || "").replace(/\s+/g, " ").trim()
       }
       if (row.imageUrl && !/^https?:\/\//.test(row.imageUrl)) throw Error("Invalid image URL")
-      if (!unique.has(row.barcode)) unique.set(row.barcode, row)
+      const identity = row.barcode.padStart(14, "0")
+      if (!unique.has(identity)) unique.set(identity, row)
     } catch (error) {
       excluded.push({ barcode: product?.barcode, sourceUrl: product?.sourceUrl, reason: error.message })
     }
@@ -58,6 +59,11 @@ with inserted as (
   select s.barcode, s.barcode, s.name, s.brand, s.pack, s.category, s.description, s.image_url, s.catalog_source, now()
   from new_product_stage s
   where not exists (select 1 from public.products p where p.barcode = s.barcode or p.id = s.barcode)
+    and not exists (
+      select 1 from public.products p
+      where p.barcode ~ '^([0-9]{8}|[0-9]{12,14})$'
+        and lpad(p.barcode, 14, '0') = lpad(s.barcode, 14, '0')
+    )
   on conflict do nothing
   returning id, barcode, catalog_source
 ) select * from inserted;
