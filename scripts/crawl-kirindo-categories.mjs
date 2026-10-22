@@ -69,8 +69,9 @@ async function main() {
   report.uniqueListings = listings.size; report.pendingDetails = pending.length
   report.combinedUniqueListings = new Set([...rootListings, ...listings.keys()]).size
   report.globalComplete = report.combinedUniqueListings === report.rootTotal
-  for (const p of pending) {
-    if (blocked) break
+  let cursor = 0
+  await Promise.all([0, 1].map(async () => { while (cursor < pending.length && !blocked) {
+    const p = pending[cursor++]
     try {
       let html
       try { html = await readFile(`${oldCache}/${Buffer.from(p.url).toString("base64url")}.html`, "utf8") }
@@ -81,7 +82,7 @@ async function main() {
       else if (!existing.has(row.barcode.padStart(14, "0"))) rows.set(row.barcode.padStart(14, "0"), row)
     } catch (error) { report.failures.push({ url: p.url, reason: error.message }) }
     if (report.detailPages % 25 === 0) { console.log(`Kirindo category details ${report.detailPages}/${pending.length}, candidates ${rows.size}`); await save() }
-  }
+  } }))
   report.complete = report.categories.length === categories.length && report.categories.every(c => c.complete) && report.detailPages === pending.length && !report.failures.length
   report.blocked = blocked
   await save()
