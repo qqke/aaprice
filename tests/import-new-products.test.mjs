@@ -25,6 +25,13 @@ test("UPC and zero-prefixed EAN forms share one identity without changing the so
   assert.equal(result.duplicates, 1)
 })
 
+test("accepts verified new catalog origins and rejects lookalike domains", () => {
+  for (const [catalogSource, origin] of [["lion", "https://map.lion.co.jp"], ["kirindo", "https://www.kirindo-shop.com"]]) {
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product` }]).rows.length, 1)
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.evil.invalid/product` }]).excluded.length, 1)
+  }
+})
+
 test("import SQL inserts only with collision guards and verifies old records before commit", () => {
   const sql = insertSql(prepareRows([product]).rows)
   assert.match(sql, /on conflict do nothing/)

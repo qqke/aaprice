@@ -96,6 +96,16 @@ node --env-file=.env scripts/crawl-shiseido-variants.mjs --resume
 
 Sundrug 优先使用分类和详情资料，剩余商品可用官方 sitemap 中相互匹配的合法 JAN、商品名及图片补充身份；未证实的品牌、容量和类别留空，报告单列 `sitemapAdded`。松本清使用官网公开价格区间递归拆分搜索窗口；资生堂只接受官方变体接口明确返回且通过校验位检查的 JAN。
 
+继续补查 Sundrug 内部编码链接，并扩展 Lion 与麒麟堂官方商品目录：
+
+```sh
+node scripts/crawl-sundrug-unresolved.mjs
+node scripts/crawl-lion-products.mjs --resume
+node --env-file=.env scripts/crawl-kirindo-products.mjs
+```
+
+本批结果位于 `artifacts/products-round3-2026-10-22/`。Lion 只接受官方接口中子规格明确提供的 JAN 和完整名称，父商品图仅作代表图；麒麟堂只对数据库未知候选读取详情，以 Product JSON-LD 的 GTIN 验证身份，不把商品链接中的数字直接当作条码。Sundrug 的套装后缀、整箱内部编码不剥除或猜测成 JAN。仍使用上述只插入导入器落库，公开目录覆盖数和实际新增数分别记录。
+
 全国药妆连锁门店目录扩充：
 
 ```sh

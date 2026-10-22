@@ -9,6 +9,8 @@ const origins = {
   shiseido: "https://www.shiseido.co.jp",
   sugi: "https://sugi-drug.com",
   qols: "https://qol-shop.jp",
+  lion: "https://map.lion.co.jp",
+  kirindo: "https://www.kirindo-shop.com",
 }
 
 export function validGtin(value) {
