@@ -109,6 +109,18 @@ node --env-file=.env scripts/crawl-kirindo-categories.mjs
 
 麒麟堂总搜索列表若返回 406，分类补采按公开一级分类分页，并逐个核对唯一链接数与分类总数；它复用前一步列表和详情缓存。分类完成与全站覆盖分开报告，全站完整性需要合并列表链接数与总搜索标示数相符。
 
+进一步扩展商品目录（结果写入 `artifacts/products-round4-2026-10-22/`）：
+
+```sh
+node --env-file=.env scripts/crawl-welcia-products.mjs
+node --env-file=.env scripts/crawl-unicharm-products.mjs
+node --env-file=.env scripts/crawl-earth-products.mjs
+node --env-file=.env scripts/crawl-tsuruha-products.mjs
+node --env-file=.env scripts/crawl-tomods-products.mjs
+```
+
+Welcia 核对公开商品列表与 sitemap；Unicharm 使用官方子规格 JAN；Earth 要求当前商品主购买链接与主图条码一致。鹤羽按 sitemap SKU 批量读取公开接口的 `tgmd_jan_code`，校验 SKU、URL 和分页一致性，内部商品 ID 不作为 JAN。Tomod’s 要求商品卡、购物车链接、图片编码一致，并逐个核对未知商品详情中的商品コード、Product.mpn、名称和图片；列表标示数与可见卡片差异保留在报告。采集与导入仍分开，沿用只插入、等价条码去重和旧商品指纹校验。
+
 全国药妆连锁门店目录扩充：
 
 ```sh

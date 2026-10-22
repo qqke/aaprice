@@ -11,6 +11,11 @@ const origins = {
   qols: "https://qol-shop.jp",
   lion: "https://map.lion.co.jp",
   kirindo: "https://www.kirindo-shop.com",
+  welcia: "https://www.e-welcia.com",
+  unicharm: "https://map.unicharm.co.jp",
+  tsuruha: "https://shop.tsuruha.co.jp",
+  earth: "https://www.earth.jp",
+  tomods: "https://tomods-ap.com",
 }
 
 export function validGtin(value) {

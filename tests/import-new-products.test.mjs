@@ -26,7 +26,7 @@ test("UPC and zero-prefixed EAN forms share one identity without changing the so
 })
 
 test("accepts verified new catalog origins and rejects lookalike domains", () => {
-  for (const [catalogSource, origin] of [["lion", "https://map.lion.co.jp"], ["kirindo", "https://www.kirindo-shop.com"]]) {
+  for (const [catalogSource, origin] of [["lion", "https://map.lion.co.jp"], ["kirindo", "https://www.kirindo-shop.com"], ["welcia", "https://www.e-welcia.com"], ["unicharm", "https://map.unicharm.co.jp"], ["tsuruha", "https://shop.tsuruha.co.jp"]]) {
     assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product` }]).rows.length, 1)
     assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.evil.invalid/product` }]).excluded.length, 1)
   }
