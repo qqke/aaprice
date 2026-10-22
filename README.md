@@ -73,6 +73,7 @@ node scripts/crawl-kao-products.mjs
 node scripts/crawl-shiseido-products.mjs --resume
 node scripts/crawl-matsukiyo-products.mjs
 node --env-file=.env scripts/crawl-sundrug-products.mjs
+node --env-file=.env scripts/crawl-sundrug-collections.mjs --resume
 node scripts/crawl-shopify-products.mjs --resume
 node scripts/import-new-products.mjs artifacts/products-2026-10-22/kao.json
 node --env-file=.env scripts/import-new-products.mjs artifacts/products-2026-10-22/kao.json --apply
