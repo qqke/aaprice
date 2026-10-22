@@ -102,9 +102,12 @@ Sundrug 优先使用分类和详情资料，剩余商品可用官方 sitemap 中
 node scripts/crawl-sundrug-unresolved.mjs
 node scripts/crawl-lion-products.mjs --resume
 node --env-file=.env scripts/crawl-kirindo-products.mjs
+node --env-file=.env scripts/crawl-kirindo-categories.mjs
 ```
 
 本批结果位于 `artifacts/products-round3-2026-10-22/`。Lion 只接受官方接口中子规格明确提供的 JAN 和完整名称，父商品图仅作代表图；麒麟堂只对数据库未知候选读取详情，以 Product JSON-LD 的 GTIN 验证身份，不把商品链接中的数字直接当作条码。Sundrug 的套装后缀、整箱内部编码不剥除或猜测成 JAN。仍使用上述只插入导入器落库，公开目录覆盖数和实际新增数分别记录。
+
+麒麟堂总搜索列表若返回 406，分类补采按公开一级分类分页，并逐个核对唯一链接数与分类总数；它复用前一步列表和详情缓存。分类完成与全站覆盖分开报告，全站完整性需要合并列表链接数与总搜索标示数相符。
 
 全国药妆连锁门店目录扩充：
 
