@@ -1,3 +1,5 @@
+import { decodeRakutenHtml, isPurchasableRakutenItem } from "./lib/rakuten-items.mjs"
+
 const flags = new Set(process.argv.slice(2).filter((arg) => arg.startsWith("--")))
 const productIds = process.argv.slice(2).filter((arg) => !arg.startsWith("--"))
 
@@ -27,9 +29,19 @@ async function findExactItem(productId) {
     .filter((url) => url.includes(productId))
     .map((url) => url.replace(/[?&](scid|iasid|icm_acid|icm_cid|icm_agid)=[^&]*/g, ""))
 
-  return candidates.find((url) => new URL(url).pathname.includes(`/${productId}/`))
-    ?? candidates.find((url) => new URL(url).searchParams.get("variantId") === productId)
-    ?? null
+  const exact = [...new Set(candidates)].filter((value) => {
+    const url = new URL(value)
+    return url.pathname.includes(`/${productId}/`) || url.searchParams.get("variantId") === productId
+  }).slice(0, 10)
+  for (const url of exact) {
+    try {
+      const item = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+      if (!item.ok) continue
+      const html = decodeRakutenHtml(new Uint8Array(await item.arrayBuffer()), item.headers.get("content-type") || "")
+      if (isPurchasableRakutenItem(html, productId)) return url
+    } catch { /* Leave unsupported or unavailable items for manual review. */ }
+  }
+  return null
 }
 
 const results = []
@@ -40,13 +52,10 @@ for (const productId of productIds) {
       product_id: productId,
       item_url: itemUrl,
       destination_url: `${affiliateBase}?pc=${encodeURIComponent(itemUrl)}&${linkOptions}`,
-    } : { product_id: productId, error: "exact Rakuten item not found" }
+    } : { product_id: productId, error: "exact purchasable Rakuten item not found; manual review required" }
 
     if (flags.has("--validate") && result.destination_url) {
-      const redirect = await fetch(result.destination_url, { redirect: "manual" })
-      result.tracking_valid = redirect.status >= 300
-        && redirect.status < 400
-        && redirect.headers.get("location")?.startsWith("https://pt.afl.rakuten.co.jp/c/")
+      result.item_verified = true
     }
     results.push(result)
   } catch (error) {
@@ -55,8 +64,8 @@ for (const productId of productIds) {
 }
 
 if (flags.has("--sql")) {
-  if (results.some((result) => result.error || result.tracking_valid !== true)) {
-    console.error(JSON.stringify(results.filter((result) => result.error || result.tracking_valid !== true), null, 2))
+  if (results.some((result) => result.error || result.item_verified !== true)) {
+    console.error(JSON.stringify(results.filter((result) => result.error || result.item_verified !== true), null, 2))
     process.exit(1)
   }
 

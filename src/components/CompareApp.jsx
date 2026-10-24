@@ -704,8 +704,8 @@ export default function CompareApp({ initialScan = false }) {
   const [priceChecked, setPriceChecked] = useState({})
   const [priceErrors, setPriceErrors] = useState({})
   const [commercialOffers, setCommercialOffers] = useState([])
-  const [location, setLocation] = useState(readLocation)
-  const [locationStatus, setLocationStatus] = useState(() => readLocation() ? "ready" : "idle")
+  const [location, setLocation] = useState(null)
+  const [locationStatus, setLocationStatus] = useState("idle")
   const [locationError, setLocationError] = useState("")
 
   useEffect(() => { if (initialScan) setScanOpen(true) }, [initialScan])
@@ -726,6 +726,9 @@ export default function CompareApp({ initialScan = false }) {
         else if (active) setSession(current)
       }
       if (!active) return
+      const currentLocation = readLocation()
+      setLocation(currentLocation)
+      setLocationStatus(currentLocation ? "ready" : "idle")
       if (saved) {
         setCatalog(saved.catalog)
         setQuery(saved.query)
@@ -733,9 +736,6 @@ export default function CompareApp({ initialScan = false }) {
         setBrand(saved.brand)
         setBudget([Math.max(MIN_PRICE, Math.min(MAX_PRICE, saved.budget))])
         setSort(saved.sort)
-        const currentLocation = readLocation()
-        setLocation(currentLocation)
-        setLocationStatus(currentLocation ? "ready" : "idle")
         setFiltersOpen(saved.filtersOpen)
         setCatalogHasMore(saved.hasMore)
         setCatalogLoading(false)

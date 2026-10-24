@@ -111,6 +111,23 @@ test("maps Supabase products and keeps only the latest price per store", () => {
   assert.deepEqual(offers.map(({ id, price }) => [id, price]), [["s1", 780], ["s2", 820]])
 })
 
+test("missing location remains unknown and invalid quotes cannot become a free offer", () => {
+  const offers = offersFromPriceRows([
+    { store_id: "unknown", price_yen: 100, distance_km: null, stores: { name: "坐标未登记店", address: "东京", lat: null, lng: null } },
+    { store_id: "known", price_yen: 200, distance_km: 0, stores: { name: "定位店", lat: 35.7, lng: 139.7 } },
+    { store_id: "invalid", price_yen: 300, distance_km: -1, stores: { name: "异常坐标店", lat: 91, lng: 181 } },
+    ...[null, undefined, 0, -1, "", "bad"].map((price_yen, i) => ({ store_id: `bad-${i}`, price_yen })),
+  ])
+  assert.equal(offers.length, 3)
+  const unknown = offers.find(item => item.id === "unknown")
+  assert.deepEqual([unknown.lat, unknown.lng, unknown.distance], [null, null, null])
+  assert.match(decodeURIComponent(getMapUrl(unknown)), /query=坐标未登记店 东京/)
+  assert.doesNotMatch(getMapUrl(unknown), /query=0%2C0/)
+  assert.equal(offers.find(item => item.id === "known").distance, 0)
+  assert.deepEqual([offers[2].lat, offers[2].lng, offers[2].distance], [null, null, null])
+  assert.equal(getClosestOffer({ offers }, { lat: 35.7, lng: 139.7 }).id, "known")
+})
+
 test("infers useful drugstore categories when imported rows have none", () => {
   assert.equal(mapProductRow({ id: "1", name: "【第3類医薬品】ハイシーL 40錠" }).category, "医药品")
   assert.equal(mapProductRow({ id: "2", name: "コーセー 薬用雪肌精 乳液" }).category, "护肤美妆")

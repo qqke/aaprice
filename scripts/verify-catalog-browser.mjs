@@ -33,6 +33,12 @@ try {
   const exposures = []
   await page.route("**/rest/v1/**", async route => {
     const request = route.request(), url = new URL(request.url()), body = request.postDataJSON()
+    if (url.pathname.endsWith("/fetch_credit_summary")) return route.fulfill({ json: { balance: 0, daily_free_price_references: 5, references_today: 0 } })
+    if (url.pathname.endsWith("/fetch_product_prices")) return route.fulfill({ json: [
+      { store_id: "unknown", price_yen: 100, distance_km: null, collected_at: new Date().toISOString(), stores: { name: "未知坐标店", address: "东京某街道", lat: null, lng: null } },
+      { store_id: "physical", price_yen: 200, distance_km: 1, collected_at: new Date().toISOString(), stores: { name: "附近实体店", lat: 35.71, lng: 139.7 } },
+      { store_id: "sundrug-00000", price_yen: 90, distance_km: 0, collected_at: new Date().toISOString(), stores: { name: "官方在线商店", lat: 35.7, lng: 139.7 } },
+    ] })
     if (url.pathname.endsWith("/record_telemetry_event") && body.payload.event_name === "commercial_offer_seen") {
       exposures.push(body.payload.properties)
       return route.fulfill({ json: null })
@@ -150,6 +156,18 @@ try {
   await page.getByLabel("确认密码", { exact: true }).fill("isolated-test-password")
   await page.getByRole("button", { name: "注册", exact: true }).click()
   await page.waitForURL(origin + returnTo)
+  await page.evaluate(() => sessionStorage.setItem("aprice:location", JSON.stringify({ lat: 35.7, lng: 139.7, savedAt: Date.now() })))
+  await page.reload()
+  await page.getByRole("button", { name: "免费查询报价", exact: true }).first().click()
+  await page.getByRole("heading", { name: "未知坐标店", exact: true }).waitFor()
+  const priceSection = page.locator("#store-prices")
+  const unknownStore = priceSection.locator(".divide-y > div").filter({ has: page.getByRole("heading", { name: "未知坐标店", exact: true }) })
+  assert.doesNotMatch(await unknownStore.innerText(), /0m|最近|NaN/)
+  const mapHref = await page.getByRole("link", { name: "在地图查看 未知坐标店", exact: true }).getAttribute("href")
+  assert.match(decodeURIComponent(mapHref), /未知坐标店.*东京某街道/)
+  assert.equal(await priceSection.getByText("最近", { exact: true }).count(), 1)
+  const closestStore = priceSection.locator(".divide-y > div").filter({ has: page.getByRole("heading", { name: "附近实体店", exact: true }) })
+  assert.equal(await closestStore.getByText("最近", { exact: true }).count(), 1)
   await page.evaluate(() => localStorage.clear())
   await mkdir("artifacts/commercial-audit", { recursive: true })
   for (const width of [375, 768, 1440]) {
@@ -158,11 +176,12 @@ try {
       await page.addInitScript(value => localStorage.setItem("theme", value), theme)
       await page.goto(origin)
       await page.locator("#catalog article").nth(29).waitFor()
+      await page.getByRole("button", { name: "更新当前位置", exact: true }).waitFor()
       await page.waitForTimeout(500)
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}/${theme} overflow`)
       await page.screenshot({ path: `artifacts/commercial-audit/${width}-${theme}-home.png` })
     }
   }
   assert.deepEqual(errors, [])
-  console.log("Browser checks passed: public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, visible commercial exposure, closed comparison/hidden duplicates excluded, isolated signup/recovery callbacks, expired-link feedback, 6 responsive/theme views.")
+  console.log("Browser checks passed: public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, visible commercial exposure, closed comparison/hidden duplicates excluded, isolated signup/recovery callbacks, expired-link feedback, unknown distance/address maps, nearest physical store, cached-location hydration, 6 responsive/theme views.")
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(r => server.close(r)) }

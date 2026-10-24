@@ -742,18 +742,19 @@ export function offersFromPriceRows(rows = []) {
   for (const row of rows.toSorted((a, b) => new Date(b.collected_at || 0) - new Date(a.collected_at || 0))) {
     const store = row.stores || {}
     const storeId = String(row.store_id || store.id || "")
-    if (!storeId || latestByStore.has(storeId) || !Number.isFinite(Number(row.price_yen))) continue
+    const price = Number(row.price_yen)
+    if (!storeId || latestByStore.has(storeId) || !Number.isFinite(price) || price <= 0) continue
     latestByStore.set(storeId, {
       id: storeId,
       name: String(store.name || "门店未登记"),
       chain: String(store.chain_name || ""),
       address: [store.pref, store.city, store.address].filter(Boolean).join(" "),
-      lat: Number(store.lat),
-      lng: Number(store.lng),
-      price: Number(row.price_yen),
+      lat: Number.isFinite(store.lat) && Math.abs(store.lat) <= 90 ? store.lat : null,
+      lng: Number.isFinite(store.lng) && Math.abs(store.lng) <= 180 ? store.lng : null,
+      price,
       member: Boolean(row.is_member_price),
       sampledAt: row.collected_at,
-      distance: Number.isFinite(Number(row.distance_km)) ? Number(row.distance_km) : null,
+      distance: Number.isFinite(row.distance_km) && row.distance_km >= 0 ? row.distance_km : null,
     })
   }
   return [...latestByStore.values()]

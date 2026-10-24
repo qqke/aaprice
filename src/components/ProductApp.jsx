@@ -29,7 +29,7 @@ import {
   submitStorePrice,
   toggleFavorite,
 } from "@/lib/aprice-api.mjs"
-import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getImageSrcSet, getMapUrl, getPriceFreshness, getPriceStats, isOnlineStore, sanitizeCompareSelection } from "@/lib/products.mjs"
+import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getClosestOffer, getImageSrcSet, getMapUrl, getPriceFreshness, getPriceStats, isOnlineStore, sanitizeCompareSelection } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "未知"
@@ -147,7 +147,7 @@ export default function ProductApp() {
   const freshness = getPriceFreshness(newestOffer?.sampledAt)
   const pricedProduct = product ? { ...product, offers } : null
   const stats = pricedProduct ? getPriceStats(pricedProduct) : null
-  const closestOfferId = location ? offers.filter(({ distance }) => Number.isFinite(distance)).toSorted((a, b) => a.distance - b.distance)[0]?.id : null
+  const closestOfferId = getClosestOffer({ offers }, location)?.id || null
   const recommendedOffer = offers.find(({ id }) => String(id) === String(closestOfferId)) || stats?.bestOffer
   const freePriceQueriesRemaining = credit ? Math.max(0, Number(credit.daily_free_price_references || 0) - Number(credit.references_today || 0)) : null
   const priceQueryCost = Math.max(0, Number(credit?.price_reference_cost || 0))
@@ -165,8 +165,8 @@ export default function ProductApp() {
     }) : physicalStores
     return matches.toSorted((a, b) => {
       if (location) {
-        const da = Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng)) ? distanceKm(location.lat, location.lng, Number(a.lat), Number(a.lng)) : Infinity
-        const db = Number.isFinite(Number(b.lat)) && Number.isFinite(Number(b.lng)) ? distanceKm(location.lat, location.lng, Number(b.lat), Number(b.lng)) : Infinity
+        const da = Number.isFinite(a.lat) && Number.isFinite(a.lng) ? distanceKm(location.lat, location.lng, a.lat, a.lng) : Infinity
+        const db = Number.isFinite(b.lat) && Number.isFinite(b.lng) ? distanceKm(location.lat, location.lng, b.lat, b.lng) : Infinity
         if (da !== db) return da - db
       }
       return String(a.name || "").localeCompare(String(b.name || ""), "ja")
