@@ -247,6 +247,33 @@
   scroll-margin-top: 88px;
 }
 
+.product-mobile-actions [data-slot="button"] {
+  min-height: 48px;
+}
+
+.product-mobile-actions .flex-1 {
+  min-width: 0;
+  height: auto;
+  white-space: normal;
+  line-height: 1.4;
+  padding-block: 10px;
+}
+
+@media (pointer: coarse) {
+  [data-slot="button"] {
+    min-width: 44px;
+  }
+  [data-slot="button"], select, summary {
+    min-height: 44px;
+  }
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 16px;
+  }
+  summary {
+    padding-block: 10px;
+  }
+}
+
 @media (hover: hover) {
   .product-card:hover {
     border-color: color-mix(in oklab, var(--primary) 40%, var(--border));

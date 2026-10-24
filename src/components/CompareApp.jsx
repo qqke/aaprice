@@ -523,28 +523,31 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
         {status && <p className="scanner-status" role="status" aria-live="polite">{status}</p>}
         {!manualOpen && !missingCode && !draft && <div className="scanner-actions">
           <button type="button" onClick={() => { stopCamera(); setStatus(""); setManualOpen(true) }} disabled={lookingUp || submitting || readingImage}><Keyboard /><span>手动输入</span></button>
-          {scanning && <button type="button" onClick={stopCamera} disabled={lookingUp || submitting || readingImage}><ScanLine /><span>暂停扫描</span></button>}
-          {torchAvailable && <button type="button" onClick={toggleTorch} aria-pressed={torchOn}><Flashlight /><span>{torchOn ? "关闭手电筒" : "开启手电筒"}</span></button>}
+          {scanning && <button type="button" onClick={stopCamera} aria-label="暂停扫描" disabled={lookingUp || submitting || readingImage}><ScanLine /><span>暂停</span></button>}
+          {torchAvailable && <button type="button" onClick={toggleTorch} aria-label={torchOn ? "关闭手电筒" : "开启手电筒"} aria-pressed={torchOn}><Flashlight /><span>{torchOn ? "关闭补光" : "补光"}</span></button>}
           <button type="button" onClick={() => { stopCamera(); imageInputRef.current?.click() }} disabled={lookingUp || submitting || readingImage}><ImagePlus /><span>相册</span></button>
         </div>}
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" aria-label="选择条码图片" onChange={selectImage} disabled={lookingUp || submitting || readingImage} />
         {manualOpen && !missingCode && !draft && <form className="scanner-panel" onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
           <label htmlFor="manual-jan" className="block text-lg font-medium">输入商品条码</label>
-          <p id="manual-jan-help" className="mt-2 text-sm text-muted-foreground">包装条形码下方的 8 位或 12–14 位数字（JAN）。</p>
-          <Input ref={manualInputRef} id="manual-jan" className="mt-6 text-base" value={manualCode} onChange={(event) => { setManualCode(event.target.value); setManualError("") }} inputMode="numeric" autoComplete="off" enterKeyHint="search" aria-invalid={Boolean(manualError)} aria-describedby={`manual-jan-help${manualError ? " manual-jan-error" : ""}`} placeholder="例如 4901234567894" disabled={lookingUp || submitting || readingImage} />
+          <p id="manual-jan-help" className="mt-2 text-sm text-muted-foreground">输入包装条码下方的 8 位或 12–14 位数字。</p>
+          <div className="relative mt-5"><Input ref={manualInputRef} id="manual-jan" className="pr-12 text-base" value={manualCode} onChange={(event) => { setManualCode(event.target.value); setManualError("") }} inputMode="numeric" autoComplete="off" enterKeyHint="search" aria-invalid={Boolean(manualError)} aria-describedby={`manual-jan-help${manualError ? " manual-jan-error" : ""}`} placeholder="例如 4901234567894" disabled={lookingUp || submitting || readingImage} />
+            {manualCode && <button type="button" className="scanner-clear" aria-label="清空条码" disabled={lookingUp || submitting || readingImage} onClick={() => { setManualCode(""); setManualError(""); manualInputRef.current?.focus() }}><X className="size-5" /></button>}
+          </div>
           {manualError && <p id="manual-jan-error" className="mt-2 text-sm text-amber-300" role="alert">{manualError}</p>}
           <Button type="submit" className="mt-4 w-full" disabled={lookingUp || submitting || readingImage}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询商品"}</Button>
           <Button type="button" variant="ghost" className="mt-3 w-full" disabled={lookingUp || submitting || readingImage} onClick={returnToCamera}><ScanLine />返回扫码</Button>
         </form>}
-        {missingCode && !draft && <div ref={missingResultRef} tabIndex={-1} className="scanner-panel outline-none">
+        {missingCode && !draft && <div ref={missingResultRef} tabIndex={-1} className="scanner-panel scanner-result outline-none">
           <Search className="mb-5 size-9 text-muted-foreground" />
           <h3 className="text-xl font-semibold">暂未收录此商品</h3>
           <p className="mt-2 text-sm text-muted-foreground">已识别条码：{missingCode}</p>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">可以重新扫描，或用商品名称、品牌继续搜索。</p>
-          <Button type="button" className="mt-7 w-full" onClick={returnToCamera} disabled={lookingUp}><ScanLine />重新扫描</Button>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">重新扫描，或试试商品名称、品牌。</p>
+          <div className="scanner-result-actions"><Button type="button" className="w-full" onClick={returnToCamera} disabled={lookingUp}><ScanLine />重新扫描</Button>
           <Button asChild variant="outline" className="mt-3 w-full" disabled={lookingUp}><a href={appPath("/#product-search")} aria-disabled={lookingUp} onClick={(event) => { if (lookingUp) event.preventDefault() }}>输入名称搜索</a></Button>
           <Button type="button" variant="ghost" className="mt-5 w-full" onClick={supplementMissing} disabled={lookingUp}>{lookingUp ? <LoaderCircle className="animate-spin" /> : <Plus />}{lookingUp ? "正在准备补录" : "帮忙补录商品（可选）"}</Button>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">选择补录后，会用此条码查询公开商品资料，帮助预填。</p>
+          </div>
         </div>}
         {recognizedPrice && <p className="px-5 text-sm text-emerald-400" role="status">已识别价格：¥{Number(recognizedPrice).toLocaleString("ja-JP")}（请确认含税价）</p>}
         {pendingProduct && <form className="scanner-details space-y-3" onSubmit={(event) => { event.preventDefault(); void saveScan(pendingProduct, recognizedPrice) }}>

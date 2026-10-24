@@ -25,7 +25,7 @@ for (const path of candidates) { try { await access(path); executablePath = path
 if (!executablePath) { server.close(); throw new Error("Chrome not found; set CHROME_PATH") }
 const browser = await chromium.launch({ executablePath, headless: true })
 try {
-  const page = await browser.newPage({ locale: "zh-CN", reducedMotion: "reduce" })
+  const page = await browser.newPage({ locale: "zh-CN", reducedMotion: "reduce", hasTouch: true })
   const errors = []
   page.on("pageerror", error => errors.push(error.message))
   const product = (id, name = id) => ({ id, name, brand: "テスト", pack: "100mL", category: "化粧水", image_url: "/lowprice-logo.png" })
@@ -35,6 +35,7 @@ try {
   let nextPage, failPreview = false, emptyPreview = false
   let commercialEnabled = false
   let priceQueries = 0
+  let favoriteSelected = false
   let accountFixtures = false
   const fixtureUserId = "00000000-0000-0000-0000-000000000001"
   const missingJan = "4901234567894"
@@ -71,6 +72,11 @@ try {
       return route.fulfill({ json: fixtureLists[table].slice(offset, offset + limit) })
     }
     if (accountFixtures && table === "profiles") return route.fulfill({ json: [{ id: fixtureUserId, email: "review@example.com", role: "user", full_name: "隔离测试账户" }] })
+    if (table === "favorites") {
+      if (request.method() === "POST") favoriteSelected = true
+      if (request.method() === "DELETE") favoriteSelected = false
+      return route.fulfill({ json: favoriteSelected ? [{ id: "fixture-favorite", entity_type: "product", entity_id: "needle" }] : [] })
+    }
     if (accountFixtures && table === "fetch_favorite_price_changes") return route.fulfill({ json: { days: 7, items: [] } })
     if (accountFixtures && table === "fetch_my_price_alerts") return route.fulfill({ json: [{ product_id: "needle", target_price_yen: 300, is_active: true }] })
     if (url.pathname.endsWith("/fetch_credit_summary")) return route.fulfill({ json: { balance: 0, daily_free_price_references: 5, references_today: 0 } })
@@ -200,9 +206,26 @@ try {
   await page.waitForURL(origin + returnTo)
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByText("近期参考价", { exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), true, "ergonomic checks must use touch input")
   assert.equal(priceQueries, 0, "signed-in public preview must not consume a price query")
   assert.equal(await page.locator("#record-price").getAttribute("open"), null)
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    const actions = page.locator(".product-mobile-actions")
+    const query = await actions.getByRole("button", { name: "免费查询报价", exact: true }).boundingBox()
+    const favorite = await actions.getByRole("button", { name: "收藏商品", exact: true }).boundingBox()
+    assert.ok(query.width >= 200 && query.height >= 48, `${width}: main action must remain wide and touchable`)
+    assert.ok(favorite.width >= 48 && favorite.height >= 48)
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    assert.ok(await page.locator("#record-price > summary").evaluate(element => element.getBoundingClientRect().height >= 44))
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.screenshot({ path: "artifacts/commercial-audit/product-simplified.png" })
+  await page.getByRole("button", { name: "收藏商品", exact: true }).click()
+  await page.getByRole("button", { name: "取消收藏商品", exact: true }).waitFor()
+  assert.equal(await page.getByRole("button", { name: "取消收藏商品", exact: true }).getAttribute("aria-pressed"), "true")
+  await page.getByRole("button", { name: "取消收藏商品", exact: true }).click()
+  await page.getByRole("button", { name: "收藏商品", exact: true }).waitFor()
   await page.evaluate(() => sessionStorage.setItem("aprice:location", JSON.stringify({ lat: 35.7, lng: 139.7, savedAt: Date.now() })))
   storeCalls.length = 0
   await page.reload()

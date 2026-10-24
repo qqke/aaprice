@@ -22,12 +22,17 @@
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   border-radius: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-top: 76px;
   background: #111;
   color: #fff;
   color-scheme: dark;
 }
 .scanner-dialog > * { flex-shrink: 0; }
 .scanner-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
@@ -49,8 +54,8 @@
 .scanner-progress { background: #111e; border-radius: 12px; }
 .scanner-hint { position: absolute; bottom: 22px; width: 100%; padding: 0 20px; text-align: center; font-size: 13px; color: #e5e5e5; text-shadow: 0 1px 4px #000; }
 .scanner-status { min-height: 52px; padding: 16px 24px 4px; text-align: center; font-size: 13px; line-height: 1.6; color: #c2c2c2; }
-.scanner-actions { display: flex; justify-content: space-around; padding: 16px 24px 28px; }
-.scanner-actions button { display: flex; min-width: 76px; min-height: 68px; align-items: center; flex-direction: column; justify-content: center; gap: 10px; font-size: 13px; border-radius: 8px; transition: background 150ms, transform 150ms; }
+.scanner-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 4px; padding: 12px 12px 20px; }
+.scanner-actions button { display: flex; min-width: 0; min-height: 64px; align-items: center; flex-direction: column; justify-content: center; gap: 8px; padding: 8px 2px; font-size: 13px; border-radius: 8px; transition: background 150ms, transform 150ms; }
 .scanner-actions button[aria-pressed="true"] { color: #07c160; }
 .scanner-actions svg { width: 28px; height: 28px; stroke-width: 1.5; }
 .scanner-dialog button:disabled { opacity: .45; }
@@ -58,6 +63,12 @@
 .scanner-actions button:active { transform: scale(.96); background: #ffffff12; }
 .scanner-details { padding: 20px; background: #242424; border-top: 1px solid #383838; }
 .scanner-panel { flex: 1; width: 100%; max-width: 440px; align-self: center; padding: 28px 24px; }
+.scanner-result { display: flex; flex-direction: column; }
+.scanner-result-actions { margin-top: auto; padding-top: 28px; }
+.scanner-clear { position: absolute; right: 0; top: 0; display: grid; width: 48px; height: 48px; place-items: center; border-radius: 8px; color: #c2c2c2; }
+.scanner-dialog input[data-slot="input"] { min-height: 48px; font-size: 16px; }
+.scanner-panel [data-slot="button"] { min-height: 48px; }
+.scanner-dialog select { min-height: 44px; }
 .scanner-mode { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 20px 16px; font-size: 13px; color: #c2c2c2; }
 .scanner-mode select { padding: 8px 12px; border: 1px solid #505050; border-radius: 6px; background: #242424; color: #fff; }
 @keyframes scanner-sweep { to { top: 90%; } }
