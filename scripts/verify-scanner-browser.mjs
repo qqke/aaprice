@@ -59,7 +59,19 @@ export async function verifyScannerBrowser(page, origin, missingJan) {
   let enrichmentRequests = 0
   const countEnrichment = request => { if (request.url().startsWith("https://r.jina.ai/")) enrichmentRequests++ }
   page.on("request", countEnrichment)
+  let failBarcodeOnce = true
+  await page.route("**/rest/v1/products?**", route => {
+    if (failBarcodeOnce && new URL(route.request().url()).searchParams.get("barcode") === `eq.${missingJan}`) {
+      failBarcodeOnce = false
+      return route.abort("failed")
+    }
+    return route.fallback()
+  })
   await input.fill(missingJan)
+  await input.press("Enter")
+  await dialog.getByRole("alert").filter({ hasText: "网络连接失败" }).waitFor()
+  assert.equal(await input.inputValue(), missingJan)
+  assert.equal(await dialog.getByText(`正在查询 ${missingJan}…`, { exact: true }).count(), 0)
   await input.press("Enter")
   await dialog.getByRole("heading", { name: "暂未收录此商品", exact: true }).waitFor()
   assert.equal(await dialog.locator("video, input:not([type=file])").count(), 0)

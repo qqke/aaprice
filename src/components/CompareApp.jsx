@@ -329,7 +329,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
     } catch (error) {
       if (openRef.current && epoch === scanEpochRef.current) {
         if (bounds) setStatus(friendlyApiError(error))
-        else setManualError(friendlyApiError(error))
+        else { setStatus(""); setManualError(friendlyApiError(error)) }
       }
     } finally {
       scanBusyRef.current = false
