@@ -208,6 +208,13 @@ export function getPriceStats(product) {
   }
 }
 
+export function getCatalogPrice(product) {
+  const quoted = getPriceStats(product).min
+  if (quoted !== null) return quoted
+  const preview = product.pricePreview?.minPrice
+  return Number.isFinite(preview) && preview > 0 ? preview : null
+}
+
 export function getBasketSummary(items = []) {
   return items.reduce((summary, product) => {
     const stats = getPriceStats(product)
@@ -303,11 +310,11 @@ export function filterProducts(items, { query = "", segment = "全部", brand = 
     return matchesQuery
       && (segment === "全部" || product.category === segment || getCatalogCategory(product) === segment)
       && (!brand || product.maker === brand)
-      && (getPriceStats(product).min === null || getPriceStats(product).min <= maxPrice)
+      && (getCatalogPrice(product) === null || getCatalogPrice(product) <= maxPrice)
   })
 
   return filtered.toSorted((a, b) => {
-    if (sort === "price") return (getPriceStats(a).min ?? Infinity) - (getPriceStats(b).min ?? Infinity)
+    if (sort === "price") return (getCatalogPrice(a) ?? Infinity) - (getCatalogPrice(b) ?? Infinity)
     if (sort === "unit") return (getUnitPrice(a) ?? Infinity) - (getUnitPrice(b) ?? Infinity)
     if (sort === "saving") return (getPriceStats(b).saving ?? -1) - (getPriceStats(a).saving ?? -1)
     if (sort === "distance" && location) {

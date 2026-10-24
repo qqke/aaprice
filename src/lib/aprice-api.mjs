@@ -97,7 +97,10 @@ export async function searchProducts(term = "", limit = 30, { offset = 0, curate
   const boundedLimit = Math.max(1, Math.min(Number(limit) || 30, 500))
   const boundedOffset = Math.max(0, Number(offset) || 0)
   const value = String(term || "").trim()
-  if (!value && curated) return rpc("fetch_public_ranked_products", { payload: { limit: Math.min(boundedLimit, 100), offset: boundedOffset } })
+  if (!value && curated) {
+    try { return await rpc("fetch_public_ranked_products", { payload: { limit: Math.min(boundedLimit, 100), offset: boundedOffset } }) }
+    catch { /* Keep the full catalog available if discovery ranking is unavailable. */ }
+  }
   const query = {
     select: "*",
     order: "last_seen_at.desc.nullslast,updated_at.desc",

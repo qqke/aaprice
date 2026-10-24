@@ -49,6 +49,7 @@ export default function ProductApp() {
   const [logs, setLogs] = useState([])
   const [credit, setCredit] = useState(null)
   const [pricePreview, setPricePreview] = useState(null)
+  const [previewError, setPreviewError] = useState("")
   const [commercialOffer, setCommercialOffer] = useState(null)
   const [commercialBusy, setCommercialBusy] = useState(false)
   const [commercialStatus, setCommercialStatus] = useState("")
@@ -123,7 +124,8 @@ export default function ProductApp() {
           setProfile(await fetchCurrentProfile())
           await loadPrivate(productId, activeSession)
         } else {
-          const preview = await fetchPublicPricePreview(productId).catch(() => null)
+          setPreviewError("")
+          const preview = await fetchPublicPricePreview(productId).catch((error) => { if (active) setPreviewError(friendlyApiError(error)); return null })
           setPricePreview(preview)
           if (preview) void recordTelemetryEvent("public_price_preview_seen", { product_id: productId, store_count: preview.storeCount }).catch(() => {})
         }
@@ -274,8 +276,10 @@ export default function ProductApp() {
         </div>
 
         <div className="order-1 min-w-0 space-y-8 lg:order-2">
+          {status && <p className="rounded-xl border bg-card px-4 py-3 text-sm" role="status" aria-live="polite">{status}</p>}
+          {previewError && <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-4" role="alert"><p className="text-sm">价格预览暂时无法加载：{previewError}</p><Button variant="outline" className="mt-3" onClick={() => { setLoading(true); setLoadRetry((value) => value + 1) }}>重试价格预览</Button></div>}
           {!session ? (
-            <><div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">{pricePreview ? <><p className="text-sm text-muted-foreground">匿名价格预览</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-3xl font-semibold">{formatPrice(pricePreview.minPrice)}</p><p className="mt-2 text-sm text-muted-foreground">{pricePreview.storeCount} 个报价来源 · {getPriceFreshness(pricePreview.latestCollectedAt).label}</p></div><Button asChild className="hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "price_preview", product_id: productId }).catch(() => {})}>登录查看报价</a></Button></div><p className="mt-5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">仅展示近期最低价概览。登录后可查看报价来源、采集时间和完整记录。</p></> : <><h2 className="text-xl font-semibold">登录后查看价格</h2><p className="mt-2 text-sm text-muted-foreground">登录后可以查询价格、收藏商品并保存记录。</p><Button asChild className="mt-5 hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "product_gate", product_id: productId }).catch(() => {})}>登录继续</a></Button></>}</div>{commercialSection}</>
+            <><div className="rounded-3xl border bg-card p-6 shadow-[0_20px_60px_oklch(0.18_0.03_178_/_0.06)]">{pricePreview ? <><p className="text-sm text-muted-foreground">匿名价格预览</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-3xl font-semibold">{formatPrice(pricePreview.minPrice)}</p><p className="mt-2 text-sm text-muted-foreground">{pricePreview.storeCount} 个报价来源 · {getPriceFreshness(pricePreview.latestCollectedAt).label}</p></div><Button asChild className="hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "price_preview", product_id: productId }).catch(() => {})}>登录查看报价</a></Button></div><p className="mt-5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">仅展示近期最低价概览。登录后可查看报价来源、采集时间和完整记录。</p></> : <><h2 className="text-xl font-semibold">{previewError ? "价格预览暂不可用" : "暂无近期价格预览"}</h2><p className="mt-2 text-sm text-muted-foreground">{previewError ? "请先重试价格预览，或登录后查询门店价格。" : "当前没有可展示的近期报价。登录后可查询门店价格或记录自己的价格；查询也可能暂无结果。"}</p><Button asChild className="mt-5 hidden lg:inline-flex"><a href={appPath(`/login/?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)} onClick={() => void recordTelemetryEvent("login_prompt_clicked", { source: "product_gate", product_id: productId }).catch(() => {})}>登录继续</a></Button></>}</div>{commercialSection}</>
           ) : (
             <>
               <section id="store-prices">
@@ -308,7 +312,7 @@ export default function ProductApp() {
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground">补充信息与公共提交（可选）</summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="会员价、促销等" /></label><label><span className="mb-2 block text-sm font-medium">凭证 URL</span><Input type="url" value={form.evidence_url} onChange={(event) => setForm({ ...form, evidence_url: event.target.value })} /></label><label className="flex items-center gap-3 self-end pb-2 text-sm"><input type="checkbox" checked={form.share_to_public} onChange={(event) => setForm({ ...form, share_to_public: event.target.checked })} /> 提交公共比价审核</label></div>
                   </details>
-                  <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><Button type="submit" disabled={savingPrice}>{savingPrice ? <LoaderCircle className="animate-spin" /> : <Save />}{savingPrice ? "正在保存" : "保存价格"}</Button>{status && <p className="text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>}</div>
+                  <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><Button type="submit" disabled={savingPrice}>{savingPrice ? <LoaderCircle className="animate-spin" /> : <Save />}{savingPrice ? "正在保存" : "保存价格"}</Button></div>
                 </form>
               </section>
 

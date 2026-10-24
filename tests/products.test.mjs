@@ -25,8 +25,21 @@ test("catalog groups separate tax/brand labels and preserve every product and so
   assert.equal(filterProducts(items, { segment: "日常护理", brand: "A" }).length, 0)
   assert.deepEqual(items, before)
 })
-import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getClosestOffer, getCompareSelectionFromSearch, getImageSrcSet, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
+import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getCatalogPrice, getClosestOffer, getCompareSelectionFromSearch, getImageSrcSet, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
 import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseCommercialOfferRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
+
+test("anonymous price previews can be sorted and filtered without entering verified basket totals", () => {
+  const sample = (id, price) => ({ ...products[0], id, offers: [], pricePreview: { minPrice: price } })
+  const items = [sample("expensive", 5500), sample("cheap", 292), sample("invalid", NaN)]
+  const before = structuredClone(items)
+  assert.deepEqual(filterProducts(items, { sort: "price", maxPrice: Infinity }).map(p => p.id), ["cheap", "expensive", "invalid"])
+  assert.deepEqual(filterProducts(items, { maxPrice: 1000 }).map(p => p.id), ["cheap", "invalid"])
+  assert.equal(getBasketSummary(items).pricedCount, 0)
+  assert.equal(getBasketSummary(items).minimumTotal, 0)
+  assert.equal(getCatalogPrice({ ...items[0], offers: [{ price: 6000 }] }), 6000)
+  for (const price of [0, -1, Infinity, "292", null]) assert.equal(getCatalogPrice(sample("bad", price)), null)
+  assert.deepEqual(items, before)
+})
 
 test("searches JAN and sorts filtered drugstore products without mutating source data", () => {
   const originalOrder = products.map(({ id }) => id)

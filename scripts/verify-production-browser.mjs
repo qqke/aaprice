@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises"
+import assert from "node:assert/strict"
 import { chromium } from "playwright-core"
 
 const siteUrl = process.argv[2]
@@ -21,9 +22,12 @@ const browser = await chromium.launch({ executablePath, headless: true })
 try {
   const page = await browser.newPage({ locale: "zh-CN" })
   await page.goto(siteUrl, { waitUntil: "domcontentloaded" })
-  // Verify anonymous catalog value without coupling the smoke test to heading copy.
+  // Wait for real catalog data: isVisible() alone can silently skip the entire flow.
   const product = page.locator("#catalog article").first()
-  const productHref = await product.isVisible({ timeout: 20_000 }).then(async (visible) => visible ? product.getByRole("heading").getByRole("link").getAttribute("href") : null).catch(() => null)
+  await product.waitFor({ state: "visible", timeout: 20_000 })
+  assert.match(await product.innerText(), /[¥￥]\s*[\d,]+/, "the discovery catalog must show a public price before login")
+  const productHref = await product.getByRole("heading").getByRole("link").getAttribute("href")
+  assert.ok(productHref, "catalog product must open its detail page")
 
   await page.getByRole("button", { name: "登录", exact: true }).waitFor({ timeout: 20_000 })
 

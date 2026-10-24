@@ -78,6 +78,7 @@ import {
   formatUnitPrice,
   getBasketSummary,
   getBestSingleStoreBasket,
+  getCatalogPrice,
   getClosestOffer,
   getCompareSelectionFromSearch,
   getImageSrcSet,
@@ -573,7 +574,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
   const pack = product.pack !== "规格未登记" ? product.pack : ""
 
   return (
-    <motion.article layout initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: 0.2 }} className="product-card group min-w-0 overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md">
+    <motion.article layout={reduceMotion ? false : "position"} initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: 0.2 }} className="product-card group min-w-0 overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md">
       <div className="grid h-full grid-cols-[88px_minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-5 sm:p-5">
         <a href={appPath('/product/?id=' + encodeURIComponent(product.id))} aria-label={'查看 ' + product.name + ' 详情'} className="relative block aspect-square overflow-hidden rounded-lg bg-white outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <img src={product.image} srcSet={getImageSrcSet(product.image)} sizes="(min-width: 640px) 120px, 88px" width="120" height="120" alt={product.name} loading={featured ? "eager" : "lazy"} fetchPriority={featured ? "high" : "auto"} decoding="async" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.src = "/lowprice-logo.png"; event.currentTarget.srcset = "" }} className="absolute inset-0 h-full w-full object-contain p-2" />
@@ -583,7 +584,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
           <h3 className="mt-1 font-semibold leading-snug"><a href={appPath('/product/?id=' + encodeURIComponent(product.id))} className="inline-flex min-h-11 items-center outline-none hover:text-primary focus-visible:ring-2"><span className="line-clamp-2">{product.name}</span></a></h3>
           {pack && <p className="mt-1 text-sm text-muted-foreground">{pack}</p>}
           <div className="mt-3">
-            {hasPrices ? <><p className="font-mono text-2xl font-semibold tracking-tight text-primary">{formatPrice(minimumPrice)}{stats.bestOffer?.member && <span className="ml-2 font-sans text-xs font-normal">会员价</span>}</p><p className="mt-1 text-xs text-muted-foreground">{stats.bestOffer ? stats.bestOffer.name : '近期最低价（仅供参考） · ' + sourceCount + ' 个来源'} · {formatDate(sampledAt)}</p></> : <p className="text-sm text-muted-foreground">{priceLoading ? "正在查询报价…" : priceError || (priceChecked ? "暂无近期报价" : "尚未查价")}</p>}
+            {hasPrices ? <><p className="font-mono text-2xl font-semibold tracking-tight text-primary">{formatPrice(minimumPrice)}{stats.bestOffer?.member && <span className="ml-2 font-sans text-xs font-normal">会员价</span>}</p><p className="mt-1 text-xs text-muted-foreground">{stats.bestOffer ? stats.bestOffer.name : '近期最低价（仅供参考） · ' + sourceCount + ' 个来源'} · {formatDate(sampledAt)}</p></> : <p className="text-sm text-muted-foreground">{priceLoading ? "正在查询报价…" : priceError || (priceChecked ? "暂无近期报价" : "暂无公开价格预览")}</p>}
             {closest && <p className="mt-1 text-xs text-muted-foreground">最近 {closest.name} · {formatDistance(closest.distance)}</p>}
             {/軽減税率/.test(product.category) && <p className="mt-1 text-xs text-muted-foreground">来源标注：轻减税率</p>}
           </div>
@@ -638,7 +639,7 @@ function CompareDialog({ open, onOpenChange, selectedProducts, commercialOffers,
       {!product.offers.length && supabaseConfigured && <Button variant="outline" size="sm" onClick={() => onLoadPrices(product.id)} disabled={priceLoading[product.id]}>{priceLoading[product.id] && <LoaderCircle className="animate-spin" />}{priceLoading[product.id] ? "查询中" : !session ? "登录查价" : priceChecked[product.id] ? "重新查询" : "查询报价"}</Button>}
       {commercialOffer && <Button variant="ghost" size="sm" onClick={() => openCommercial(commercialOffer)}>合作购买</Button>}
       <Button asChild variant="ghost" size="sm"><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)}>商品详情</a></Button>
-    </div>{!product.offers.length && <p className="mt-2 text-xs text-muted-foreground" role="status">{priceLoading[product.id] ? "正在查询报价…" : priceErrors[product.id] || (priceChecked[product.id] ? "暂无近期报价" : product.pricePreview ? "近期价格仅供参考，查价后计入合计。" : "尚未查价")}</p>}</>
+    </div>{!product.offers.length && <p className="mt-2 text-xs text-muted-foreground" role="status">{priceLoading[product.id] ? "正在查询报价…" : priceErrors[product.id] || (priceChecked[product.id] ? "暂无近期报价" : product.pricePreview ? "近期价格仅供参考，查价后计入合计。" : "暂无公开价格预览")}</p>}</>
   }
 
   return (
@@ -681,6 +682,7 @@ export default function CompareApp({ initialScan = false }) {
   const restoredQuery = useRef(null)
   const pendingScroll = useRef(null)
   const catalogView = useRef(null)
+  const catalogEpoch = useRef(0)
   const [query, setQuery] = useState("")
   const [segment, setSegment] = useState("全部")
   const [brand, setBrand] = useState("")
@@ -714,6 +716,7 @@ export default function CompareApp({ initialScan = false }) {
     const returning = params.get("restore") === "1" || performance.getEntriesByType("navigation")[0]?.type === "back_forward"
     let saved = null
     try { if (returning && !initialScan) saved = readCatalogState(sessionStorage.getItem(CATALOG_STATE_KEY)) } catch {}
+    if (params.has("q") && saved?.query !== params.get("q")) saved = null
     let active = true
     const restore = async () => {
       if (saved?.userId) {
@@ -737,6 +740,8 @@ export default function CompareApp({ initialScan = false }) {
         setCatalogLoading(false)
         restoredQuery.current = saved.query
         pendingScroll.current = saved.scrollY
+      } else if (!initialScan) {
+        setQuery((params.get("q") || "").slice(0, 300))
       }
       if (params.has("restore")) {
         const url = new URL(window.location.href)
@@ -755,6 +760,14 @@ export default function CompareApp({ initialScan = false }) {
     window.addEventListener("pagehide", saveView)
     return () => { active = false; window.removeEventListener("pagehide", saveView) }
   }, [initialScan])
+
+  useEffect(() => {
+    if (!catalogReady || initialScan) return
+    const url = new URL(window.location.href)
+    if (query.trim()) url.searchParams.set("q", query.trim())
+    else url.searchParams.delete("q")
+    history.replaceState(null, "", url.href)
+  }, [query, catalogReady, initialScan])
 
   useEffect(() => {
     if (!catalogReady || pendingScroll.current === null) return
@@ -828,11 +841,13 @@ export default function CompareApp({ initialScan = false }) {
     if (!supabaseConfigured || !catalogReady) return undefined
     if (restoredQuery.current === query) { restoredQuery.current = null; return undefined }
     let active = true
+    ++catalogEpoch.current
+    setCatalogLoadingMore(false)
     const timer = setTimeout(async () => {
       setCatalogLoading(true)
       setCatalogError("")
       try {
-        const rows = await searchProducts(query)
+        const rows = await searchProducts(query, 30, { curated: true })
         void recordTelemetryEvent("search_completed", { query_present: Boolean(query.trim()), result_count: rows.length }).catch(() => {})
         if (active) {
           const products = rows.map(mapProductRow)
@@ -857,7 +872,7 @@ export default function CompareApp({ initialScan = false }) {
   const brands = useMemo(() => [...new Set(catalog.map(({ maker }) => maker).filter((maker) => maker && maker !== "品牌未登记"))].toSorted(), [catalog])
   useEffect(() => { if (!catalogLoading && !catalogError && !segments.includes(segment)) setSegment("全部") }, [segments, segment, catalogLoading, catalogError])
   useEffect(() => { if (!catalogLoading && !catalogError && brand && !brands.includes(brand)) setBrand("") }, [brands, brand, catalogLoading, catalogError])
-  const hasCatalogPrices = catalog.some((product) => product.offers.length > 0)
+  const hasCatalogPrices = catalog.some((product) => getCatalogPrice(product) !== null)
   const hasUnitPrices = catalog.some((product) => product.offers.length && product.pack !== "规格未登记")
   const hasPriceDifferences = catalog.some((product) => product.offers.length > 1)
   const hasStoreDistances = Boolean(location) && catalog.some((product) => getClosestOffer(product, location))
@@ -961,18 +976,21 @@ export default function CompareApp({ initialScan = false }) {
   }
 
   const loadMoreProducts = async () => {
+    if (catalogLoadingMore || catalogLoading) return
+    const epoch = catalogEpoch.current
     setCatalogLoadingMore(true)
     setCatalogError("")
     try {
-      const rows = await searchProducts(query, 30, { offset: catalog.length })
+      const rows = await searchProducts(query, 30, { offset: catalog.length, curated: true })
       const products = rows.map(mapProductRow)
       const previews = await fetchPublicCatalogPricePreviews(products.map(({ id }) => id)).catch(() => ({}))
+      if (epoch !== catalogEpoch.current) return
       setCatalog((items) => [...items, ...products.map((product) => previews[product.id] ? { ...product, pricePreview: previews[product.id] } : product).filter((row) => !items.some((item) => item.id === row.id))])
       setCatalogHasMore(rows.length === 30)
     } catch (error) {
-      setCatalogError(friendlyApiError(error))
+      if (epoch === catalogEpoch.current) setCatalogError(friendlyApiError(error))
     } finally {
-      setCatalogLoadingMore(false)
+      if (epoch === catalogEpoch.current) setCatalogLoadingMore(false)
     }
   }
 
@@ -1025,11 +1043,12 @@ export default function CompareApp({ initialScan = false }) {
         <section className="catalog-search mx-auto max-w-[1200px] px-4 pb-8 pt-8 sm:px-6 md:pt-12 lg:px-8">
           <motion.div initial={reduceMotion ? false : "hidden"} animate="visible" variants={{ visible: { transition: { staggerChildren: 0.07 } } }}>
             <motion.h1 variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.48, ease: [0.16, 1, 0.3, 1] } } }} className="max-w-3xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">日本药妆，查价更清楚。</motion.h1>
+            <p className="mt-2 text-sm text-muted-foreground">搜索商品名、品牌或 JAN，先看近期价格，再比较门店。</p>
             <motion.div variants={{ hidden: { opacity: 0, y: 12, scale: 0.99 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.46, ease: [0.16, 1, 0.3, 1] } } }} className="search-shell mt-5 flex gap-2 rounded-xl border bg-card p-2 shadow-sm">
-              <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN" aria-label="搜索商品" className={`h-12 border-0 bg-transparent pl-10 text-base shadow-none focus-visible:ring-0 ${query ? "pr-14" : "pr-3"}`} />{query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
+              <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" type="search" maxLength={300} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN" aria-label="搜索商品" className={`h-12 border-0 bg-transparent pl-10 text-base shadow-none focus-visible:ring-0 ${query ? "pr-14" : "pr-3"}`} />{query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
               <Button size="lg" onClick={() => setScanOpen(true)} aria-label="扫码检索" className="h-12 shrink-0 px-4 sm:px-6"><ScanLine /><span className="hidden sm:inline">扫码</span></Button>
             </motion.div>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
               <Button variant="outline" onClick={locate} disabled={locationStatus === "loading"}><MapPin />{locationCopy}</Button>
               <p className="text-xs text-muted-foreground" role="status" aria-live="polite">{locationError || (location ? "已获取位置，实体门店按距离比较。" : "尚未定位，报价门店可能不在你附近。")} <span className="text-muted-foreground/75">位置仅用于附近排序，30 分钟后自动失效。</span></p>
             </div>
@@ -1040,7 +1059,7 @@ export default function CompareApp({ initialScan = false }) {
           <div>
             <div className="mb-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="mr-auto text-lg font-semibold" aria-live="polite">{catalogLoading ? "正在加载商品" : catalogError ? "商品加载失败" : filtered.length + " 款商品"}</h2>
+                <h2 className="mr-auto text-lg font-semibold" aria-live="polite">{catalogLoading ? "正在加载商品" : catalogError ? "商品加载失败" : `已显示 ${filtered.length}${catalogHasMore ? "+" : ""} 件商品`}</h2>
                 <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序{hasFilters ? ` · ${[segment !== "全部", Boolean(brand), budget[0] !== MAX_PRICE, sort !== "score"].filter(Boolean).length}` : ""} <ChevronDown className={`ml-auto size-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} /></button>
                 {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}><RotateCcw /> 重置</Button>}
               </div>
@@ -1048,8 +1067,8 @@ export default function CompareApp({ initialScan = false }) {
                 {filtersOpen && <motion.div id="catalog-filters" initial={reduceMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={reduceMotion ? undefined : { opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
                 <div className={`mt-4 grid gap-5 border-t pt-5 ${hasCatalogPrices ? "md:grid-cols-[1.3fr_1fr_0.9fr]" : "md:grid-cols-[1.3fr_1fr]"}`}>
                   <div><p className="text-sm font-medium">商品分类 <span className="font-normal text-muted-foreground">· 当前已加载商品</span></p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div><label className="mt-4 block text-sm font-medium" htmlFor="brand-filter">品牌 / 厂商</label><select id="brand-filter" className="mt-2 h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" value={brand} onChange={(event) => setBrand(event.target.value)}><option value="">全部品牌 / 厂商</option>{brands.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-                  {hasCatalogPrices ? <><div><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">最高预算</span><span className="font-mono text-sm">{budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])}</span></div><Slider aria-label="最高预算" value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
-                  <div><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem>{hasUnitPrices && <SelectItem value="unit">单位价优先</SelectItem>}{hasPriceDifferences && <SelectItem value="saving">差价最大</SelectItem>}{hasStoreDistances && <SelectItem value="distance">离我最近</SelectItem>}</SelectContent></Select><p className="mt-2 text-xs text-muted-foreground">价格排序仅使用已查询报价。</p></div></> : <p className="text-sm text-muted-foreground">价格筛选将在查价后启用。</p>}
+                  {hasCatalogPrices ? <><div><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">最高预算</span><span className="font-mono text-sm">{budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])}</span></div><Slider aria-label="最高预算" aria-valuetext={budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])} value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
+                  <div><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem>{hasUnitPrices && <SelectItem value="unit">单位价优先</SelectItem>}{hasPriceDifferences && <SelectItem value="saving">差价最大</SelectItem>}{hasStoreDistances && <SelectItem value="distance">离我最近</SelectItem>}</SelectContent></Select><p className="mt-2 text-xs text-muted-foreground">价格排序使用已显示报价或近期价格概览。</p></div></> : <p className="text-sm text-muted-foreground">价格筛选将在查价后启用。</p>}
                 </div>
                 </motion.div>}
               </AnimatePresence>
@@ -1058,7 +1077,7 @@ export default function CompareApp({ initialScan = false }) {
             <div aria-busy={catalogLoading}>
               {catalogError && <div className="mb-5 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-4 text-sm" role="alert"><p className="font-semibold">商品目录暂时无法加载</p><p className="mt-1 text-muted-foreground">请重试；如果仍未恢复，也可以直接在上方搜索商品或输入 JAN 码。</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" onClick={() => setCatalogRetry((value) => value + 1)} disabled={catalogLoading}><RotateCcw />重新加载</Button><Button variant="ghost" onClick={() => document.getElementById("product-search")?.focus()}>开始搜索</Button></div></div>}
               {catalogLoading && !catalog.length && <div className="grid gap-5 md:grid-cols-2" aria-hidden="true">{[0, 1].map((item) => <div key={item} className="grid grid-cols-[88px_minmax(0,1fr)] gap-4 rounded-2xl border bg-card p-4 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-5 sm:p-5"><div className="aspect-square animate-pulse rounded-lg bg-muted" /><div className="space-y-4"><div className="h-3 w-20 animate-pulse rounded bg-muted" /><div className="h-6 w-3/4 animate-pulse rounded bg-muted" /><div className="h-16 animate-pulse rounded-xl bg-muted" /></div></div>)}</div>}
-              <motion.div layout className="grid gap-5 md:grid-cols-2"><AnimatePresence mode="popLayout">{filtered.map((product, index) => <ProductCard key={product.id} product={product} featured={index === 0} selected={selected.includes(product.id)} selectionFull={selected.length >= MAX_COMPARE} onToggle={toggleProduct} reduceMotion={reduceMotion} location={location} priceLoading={priceLoading[product.id]} priceChecked={priceChecked[product.id]} priceError={priceErrors[product.id]} onLoadPrices={loadPrices} session={session} />)}</AnimatePresence></motion.div>
+              <motion.div layout={reduceMotion ? false : "position"} className="grid gap-5 md:grid-cols-2"><AnimatePresence mode="popLayout">{filtered.map((product, index) => <ProductCard key={product.id} product={product} featured={index === 0} selected={selected.includes(product.id)} selectionFull={selected.length >= MAX_COMPARE} onToggle={toggleProduct} reduceMotion={reduceMotion} location={location} priceLoading={priceLoading[product.id]} priceChecked={priceChecked[product.id]} priceError={priceErrors[product.id]} onLoadPrices={loadPrices} session={session} />)}</AnimatePresence></motion.div>
               {!catalogLoading && !catalogError && catalogHasMore && <div className="mt-8 flex justify-center"><Button variant="outline" size="lg" onClick={loadMoreProducts} disabled={catalogLoadingMore}>{catalogLoadingMore && <LoaderCircle className="animate-spin" />}{catalogLoadingMore ? "正在加载" : "加载更多商品"}</Button></div>}
               {!catalogLoading && !catalogError && !filtered.length && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid min-h-80 place-items-center rounded-2xl border border-dashed bg-muted/30 p-8 text-center"><div><Pill className="mx-auto size-8 text-muted-foreground" /><h3 className="mt-4 text-lg font-semibold">没有符合条件的商品</h3><p className="mt-2 text-sm text-muted-foreground">{query.trim() ? <>没有找到“<span className="font-medium text-foreground">{query.trim()}</span>”，可以检查名称、品牌或 JAN 码。</> : "换品牌、分类或价格条件试试。"}</p><div className="mt-5 flex flex-wrap justify-center gap-2">{query.trim() && <Button variant="outline" onClick={() => { setQuery(""); document.getElementById("product-search")?.focus() }}>清除搜索</Button>}<Button onClick={resetFilters}>清除全部筛选</Button></div></div></motion.div>}
             </div>

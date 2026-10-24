@@ -186,11 +186,13 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(api, /try \{ sessionId = sessionStorage\.getItem/)
 })
 
-test("production browser smoke covers the public shell and optional catalog detail", async () => {
+test("production browser smoke requires real anonymous catalog value and detail", async () => {
   const source = await readSource("scripts/verify-production-browser.mjs")
   assert.match(source, /getByRole\("button", \{ name: "登录"/)
   assert.match(source, /getByText\("匿名价格预览"/)
   assert.match(source, /commercialIndex < priceIndex/)
+  assert.match(source, /await product\.waitFor/)
+  assert.doesNotMatch(source, /product\.isVisible/)
 })
 
 test("price alert worker keeps secrets server-side and records every outcome", async () => {
