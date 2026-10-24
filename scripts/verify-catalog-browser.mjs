@@ -77,6 +77,44 @@ try {
   await page.getByRole("heading", { name: "暂无近期价格预览" }).waitFor()
   assert.match(await page.locator("main").innerText(), /查询也可能暂无结果/)
   emptyPreview = false
+  let signupRedirect, resetRedirect, autoConfirm = false
+  await page.route("**/auth/v1/**", route => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith("/signup")) {
+      signupRedirect = url.searchParams.get("redirect_to")
+      if (autoConfirm) {
+        const payload = Buffer.from(JSON.stringify({ sub: "00000000-0000-0000-0000-000000000001", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")
+        return route.fulfill({ json: { access_token: `e30.${payload}.cWE`, refresh_token: "isolated-fixture", expires_in: 3600, token_type: "bearer", user: { id: "00000000-0000-0000-0000-000000000001", identities: [{ id: "qa" }] } } })
+      }
+      return route.fulfill({ json: { id: "qa", email: "review@example.com", identities: [{ id: "qa" }] } })
+    }
+    if (url.pathname.endsWith("/recover")) resetRedirect = url.searchParams.get("redirect_to")
+    return route.fulfill({ json: {} })
+  })
+  const returnTo = "/product/?id=needle"
+  await page.goto(origin + "/login/?mode=register&redirect=" + encodeURIComponent(returnTo))
+  await page.getByLabel("邮箱", { exact: true }).fill("review@example.com")
+  await page.getByLabel("密码", { exact: true }).fill("isolated-test-password")
+  await page.getByLabel("确认密码", { exact: true }).fill("isolated-test-password")
+  await page.getByRole("button", { name: "注册", exact: true }).click()
+  await page.getByText("注册邮件已发送，请确认邮箱后继续。", { exact: true }).waitFor()
+  assert.equal(new URL(signupRedirect).searchParams.get("redirect"), returnTo)
+  await page.goto(origin + "/login/?mode=resetRequest&redirect=" + encodeURIComponent(returnTo))
+  await page.getByLabel("邮箱", { exact: true }).fill("review@example.com")
+  await page.getByRole("button", { name: "发送重置邮件", exact: true }).click()
+  await page.getByText("密码重置邮件已发送。", { exact: true }).waitFor()
+  assert.equal(new URL(resetRedirect).searchParams.get("mode"), "reset")
+  assert.equal(new URL(resetRedirect).searchParams.get("redirect"), returnTo)
+  await page.goto(origin + "/login/#error=access_denied&error_code=otp_expired")
+  await page.getByRole("alert").filter({ hasText: "验证链接无效或已过期" }).waitFor()
+  autoConfirm = true
+  await page.goto(origin + "/login/?mode=register&redirect=" + encodeURIComponent(returnTo))
+  await page.getByLabel("邮箱", { exact: true }).fill("review@example.com")
+  await page.getByLabel("密码", { exact: true }).fill("isolated-test-password")
+  await page.getByLabel("确认密码", { exact: true }).fill("isolated-test-password")
+  await page.getByRole("button", { name: "注册", exact: true }).click()
+  await page.waitForURL(origin + returnTo)
+  await page.evaluate(() => localStorage.clear())
   await mkdir("artifacts/commercial-audit", { recursive: true })
   for (const width of [375, 768, 1440]) {
     for (const theme of ["light", "dark"]) {
@@ -90,5 +128,5 @@ try {
     }
   }
   assert.deepEqual(errors, [])
-  console.log("Catalog browser checks passed: public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, 6 responsive/theme views.")
+  console.log("Browser checks passed: public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, isolated signup/recovery callbacks, expired-link feedback, 6 responsive/theme views.")
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(r => server.close(r)) }

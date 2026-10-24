@@ -20,7 +20,7 @@ import {
   turnstileSiteKey,
   updatePassword,
 } from "@/lib/aprice-api.mjs"
-import { appPath } from "@/lib/paths.mjs"
+import { appPath, safeReturnPath } from "@/lib/paths.mjs"
 
 const copy = {
   login: ["登录账号", "使用 LOWPRICE 邮箱密码继续。", "登录", "还没有账号？注册"],
@@ -85,7 +85,11 @@ export default function AuthApp() {
   useEffect(() => {
     const initialMode = new URLSearchParams(window.location.search).get("mode")
     const requestedRedirect = new URLSearchParams(window.location.search).get("redirect") || ""
-    setRedirectPath(requestedRedirect.startsWith("/") && !requestedRedirect.startsWith("//") ? requestedRedirect : "")
+    setRedirectPath(safeReturnPath(requestedRedirect))
+    if (new URLSearchParams(window.location.search).has("error") || new URLSearchParams(window.location.hash.slice(1)).has("error")) {
+      setStatusType("error")
+      setStatus("验证链接无效或已过期，请重新登录或申请新邮件。")
+    }
     if (["register", "resetRequest", "reset"].includes(initialMode)) setMode(initialMode)
     let active = true
     let unsubscribe = () => {}
@@ -133,11 +137,17 @@ export default function AuthApp() {
         await recordTelemetryEvent("login_completed", { source: redirectPath ? "redirect" : "direct" }).catch(() => {})
         if (redirectPath) window.location.assign(redirectPath)
       } else if (mode === "register") {
-        await signUpWithEmailPassword(email.trim(), password, captchaToken)
-        setStatusType("success")
-        setStatus("注册邮件已发送，请确认邮箱后登录。")
+        const value = await signUpWithEmailPassword(email.trim(), password, captchaToken, redirectPath)
+        if (value.session) {
+          setSession(value.session)
+          if (redirectPath) window.location.assign(redirectPath)
+          else setMode("login")
+        } else {
+          setStatusType("success")
+          setStatus("注册邮件已发送，请确认邮箱后继续。")
+        }
       } else if (mode === "resetRequest") {
-        await sendPasswordResetEmail(email.trim(), captchaToken)
+        await sendPasswordResetEmail(email.trim(), captchaToken, redirectPath)
         setStatusType("success")
         setStatus("密码重置邮件已发送。")
       } else {

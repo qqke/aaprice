@@ -1,3 +1,5 @@
+import { authRedirectUrl } from "./paths.mjs"
+
 const runtimeConfig = globalThis.__APriceConfig || {}
 const SUPABASE_URL = String(import.meta.env?.PUBLIC_SUPABASE_URL || runtimeConfig.supabaseUrl || "").trim()
 const SUPABASE_ANON_KEY = String(import.meta.env?.PUBLIC_SUPABASE_ANON_KEY || runtimeConfig.supabaseAnonKey || "").trim()
@@ -229,14 +231,14 @@ export async function signInWithEmailPassword(email, password, captchaToken = ""
   return data.session
 }
 
-export async function signUpWithEmailPassword(email, password, captchaToken = "") {
+export async function signUpWithEmailPassword(email, password, captchaToken = "", returnPath = "") {
   const supabase = await getClient()
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       captchaToken: captchaToken || undefined,
-      emailRedirectTo: typeof window === "undefined" ? undefined : `${window.location.origin}/login/`,
+      emailRedirectTo: typeof window === "undefined" ? undefined : authRedirectUrl(window.location.origin, returnPath),
     },
   })
   if (error) throw error
@@ -244,11 +246,11 @@ export async function signUpWithEmailPassword(email, password, captchaToken = ""
   return data
 }
 
-export async function sendPasswordResetEmail(email, captchaToken = "") {
+export async function sendPasswordResetEmail(email, captchaToken = "", returnPath = "") {
   const supabase = await getClient()
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     captchaToken: captchaToken || undefined,
-    redirectTo: typeof window === "undefined" ? undefined : `${window.location.origin}/login/?mode=reset`,
+    redirectTo: typeof window === "undefined" ? undefined : authRedirectUrl(window.location.origin, returnPath, "reset"),
   })
   if (error) throw error
 }
