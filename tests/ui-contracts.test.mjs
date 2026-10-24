@@ -86,6 +86,8 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(account, /fetchMyPriceAlerts\(\)/)
   assert.match(account, /upsertPriceAlert/)
   assert.match(account, /降价提醒/)
+  assert.match(account, /aria-describedby="price-alert-help"/)
+  assert.match(account, /达到目标价后发送到注册邮箱/)
   assert.match(account, /alertByProduct/)
   assert.match(account, /favoriteChangeByProduct/)
   assert.match(account, /新增报价/)

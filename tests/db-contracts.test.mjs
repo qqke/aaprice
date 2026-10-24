@@ -53,6 +53,9 @@ test("security audit stays read-only and covers critical boundaries", async () =
   assert.match(sql, /rls_tables_without_policies_review/)
   assert.match(sql, /definer_functions_without_safe_search_path/)
   assert.match(sql, /definer_functions_executable_by_public/)
+  assert.match(sql, /admin_functions_executable_by_anon/)
+  assert.match(sql, /worker_functions_executable_by_client/)
+  assert.match(sql, /migration_function_defaults_grant_client_execute/)
   assert.match(sql, /client_table_access_review/)
   assert.doesNotMatch(sql, /\b(create|alter|drop|insert|update|delete|grant|revoke|truncate)\b/i)
 })
@@ -193,6 +196,21 @@ test("price alert workers atomically claim and retry deliveries", async () => {
   assert.match(sql, /delivery\.attempt_count < 5/)
   assert.match(sql, /grant execute on function public\.claim_price_alert_deliveries\(jsonb\) to service_role/)
   assert.doesNotMatch(sql, /grant execute[\s\S]* to (anon|authenticated)/)
+})
+
+test("worker RPCs are service-only and claims respect current alert consent and threshold", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20261024093149_secure_price_alert_queue.sql", import.meta.url), "utf8")
+  for (const signature of ["claim_price_alert_deliveries(jsonb)", "complete_price_alert_delivery(jsonb)", "enqueue_price_alert_deliveries()", "refill_price_tasks(jsonb)"]) {
+    assert.ok(sql.includes(`revoke all on function public.${signature} from public, anon, authenticated;`))
+    assert.ok(sql.includes(`grant execute on function public.${signature} to service_role;`))
+  }
+  assert.match(sql, /alert\.is_active and delivery\.price_yen <= alert\.target_price_yen/)
+  assert.match(sql, /account\.email_confirmed_at is not null/)
+  assert.match(sql, /for update of delivery skip locked/)
+  assert.match(sql, /alter default privileges for role postgres revoke execute on functions from public/)
+  assert.match(sql, /alter default privileges for role postgres in schema public revoke execute on functions from anon, authenticated/)
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /revoke all on function public\.admin_fetch_telemetry_recent\(jsonb\) from public, anon/)
 })
 
 test("price alert operations are visible only to administrators", async () => {
