@@ -4,6 +4,7 @@ import { ArrowLeft, BadgeJapaneseYen, Heart, LoaderCircle, LocateFixed, MapPin, 
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
+import CommercialPurchaseButton from "@/components/CommercialPurchaseButton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -115,7 +116,6 @@ export default function ProductApp() {
           if (!active) return
           const offer = rows[0] || null
           setCommercialOffer(offer)
-          if (offer) void recordTelemetryEvent("commercial_offer_seen", { offer_id: offer.id, product_id: productId, source: "product" }).catch(() => {})
         }).catch(() => {})
         const activeSession = await getSession()
         if (!active) return
@@ -214,7 +214,7 @@ export default function ProductApp() {
     setCommercialStatus("正在前往合作商店…")
     try { window.location.assign(await recordCommercialClick(commercialOffer.id, "product")) } catch (error) { setCommercialStatus(friendlyApiError(error)); setCommercialBusy(false) }
   }
-  const commercialSection = commercialOffer && <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="border-y py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs text-muted-foreground">合作链接 · 购买可能为 LOWPRICE 带来收益</p><h2 className="mt-1 font-semibold">楽天市场购买</h2></div><Button variant="outline" onClick={openCommercialOffer} disabled={commercialBusy}>{commercialBusy ? <LoaderCircle className="animate-spin" /> : <ArrowLeft className="rotate-180" />}{commercialBusy ? "跳转中" : "合作购买"}</Button></div>{commercialStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{commercialStatus}</p>}</motion.section>
+  const commercialSection = commercialOffer && <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="border-y py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs text-muted-foreground">合作链接 · 购买可能为 LOWPRICE 带来收益</p><h2 className="mt-1 font-semibold">楽天市场购买</h2></div><CommercialPurchaseButton offer={commercialOffer} source="product" variant="outline" onClick={openCommercialOffer} disabled={commercialBusy}>{commercialBusy ? <LoaderCircle className="animate-spin" /> : <ArrowLeft className="rotate-180" />}{commercialBusy ? "跳转中" : "合作购买"}</CommercialPurchaseButton></div>{commercialStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{commercialStatus}</p>}</motion.section>
 
   const favoriteStore = async (storeId) => {
     try {

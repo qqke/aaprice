@@ -29,8 +29,15 @@ try {
   const product = (id, name = id) => ({ id, name, brand: "テスト", pack: "100mL", category: "化粧水", image_url: "/lowprice-logo.png" })
   const products = Array.from({ length: 30 }, (_, i) => product(`p${i}`, `商品 ${i}`))
   let nextPage, failPreview = false, emptyPreview = false
+  let commercialEnabled = false
+  const exposures = []
   await page.route("**/rest/v1/**", async route => {
     const request = route.request(), url = new URL(request.url()), body = request.postDataJSON()
+    if (url.pathname.endsWith("/record_telemetry_event") && body.payload.event_name === "commercial_offer_seen") {
+      exposures.push(body.payload.properties)
+      return route.fulfill({ json: null })
+    }
+    if (url.pathname.endsWith("/fetch_commercial_offers")) return route.fulfill({ json: commercialEnabled ? body.payload.product_ids.map(id => ({ id: `offer-${id}`, product_id: id, partner: "rakuten" })) : [] })
     if (url.pathname.endsWith("/fetch_public_ranked_products")) {
       if (body.payload.offset) { await new Promise(r => { nextPage = r }); return route.fulfill({ json: [product("obsolete-page")] }) }
       return route.fulfill({ json: products })
@@ -77,6 +84,35 @@ try {
   await page.getByRole("heading", { name: "暂无近期价格预览" }).waitFor()
   assert.match(await page.locator("main").innerText(), /查询也可能暂无结果/)
   emptyPreview = false
+  commercialEnabled = true
+  await page.setViewportSize({ width: 375, height: 400 })
+  await page.goto(origin + "/product/?id=needle")
+  await page.getByText("匿名价格预览", { exact: true }).waitFor()
+  await page.waitForTimeout(200)
+  assert.equal(exposures.length, 0, "loaded offer below viewport must not count")
+  await page.getByRole("button", { name: "合作购买", exact: true }).scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
+  assert.equal(exposures.length, 1)
+  assert.deepEqual(exposures[0], { offer_id: "offer-needle", product_id: "needle", source: "product", measurement: "viewport_v1" })
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.getByRole("button", { name: "合作购买", exact: true }).scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
+  assert.equal(exposures.length, 1, "scrolling back must not recount the same mounted offer")
+  await page.goto(origin)
+  await page.evaluate(() => localStorage.setItem("aprice:compare-selection", JSON.stringify(["p0", "p1"])))
+  await page.reload()
+  await page.locator("#catalog article").nth(29).waitFor()
+  await page.getByRole("button", { name: "查看清单" }).waitFor()
+  await page.waitForTimeout(200)
+  assert.equal(exposures.length, 1, "offers loaded for a closed comparison must not count")
+  await page.setViewportSize({ width: 1440, height: 950 })
+  await page.getByRole("button", { name: "查看清单" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "合作购买", exact: true }).first().waitFor()
+  await page.waitForTimeout(200)
+  assert.equal(exposures.filter(item => item.source === "compare").length, 2, "only visible desktop buttons count, not hidden mobile copies")
+  await page.getByRole("button", { name: "关闭", exact: true }).click()
+  await page.evaluate(() => localStorage.clear())
+  commercialEnabled = false
   let signupRedirect, resetRedirect, autoConfirm = false
   await page.route("**/auth/v1/**", route => {
     const url = new URL(route.request().url())
@@ -128,5 +164,5 @@ try {
     }
   }
   assert.deepEqual(errors, [])
-  console.log("Browser checks passed: public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, isolated signup/recovery callbacks, expired-link feedback, 6 responsive/theme views.")
+  console.log("Browser checks passed: public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, visible commercial exposure, closed comparison/hidden duplicates excluded, isolated signup/recovery callbacks, expired-link feedback, 6 responsive/theme views.")
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(r => server.close(r)) }

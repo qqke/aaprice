@@ -134,9 +134,9 @@ function PriceAlertHealth({ data = {} }) {
 }
 
 function CommercialCoverageSummary({ data = {} }) {
-  const metrics = [["商品覆盖目标", `${data.covered_products ?? 0}/50`], ["启用链接", data.active_offers], ["有效曝光会话", data.eligible_sessions], ["归因点击会话", data.click_sessions], ["出口点击率", `${data.outbound_click_percent ?? 0}%`]]
+  const metrics = [["商品覆盖目标", `${data.covered_products ?? 0}/50`], ["启用链接", data.active_offers], ["有效曝光会话", data.eligible_sessions], ["归因点击会话", data.click_sessions], ["出口点击率", data.eligible_sessions > 0 ? `${data.outbound_click_percent ?? 0}%` : "—"]]
 
-  return <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">近 {data.days || 30} 天 · 商业验收</p><h2 className="mt-1 text-2xl font-semibold">联盟验证进度</h2><p className="mt-2 text-sm text-muted-foreground">先覆盖 50 件热门商品；出口点击率目标 ≥ 8%，仅按实际看到合作入口的去重会话计算。</p><div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-5">{metrics.map(([label, value]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}</p></div>)}</div></section>
+  return <section className="border-t pt-6 lg:col-span-2"><p className="text-sm text-muted-foreground">近 {data.days || 30} 天 · 商业验收</p><h2 className="mt-1 text-2xl font-semibold">联盟验证进度</h2><p className="mt-2 text-sm text-muted-foreground">先覆盖 50 件热门商品；出口点击率目标 ≥ 8%。购买按钮至少一半进入当前可见标签页的视口才计曝光；点击需匹配同一会话、入口来源和合作链接，且发生在曝光之后。旧版加载事件不计入，无曝光样本时显示 —。</p><div className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-5">{metrics.map(([label, value]) => <div key={label} className="border-t pt-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-semibold">{value ?? 0}</p></div>)}</div></section>
 }
 
 function CommercialCandidates({ items = [], onSelect }) {

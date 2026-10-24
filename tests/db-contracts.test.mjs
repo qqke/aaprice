@@ -279,3 +279,14 @@ test("commercial validation measures exposure sessions against attributed clicks
   assert.match(sql, /grant execute on function public\.admin_fetch_commercial_validation\(jsonb\) to authenticated/)
   assert.doesNotMatch(sql, /grant execute on function public\.admin_fetch_commercial_validation\(jsonb\) to anon/)
 })
+
+test("visible commercial attribution excludes legacy, unrelated, early and out-of-window clicks", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20261024090244_visible_commercial_attribution.sql", import.meta.url), "utf8")
+  assert.match(sql, /perform public\.require_admin_user\(\)/)
+  assert.match(sql, /'measurement' = 'viewport_v1'/)
+  assert.match(sql, /event\.session_id = click\.session_id and event\.source = click\.source/)
+  assert.match(sql, /event\.offer_id = click\.offer_id::text and event\.occurred_at <= click\.clicked_at/)
+  assert.match(sql, /click\.clicked_at between now\(\) - make_interval\(days => target_days\) and now\(\)/)
+  assert.match(sql, /revoke all on function public\.admin_fetch_commercial_validation\(jsonb\) from public, anon/)
+  assert.match(sql, /nullif\(exposure\.eligible_sessions, 0\)/)
+})

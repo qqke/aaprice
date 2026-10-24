@@ -1,4 +1,5 @@
 import { readLocation, requestLocation } from "@/lib/location.mjs"
+import CommercialPurchaseButton from "@/components/CommercialPurchaseButton"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
   Camera,
@@ -637,7 +638,7 @@ function CompareDialog({ open, onOpenChange, selectedProducts, commercialOffers,
     const commercialOffer = commercialOffers.find((offer) => String(offer.product_id) === String(product.id))
     return <><div className="mt-3 flex flex-wrap gap-2">
       {!product.offers.length && supabaseConfigured && <Button variant="outline" size="sm" onClick={() => onLoadPrices(product.id)} disabled={priceLoading[product.id]}>{priceLoading[product.id] && <LoaderCircle className="animate-spin" />}{priceLoading[product.id] ? "查询中" : !session ? "登录查价" : priceChecked[product.id] ? "重新查询" : "查询报价"}</Button>}
-      {commercialOffer && <Button variant="ghost" size="sm" onClick={() => openCommercial(commercialOffer)}>合作购买</Button>}
+      {commercialOffer && <CommercialPurchaseButton offer={commercialOffer} source="compare" variant="ghost" size="sm" onClick={() => openCommercial(commercialOffer)}>合作购买</CommercialPurchaseButton>}
       <Button asChild variant="ghost" size="sm"><a href={appPath(`/product/?id=${encodeURIComponent(product.id)}`)}>商品详情</a></Button>
     </div>{!product.offers.length && <p className="mt-2 text-xs text-muted-foreground" role="status">{priceLoading[product.id] ? "正在查询报价…" : priceErrors[product.id] || (priceChecked[product.id] ? "暂无近期报价" : product.pricePreview ? "近期价格仅供参考，查价后计入合计。" : "暂无公开价格预览")}</p>}</>
   }
@@ -820,12 +821,14 @@ export default function CompareApp({ initialScan = false }) {
 
   useEffect(() => {
     if (!selectionReady) return
+    let active = true
     try { localStorage.setItem(COMPARE_SELECTION_KEY, JSON.stringify(sanitizeCompareSelection(selected))) } catch {}
-    if (!selected.length) { setCommercialOffers([]); return }
+    setCommercialOffers([])
+    if (!selected.length) return
     fetchCommercialOffers(selected).then((offers) => {
-      setCommercialOffers(offers)
-      if (offers.length) void recordTelemetryEvent("commercial_offer_seen", { offer_count: offers.length, source: "compare" }).catch(() => {})
-    }).catch(() => setCommercialOffers([]))
+      if (active) setCommercialOffers(offers)
+    }).catch(() => { if (active) setCommercialOffers([]) })
+    return () => { active = false }
   }, [selected, selectionReady])
 
   useEffect(() => {
