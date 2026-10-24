@@ -9,6 +9,13 @@ declare
   second_page text[];
   available integer;
 begin
+  if has_schema_privilege('anon', 'private', 'usage')
+    or has_table_privilege('authenticated', (
+      select c.oid from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'private' and c.relname = 'catalog_discovery'
+    ), 'select') then
+    raise exception 'Discovery cache must remain private';
+  end if;
   select array_agg(id) into first_page
     from public.fetch_public_ranked_products('{"limit":30}');
   select array_agg(id) into second_page
