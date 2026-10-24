@@ -1,6 +1,25 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { createBarcodeScanner, scanBarcodeImage } from "../src/lib/barcode-scanner.mjs"
+import { cameraErrorMessage, createBarcodeScanner, getBarcodeCrop, scanBarcodeImage } from "../src/lib/barcode-scanner.mjs"
+
+test("live barcode crop matches centered cover previews in landscape and portrait video", () => {
+  const stage = { left: 0, top: 0, width: 200, height: 200 }
+  const guide = { left: 50, top: 75, width: 100, height: 50 }
+  assert.deepEqual(getBarcodeCrop(1000, 500, stage, guide), { x: 375, y: 187, width: 250, height: 125 })
+  assert.deepEqual(getBarcodeCrop(500, 1000, stage, guide), { x: 125, y: 437, width: 250, height: 125 })
+  assert.deepEqual(getBarcodeCrop(1000, 500, { ...stage, left: 20, top: 40 }, { ...guide, left: 70, top: 115 }),
+    getBarcodeCrop(1000, 500, stage, guide))
+  assert.equal(getBarcodeCrop(0, 500, stage, guide), null)
+  assert.equal(getBarcodeCrop(1000, 500, stage, { ...guide, left: 9999 }), null)
+})
+
+test("camera failures distinguish permissions, missing hardware and occupied cameras", () => {
+  assert.match(cameraErrorMessage({ name: "NotAllowedError" }), /权限未开启/)
+  assert.match(cameraErrorMessage({ name: "SecurityError" }), /权限未开启/)
+  assert.match(cameraErrorMessage({ name: "NotFoundError" }), /没有找到可用相机/)
+  assert.match(cameraErrorMessage({ name: "NotReadableError" }), /其他应用占用/)
+  assert.match(cameraErrorMessage(new Error("unknown")), /启动失败/)
+})
 
 test("mobile fallback decodes an actual EAN barcode without BarcodeDetector", async () => {
   const previous = globalThis.BarcodeDetector

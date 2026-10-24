@@ -3,6 +3,7 @@ import { createServer } from "node:http"
 import { access, readFile, mkdir } from "node:fs/promises"
 import { resolve, extname, sep } from "node:path"
 import { chromium } from "playwright-core"
+import { verifyScannerBrowser } from "./verify-scanner-browser.mjs"
 
 // Run after npm run build. All API traffic is intercepted; no real user data or events.
 const root = resolve("dist")
@@ -33,6 +34,7 @@ try {
   products[1].image_url = "/missing-fixture-product.png"
   let nextPage, failPreview = false, emptyPreview = false
   let commercialEnabled = false
+  let priceQueries = 0
   let accountFixtures = false
   const fixtureUserId = "00000000-0000-0000-0000-000000000001"
   const missingJan = "4901234567894"
@@ -72,11 +74,11 @@ try {
     if (accountFixtures && table === "fetch_favorite_price_changes") return route.fulfill({ json: { days: 7, items: [] } })
     if (accountFixtures && table === "fetch_my_price_alerts") return route.fulfill({ json: [{ product_id: "needle", target_price_yen: 300, is_active: true }] })
     if (url.pathname.endsWith("/fetch_credit_summary")) return route.fulfill({ json: { balance: 0, daily_free_price_references: 5, references_today: 0 } })
-    if (url.pathname.endsWith("/fetch_product_prices")) return route.fulfill({ json: [
+    if (url.pathname.endsWith("/fetch_product_prices")) { priceQueries++; return route.fulfill({ json: [
       { store_id: "unknown", price_yen: 100, distance_km: null, collected_at: new Date().toISOString(), stores: { name: "未知坐标店", address: "东京某街道", lat: null, lng: null } },
       { store_id: "physical", price_yen: 200, distance_km: 1, collected_at: new Date().toISOString(), stores: { name: "附近实体店", lat: 35.71, lng: 139.7 } },
       { store_id: "sundrug-00000", price_yen: 90, distance_km: 0, collected_at: new Date().toISOString(), stores: { name: "官方在线商店", lat: 35.7, lng: 139.7 } },
-    ] })
+    ] }) }
     if (url.pathname.endsWith("/record_telemetry_event") && body.payload.event_name === "commercial_offer_seen") {
       exposures.push(body.payload.properties)
       return route.fulfill({ json: null })
@@ -196,7 +198,13 @@ try {
   await page.getByLabel("确认密码", { exact: true }).fill("isolated-test-password")
   await page.getByRole("button", { name: "注册", exact: true }).click()
   await page.waitForURL(origin + returnTo)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByText("近期参考价", { exact: true }).waitFor()
+  assert.equal(priceQueries, 0, "signed-in public preview must not consume a price query")
+  assert.equal(await page.locator("#record-price").getAttribute("open"), null)
+  await page.screenshot({ path: "artifacts/commercial-audit/product-simplified.png" })
   await page.evaluate(() => sessionStorage.setItem("aprice:location", JSON.stringify({ lat: 35.7, lng: 139.7, savedAt: Date.now() })))
+  storeCalls.length = 0
   await page.reload()
   await page.getByRole("button", { name: "免费查询报价", exact: true }).first().click()
   await page.getByRole("heading", { name: "未知坐标店", exact: true }).waitFor()
@@ -212,6 +220,7 @@ try {
   assert.equal(storeCalls.filter(call => call.physical_only).length, 1, "detail should issue one bounded default store search, not 50 pages")
   assert.equal(storeCalls.at(-1).lat, 35.7)
   const storeInput = page.getByRole("searchbox", { name: "搜索门店", exact: true })
+  await page.locator("#record-price > summary").click()
   await page.getByLabel("价格（日元）", { exact: true }).fill("123")
   const pendingOldStore = page.waitForRequest(request => request.url().endsWith("search_public_stores") && request.postDataJSON().payload.query === "old-store")
   await storeInput.fill("old-store")
@@ -260,6 +269,7 @@ try {
   await supplement.waitFor()
   assert.equal(new URL(await supplement.getAttribute("href"), origin).searchParams.get("jan"), missingJan)
   await supplement.click()
+  await page.getByRole("button", { name: "帮忙补录商品（可选）", exact: true }).click()
   await page.getByText("补录缺失商品", { exact: true }).waitFor()
   assert.match(await page.getByRole("dialog").innerText(), new RegExp(`JAN ${missingJan}`))
   assert.equal(await page.getByRole("dialog").getByLabel("商品名称", { exact: true }).inputValue(), "", "unrelated enrichment must leave the name blank for review")
@@ -273,6 +283,7 @@ try {
   assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "")
   accountFixtures = false
   await page.evaluate(() => localStorage.clear())
+  await verifyScannerBrowser(page, origin, missingJan)
   await mkdir("artifacts/commercial-audit", { recursive: true })
   for (const width of [375, 768, 1440]) {
     for (const theme of ["light", "dark"]) {

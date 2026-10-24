@@ -1,11 +1,18 @@
 .scanner-dialog {
   --background: #242424;
+  --card: #242424;
+  --card-foreground: #fff;
   --foreground: #fff;
   --muted-foreground: #c2c2c2;
   --border: #505050;
   --input: #505050;
+  --secondary: #303030;
+  --secondary-foreground: #fff;
+  --accent: #303030;
+  --accent-foreground: #fff;
+  --ring: #07c160;
   --primary: #07c160;
-  --primary-foreground: #fff;
+  --primary-foreground: #052e16;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -29,7 +36,8 @@
 }
 .scanner-close { display: grid; width: 44px; height: 44px; place-items: center; }
 .scanner-stage { position: relative; flex: 1 0 300px; min-height: 300px; overflow: hidden; background: #191919; }
-.scanner-viewfinder { position: absolute; top: 46%; left: 50%; width: min(72%, 300px); aspect-ratio: 1; transform: translate(-50%, -50%); box-shadow: 0 0 0 100vmax #0005; }
+.scanner-viewfinder { position: absolute; top: 46%; left: 50%; width: min(82%, 420px); aspect-ratio: 2.6; transform: translate(-50%, -50%); box-shadow: 0 0 0 100vmax #0005; }
+.scanner-shelf .scanner-viewfinder { width: min(72%, 300px); aspect-ratio: 1; }
 .scanner-viewfinder > span { position: absolute; width: 22px; height: 22px; border-color: #07c160; border-style: solid; border-width: 0; }
 .scanner-viewfinder > span:nth-child(1) { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; }
 .scanner-viewfinder > span:nth-child(2) { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; }
@@ -43,12 +51,13 @@
 .scanner-status { min-height: 52px; padding: 16px 24px 4px; text-align: center; font-size: 13px; line-height: 1.6; color: #c2c2c2; }
 .scanner-actions { display: flex; justify-content: space-around; padding: 16px 24px 28px; }
 .scanner-actions button { display: flex; min-width: 76px; min-height: 68px; align-items: center; flex-direction: column; justify-content: center; gap: 10px; font-size: 13px; border-radius: 8px; transition: background 150ms, transform 150ms; }
-.scanner-actions button:nth-child(2) { color: #07c160; }
+.scanner-actions button[aria-pressed="true"] { color: #07c160; }
 .scanner-actions svg { width: 28px; height: 28px; stroke-width: 1.5; }
 .scanner-dialog button:disabled { opacity: .45; }
 .scanner-dialog button:focus-visible { outline: 2px solid #07c160; outline-offset: 3px; }
 .scanner-actions button:active { transform: scale(.96); background: #ffffff12; }
 .scanner-details { padding: 20px; background: #242424; border-top: 1px solid #383838; }
+.scanner-panel { flex: 1; width: 100%; max-width: 440px; align-self: center; padding: 28px 24px; }
 .scanner-mode { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 20px 16px; font-size: 13px; color: #c2c2c2; }
 .scanner-mode select { padding: 8px 12px; border: 1px solid #505050; border-radius: 6px; background: #242424; color: #fff; }
 @keyframes scanner-sweep { to { top: 90%; } }

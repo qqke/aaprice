@@ -25,7 +25,7 @@ test("automatic mode saves only a certain price with a selected store; manual mo
     const context = {
       cleanJanCode: (value) => value, scanBusyRef: { current: false }, saveBusyRef: { current: false },
       scanEpochRef: { current: 0 }, pendingProductRef: { current: null }, lookupRef: { current: null },
-      setLookingUp() {}, setManualCode() {}, setRecognizedPrice() {}, setDraft() {}, setStatus() {},
+      setLookingUp() {}, setManualCode() {}, setManualError() {}, setRecognizedPrice() {}, setDraft() {}, setStatus() {},
       setPendingProduct(value) { pending = value },
       async readPrice() { return { price: "1639", automatic } },
       streamRef: { current: {} }, openRef: { current: true }, supabaseConfigured: true,
@@ -68,7 +68,7 @@ test("ordinary barcode lookup opens the product without entering price confirmat
   const context = {
     cleanJanCode: (value) => value, scanBusyRef: { current: false }, saveBusyRef: { current: false },
     scanEpochRef: { current: 0 }, pendingProductRef: { current: null }, lookupRef: { current: null },
-    setLookingUp() {}, setManualCode() {}, setRecognizedPrice() {}, setDraft() {}, setStatus() {}, setPendingProduct() {},
+    setLookingUp() {}, setManualCode() {}, setManualError() {}, setRecognizedPrice() {}, setDraft() {}, setStatus() {}, setPendingProduct() {},
     streamRef: { current: {} }, openRef: { current: true }, supabaseConfigured: true,
     async fetchProductByBarcode() { return { id: "product" } },
     stopCamera() { stopped = true }, mapProductRow: (row) => row, enableOcr: false, session: {},
@@ -95,7 +95,7 @@ test("catalog lookup starts before OCR finishes and keeps the camera for confirm
   const context = {
     cleanJanCode: (value) => value, scanBusyRef: { current: false }, saveBusyRef: { current: false },
     scanEpochRef: { current: 0 }, pendingProductRef: { current: null }, lookupRef: { current: null },
-    setLookingUp() {}, setManualCode() {}, setRecognizedPrice() {}, setDraft() {}, setStatus() {},
+    setLookingUp() {}, setManualCode() {}, setManualError() {}, setRecognizedPrice() {}, setDraft() {}, setStatus() {},
     setPendingProduct(value) { pending = value },
     readPrice: () => new Promise((resolve) => { finishOcr = resolve }),
     streamRef: { current: {} }, openRef: { current: true }, supabaseConfigured: true,
@@ -129,7 +129,7 @@ test("camera loop pauses for confirmation, waits for barcode departure and uses 
   let lookups = 0
   let warmed = 0
   let values = ["4901234567894"]
-  const stream = {}
+  const stream = { getVideoTracks: () => [{ getCapabilities: () => ({ torch: false }) }] }
   const snapshot = { getContext: () => ({ drawImage() {} }) }
   class Detector {
     static async getSupportedFormats() { return ["ean_13", "qr_code"] }
@@ -141,6 +141,7 @@ test("camera loop pauses for confirmation, waits for barcode departure and uses 
     }
   }
   const context = {
+    cameraStartingRef: { current: false }, startCameraRef: { current: null }, setCameraStarting() {}, setTorchAvailable() {},
     streamRef: { current: null }, lookingUp: false, submitting: false, readingImage: false,
     scanEpochRef: { current: 0 }, pendingProductRef: { current: null },
     setPendingProduct() {}, setRecognizedPrice() {}, setStatus() {}, setScanning() {},

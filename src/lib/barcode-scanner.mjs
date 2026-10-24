@@ -1,3 +1,21 @@
+export function cameraErrorMessage(error) {
+  if (["NotAllowedError", "SecurityError"].includes(error?.name)) return "相机权限未开启。请在浏览器设置中允许相机，或选择手动输入、相册。"
+  if (error?.name === "NotFoundError") return "没有找到可用相机，请选择手动输入或相册。"
+  if (error?.name === "NotReadableError") return "相机可能被其他应用占用，请关闭占用后重试，或选择手动输入。"
+  return "相机启动失败，请重试，或选择手动输入、相册。"
+}
+
+// Map the visible guide through the preview's centered object-fit: cover crop.
+export function getBarcodeCrop(videoWidth, videoHeight, stage, guide) {
+  if (![videoWidth, videoHeight, stage?.width, stage?.height, guide?.width, guide?.height].every(value => Number.isFinite(value) && value > 0)) return null
+  const scale = Math.max(stage.width / videoWidth, stage.height / videoHeight)
+  const x = Math.max(0, Math.floor((guide.left - stage.left + (videoWidth * scale - stage.width) / 2) / scale))
+  const y = Math.max(0, Math.floor((guide.top - stage.top + (videoHeight * scale - stage.height) / 2) / scale))
+  const width = Math.min(videoWidth - x, Math.round(guide.width / scale))
+  const height = Math.min(videoHeight - y, Math.round(guide.height / scale))
+  return width > 0 && height > 0 ? { x, y, width, height } : null
+}
+
 export async function createBarcodeScanner() {
   const formats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"]
   try {

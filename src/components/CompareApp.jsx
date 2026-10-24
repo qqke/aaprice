@@ -9,11 +9,11 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Flashlight,
   ImagePlus,
   Keyboard,
   LoaderCircle,
   LogIn,
-  LogOut,
   MapPin,
   Pill,
   Plus,
@@ -65,7 +65,6 @@ import {
   searchStores,
   savePersonalLog,
   signInWithEmailPassword,
-  signOut,
   subscribeAuthState,
   submitProductSubmission,
   supabaseConfigured,
@@ -97,7 +96,7 @@ import { appPath } from "@/lib/paths.mjs"
 import { CATALOG_STATE_KEY, readCatalogState } from "@/lib/catalog-state.mjs"
 import { getCatalogCategory } from "@/lib/catalog-category.mjs"
 import { parseShelfPrice } from "@/lib/scan-price.mjs"
-import { createBarcodeScanner, scanBarcodeImage } from "@/lib/barcode-scanner.mjs"
+import { cameraErrorMessage, createBarcodeScanner, getBarcodeCrop, scanBarcodeImage } from "@/lib/barcode-scanner.mjs"
 import "@/styles/scanner.css"
 
 const formatDate = (value) => {
@@ -125,6 +124,8 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
   const openRef = useRef(open)
   openRef.current = open
   const videoRef = useRef(null)
+  const stageRef = useRef(null)
+  const viewfinderRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
   const frameRef = useRef(null)
@@ -153,6 +154,14 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
   const imageRequestRef = useRef(0)
   const [readingImage, setReadingImage] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
+  const [manualError, setManualError] = useState("")
+  const [missingCode, setMissingCode] = useState("")
+  const [cameraStarting, setCameraStarting] = useState(false)
+  const cameraStartingRef = useRef(false)
+  const startCameraRef = useRef(null)
+  const [torchAvailable, setTorchAvailable] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
+  const missingResultRef = useRef(null)
 
   const stopCamera = () => {
     scanEpochRef.current++
@@ -162,6 +171,10 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
     streamRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setScanning(false)
+    cameraStartingRef.current = false
+    setCameraStarting(false)
+    setTorchAvailable(false)
+    setTorchOn(false)
   }
 
   const prepareOcr = () => {
@@ -246,6 +259,8 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
       imageRequestRef.current++
       setReadingImage(false)
       setManualOpen(false)
+      setManualError("")
+      setMissingCode("")
       cleanup()
     }
     return cleanup
@@ -257,6 +272,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
     if (value) {
       initialLookupRef.current = true
       setManualCode(value)
+      setManualOpen(true)
       lookup(value)
     }
   }, [open])
@@ -264,14 +280,19 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
   const lookup = async (value, bounds, snapshot, fromImage = false) => {
     const barcode = cleanJanCode(value)
     if (!/^\d{8}$|^\d{12,14}$/.test(barcode)) {
-      setStatus("请输入 8 位或 12 到 14 位 JAN 条码。")
+      if (bounds) setStatus("请对准商品包装上的 8 位或 12–14 位数字条码。")
+      else {
+        setManualError("请输入 8 位或 12 到 14 位商品条码。")
+        manualInputRef.current?.focus()
+      }
       return
     }
     if (scanBusyRef.current || saveBusyRef.current) return
     scanBusyRef.current = true
     const epoch = scanEpochRef.current
     setLookingUp(true)
-    setManualCode("")
+    setManualCode(barcode)
+    setManualError("")
     setRecognizedPrice("")
     setDraft(null)
     setPendingProduct(null)
@@ -289,13 +310,9 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
       setRecognizedPrice(priceResult.price)
       if (!row) {
         stopCamera()
-        const draftEpoch = scanEpochRef.current
-        setStatus(`后台没有找到 JAN ${barcode}，正在尝试补全商品信息…`)
-        const external = await fetchJancodeProductDraft(barcode).catch(() => null)
-          || await fetchRakutenProductDraft(barcode).catch(() => null)
-        if (!openRef.current || draftEpoch !== scanEpochRef.current) return
-        setDraft(external || { id: barcode, barcode, name: "", brand: "", pack: "", category: "", tone: "sunset", description: "", image_url: "" })
-        setStatus(external ? (external.source_url ? "已从乐天预填，请确认后提交审核。" : "已从 JANCODE 预填，请确认后提交审核。") : "JANCODE 和乐天都没有记录，请手动填写后提交审核。")
+        setManualOpen(false)
+        setMissingCode(barcode)
+        setStatus("")
         return
       }
       const product = supabaseConfigured ? mapProductRow(row) : row
@@ -304,16 +321,47 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
         setPendingProduct(product)
         setStatus(priceResult.price ? "请确认商品、门店和含税价格。" : "未能确定含税价格，请手动填写后保存。")
         if (saveMode === "auto" && scanStore && priceResult.automatic) await saveScan(product, priceResult.price)
-      } else { stopCamera(); onFound(product, priceResult.price) }
+      } else {
+        stopCamera()
+        try { navigator.vibrate?.(40) } catch {}
+        onFound(product, priceResult.price)
+      }
     } catch (error) {
-      if (openRef.current && epoch === scanEpochRef.current) setStatus(friendlyApiError(error))
+      if (openRef.current && epoch === scanEpochRef.current) {
+        if (bounds) setStatus(friendlyApiError(error))
+        else setManualError(friendlyApiError(error))
+      }
     } finally {
       scanBusyRef.current = false
       setLookingUp(false)
-      requestAnimationFrame(() => { if (openRef.current && !pendingProductRef.current && !bounds) manualInputRef.current?.focus() })
     }
   }
   lookupRef.current = lookup
+
+  const supplementMissing = async () => {
+    const barcode = missingCode
+    if (!barcode || lookingUp) return
+    const epoch = scanEpochRef.current
+    setLookingUp(true)
+    setStatus("正在查找可预填的商品资料…")
+    try {
+      const external = await fetchJancodeProductDraft(barcode).catch(() => null)
+        || await fetchRakutenProductDraft(barcode).catch(() => null)
+      if (!openRef.current || epoch !== scanEpochRef.current) return
+      setDraft(external || { id: barcode, barcode, name: "", brand: "", pack: "", category: "", tone: "sunset", description: "", image_url: "" })
+      setStatus(external ? "已预填商品资料，请核对后提交审核。" : "请填写商品名称，其他资料可选。")
+    } finally { setLookingUp(false) }
+  }
+
+  const returnToCamera = () => {
+    stopCamera()
+    setManualOpen(false)
+    setManualError("")
+    setMissingCode("")
+    setDraft(null)
+    setStatus("")
+    requestAnimationFrame(() => { if (openRef.current) void startCameraRef.current?.() })
+  }
 
   const submitMissing = async (event) => {
     event.preventDefault()
@@ -322,6 +370,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
     try {
       await submitProductSubmission(draft)
       setDraft(null)
+      setMissingCode("")
       setStatus(`JAN ${draft.barcode} 已提交审核。`)
     } catch (error) {
       setStatus(friendlyApiError(error))
@@ -331,15 +380,18 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
   }
 
   const startCamera = async () => {
-    if (streamRef.current || lookingUp || submitting || readingImage) return
+    if (streamRef.current || cameraStartingRef.current || lookingUp || submitting || readingImage) return
     const epoch = ++scanEpochRef.current
     pendingProductRef.current = null
     setPendingProduct(null)
     setRecognizedPrice("")
     if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus("当前浏览器不支持相机访问，请手动输入 JAN 码。")
+      setStatus("当前浏览器不支持相机，请使用手动输入或相册。")
       return
     }
+    cameraStartingRef.current = true
+    setCameraStarting(true)
+    setStatus("正在启动相机…")
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
       if (!openRef.current || epoch !== scanEpochRef.current) { stream.getTracks().forEach((track) => track.stop()); return }
@@ -348,6 +400,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
       await videoRef.current.play()
       if (!openRef.current || streamRef.current !== stream) return
       setScanning(true)
+      try { setTorchAvailable(Boolean(stream.getVideoTracks()[0]?.getCapabilities?.().torch)) } catch {}
       setStatus("正在加载条码识别…")
       const detector = await createBarcodeScanner()
       if (!openRef.current || streamRef.current !== stream) return
@@ -364,14 +417,18 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
         }
         lastDetection = now
         try {
-          snapshot.width = videoRef.current.videoWidth
-          snapshot.height = videoRef.current.videoHeight
-          snapshot.getContext("2d").drawImage(videoRef.current, 0, 0)
+          const video = videoRef.current
+          const crop = !enableOcr && getBarcodeCrop(video.videoWidth, video.videoHeight,
+            stageRef.current.getBoundingClientRect(), viewfinderRef.current.getBoundingClientRect())
+          snapshot.width = crop ? crop.width : video.videoWidth
+          snapshot.height = crop ? crop.height : video.videoHeight
+          if (crop) snapshot.getContext("2d").drawImage(video, crop.x, crop.y, crop.width, crop.height, 0, 0, snapshot.width, snapshot.height)
+          else snapshot.getContext("2d").drawImage(video, 0, 0)
           const result = await detector.detect(snapshot)
           if (!openRef.current || streamRef.current !== stream) return
           if (!result.some((item) => item.rawValue === lastBarcode)) lastBarcode = ""
           if (result.length > 1) {
-            setStatus("画面中有多个条码，请靠近，只对准一张价签。")
+            setStatus("框内有多个条码，请靠近，只对准一个商品。")
           } else if (result?.[0]?.rawValue && result[0].rawValue !== lastBarcode) {
             lastBarcode = result[0].rawValue
             await lookupRef.current(lastBarcode, result[0].boundingBox, snapshot)
@@ -380,11 +437,23 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
         if (openRef.current && streamRef.current === stream) frameRef.current = requestAnimationFrame(scan)
       }
       frameRef.current = requestAnimationFrame(scan)
-    } catch {
+    } catch (error) {
       if (!openRef.current || epoch !== scanEpochRef.current) return
       stopCamera()
-      setStatus("无法启动相机，请检查浏览器相机权限，或手动输入 JAN 码。")
+      setStatus(cameraErrorMessage(error))
+    } finally {
+      if (epoch === scanEpochRef.current) { cameraStartingRef.current = false; setCameraStarting(false) }
     }
+  }
+  startCameraRef.current = startCamera
+
+  const toggleTorch = async () => {
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (!track || !torchAvailable) return
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] })
+      if (streamRef.current?.getVideoTracks()[0] === track) setTorchOn(!torchOn)
+    } catch { setStatus("手电筒暂不可用，请移到光线更好的位置。") }
   }
 
   const selectImage = async (event) => {
@@ -414,44 +483,69 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
   useEffect(() => {
     if (!open) return undefined
     if (!initialLookupRef.current) setStatus("")
-    return undefined
+    if (new URLSearchParams(window.location.search).get("jan")) return undefined
+    const frame = requestAnimationFrame(() => void startCameraRef.current?.())
+    return () => cancelAnimationFrame(frame)
   }, [open])
+
+  useEffect(() => {
+    if (manualOpen) manualInputRef.current?.focus()
+  }, [manualOpen])
+
+  useEffect(() => {
+    if (missingCode && !draft) missingResultRef.current?.focus()
+  }, [missingCode, draft])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="scanner-dialog" showCloseButton={false} onCloseAutoFocus={(event) => { event.preventDefault(); document.getElementById("product-search")?.focus() }}>
         <DialogHeader className="scanner-header">
           <DialogClose asChild><button type="button" className="scanner-close" aria-label="关闭扫码"><X /></button></DialogClose>
-          <DialogTitle className="text-lg font-medium">扫一扫</DialogTitle>
+          <DialogTitle className="text-lg font-medium">{draft ? "补录商品" : missingCode ? "查询结果" : manualOpen ? "手动输入" : "扫一扫"}</DialogTitle>
           <span className="w-11" aria-hidden="true" />
           <DialogDescription className="sr-only">扫描商品条形码，或从相册选择图片识别商品。管理员还可扫描价签入库。</DialogDescription>
         </DialogHeader>
-        {isAdmin && <label className="scanner-mode">扫描方式<select aria-label="扫描方式" value={scanMode} disabled={scanning || lookingUp || submitting || readingImage} onChange={(event) => { setScanMode(event.target.value); pendingProductRef.current = null; setPendingProduct(null); setRecognizedPrice("") }}><option value="barcode">条形码直接扫码</option><option value="shelf">价签扫描入库</option></select></label>}
-        {enableOcr && session && <div className="scanner-details space-y-3">
+        {!manualOpen && !missingCode && !draft && isAdmin && <label className="scanner-mode">扫描方式<select aria-label="扫描方式" value={scanMode} disabled={scanning || cameraStarting || lookingUp || submitting || readingImage} onChange={(event) => { setScanMode(event.target.value); pendingProductRef.current = null; setPendingProduct(null); setRecognizedPrice("") }}><option value="barcode">条形码直接扫码</option><option value="shelf">价签扫描入库</option></select></label>}
+        {!manualOpen && !missingCode && !draft && enableOcr && session && <div className="scanner-details space-y-3">
           <label className="block text-sm font-medium">入库方式<select aria-label="入库方式" className="mt-2 w-full rounded-lg border bg-background p-2" value={saveMode} disabled={scanning || lookingUp || submitting} onChange={(event) => setSaveMode(event.target.value)}><option value="manual">手动确认后保存</option><option value="auto">自动入库（明确含税价时）</option></select></label>
           <Input aria-label="搜索扫描入库门店" placeholder="搜索当前门店" value={storeQuery} disabled={scanning || lookingUp || submitting} onChange={(event) => setStoreQuery(event.target.value)} />
           <select aria-label="扫描入库门店" className="w-full rounded-lg border bg-background p-2" value={scanStore?.id || ""} disabled={scanning || lookingUp || submitting} onChange={(event) => setScanStore(scanStores.find((store) => String(store.id) === event.target.value) || null)}><option value="">请选择当前门店</option>{scanStore && !scanStores.some((store) => store.id === scanStore.id) && <option value={scanStore.id}>{scanStore.name}</option>}{scanStores.map((store) => <option key={store.id} value={store.id}>{store.name} · {store.city || store.address}</option>)}</select>
           <p className="text-xs text-muted-foreground">保存到我的价格记录。自动入库需先选门店；多价或模糊结果需手动确认。</p>
         </div>}
-        <div className="scanner-stage">
+        {!manualOpen && !missingCode && !draft && <div ref={stageRef} className={`scanner-stage${enableOcr ? " scanner-shelf" : ""}`}>
           <video ref={videoRef} muted playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="条码扫描相机预览" />
           <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
-          <div className="scanner-viewfinder" aria-hidden="true"><span /><span /><span /><span />{scanning && <div className="scanner-line" />}</div>
-          {!scanning && <button type="button" className="scanner-start" onClick={startCamera} disabled={lookingUp || submitting || readingImage}><Camera className="size-8" /><span>启动相机</span></button>}
-          {(readingImage || lookingUp) && <div className="scanner-progress"><LoaderCircle className="size-7 animate-spin" /><span>{readingImage ? "正在识别图片" : "正在查询商品"}</span></div>}
+          <div ref={viewfinderRef} className="scanner-viewfinder" aria-hidden="true"><span /><span /><span /><span />{scanning && <div className="scanner-line" />}</div>
+          {!scanning && !cameraStarting && !lookingUp && !readingImage && <button type="button" className="scanner-start" onClick={startCamera} disabled={submitting}><Camera className="size-8" /><span>启动相机</span></button>}
+          {(cameraStarting || readingImage || lookingUp) && <div className="scanner-progress"><LoaderCircle className="size-7 animate-spin" /><span>{cameraStarting ? "正在启动相机" : readingImage ? "正在识别图片" : "正在查询商品"}</span></div>}
           <p className="scanner-hint">{enableOcr ? "对准价签条码，同时拍入上方价格" : "将商品条形码放入框内，即可自动扫描"}</p>
-        </div>
-        <p className="scanner-status" role="status" aria-live="polite">{status}</p>
-        <div className="scanner-actions">
-          <button type="button" onClick={() => { if (!manualOpen) stopCamera(); setManualOpen((value) => !value) }} aria-expanded={manualOpen} disabled={lookingUp || submitting || readingImage}><Keyboard /><span>手动输入</span></button>
-          <button type="button" onClick={scanning ? stopCamera : startCamera} disabled={lookingUp || submitting || readingImage}><ScanLine /><span>{scanning ? "暂停扫描" : "扫一扫"}</span></button>
+        </div>}
+        {status && <p className="scanner-status" role="status" aria-live="polite">{status}</p>}
+        {!manualOpen && !missingCode && !draft && <div className="scanner-actions">
+          <button type="button" onClick={() => { stopCamera(); setStatus(""); setManualOpen(true) }} disabled={lookingUp || submitting || readingImage}><Keyboard /><span>手动输入</span></button>
+          {scanning && <button type="button" onClick={stopCamera} disabled={lookingUp || submitting || readingImage}><ScanLine /><span>暂停扫描</span></button>}
+          {torchAvailable && <button type="button" onClick={toggleTorch} aria-pressed={torchOn}><Flashlight /><span>{torchOn ? "关闭手电筒" : "开启手电筒"}</span></button>}
           <button type="button" onClick={() => { stopCamera(); imageInputRef.current?.click() }} disabled={lookingUp || submitting || readingImage}><ImagePlus /><span>相册</span></button>
-          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" aria-label="选择条码图片" onChange={selectImage} disabled={lookingUp || submitting || readingImage} />
-        </div>
-        {manualOpen && <form className="scanner-details" onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
-          <label htmlFor="manual-jan" className="mb-2 block text-sm font-medium">手动输入 JAN 码</label>
-          <div className="flex gap-2"><Input ref={manualInputRef} id="manual-jan" value={manualCode} onChange={(event) => setManualCode(event.target.value)} inputMode="numeric" placeholder="例如 4901234567894" disabled={lookingUp || submitting || readingImage} /><Button type="submit" variant="secondary" disabled={lookingUp || submitting || readingImage}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询"}</Button></div>
+        </div>}
+        <input ref={imageInputRef} type="file" accept="image/*" className="hidden" aria-label="选择条码图片" onChange={selectImage} disabled={lookingUp || submitting || readingImage} />
+        {manualOpen && !missingCode && !draft && <form className="scanner-panel" onSubmit={(event) => { event.preventDefault(); lookup(manualCode) }}>
+          <label htmlFor="manual-jan" className="block text-lg font-medium">输入商品条码</label>
+          <p id="manual-jan-help" className="mt-2 text-sm text-muted-foreground">包装条形码下方的 8 位或 12–14 位数字（JAN）。</p>
+          <Input ref={manualInputRef} id="manual-jan" className="mt-6 text-base" value={manualCode} onChange={(event) => { setManualCode(event.target.value); setManualError("") }} inputMode="numeric" autoComplete="off" enterKeyHint="search" aria-invalid={Boolean(manualError)} aria-describedby={`manual-jan-help${manualError ? " manual-jan-error" : ""}`} placeholder="例如 4901234567894" disabled={lookingUp || submitting || readingImage} />
+          {manualError && <p id="manual-jan-error" className="mt-2 text-sm text-amber-300" role="alert">{manualError}</p>}
+          <Button type="submit" className="mt-4 w-full" disabled={lookingUp || submitting || readingImage}>{lookingUp && <LoaderCircle className="animate-spin" />}{lookingUp ? "查询中" : "查询商品"}</Button>
+          <Button type="button" variant="ghost" className="mt-3 w-full" disabled={lookingUp || submitting || readingImage} onClick={returnToCamera}><ScanLine />返回扫码</Button>
         </form>}
+        {missingCode && !draft && <div ref={missingResultRef} tabIndex={-1} className="scanner-panel outline-none">
+          <Search className="mb-5 size-9 text-muted-foreground" />
+          <h3 className="text-xl font-semibold">暂未收录此商品</h3>
+          <p className="mt-2 text-sm text-muted-foreground">已识别条码：{missingCode}</p>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">可以重新扫描，或用商品名称、品牌继续搜索。</p>
+          <Button type="button" className="mt-7 w-full" onClick={returnToCamera} disabled={lookingUp}><ScanLine />重新扫描</Button>
+          <Button asChild variant="outline" className="mt-3 w-full" disabled={lookingUp}><a href={appPath("/#product-search")} aria-disabled={lookingUp} onClick={(event) => { if (lookingUp) event.preventDefault() }}>输入名称搜索</a></Button>
+          <Button type="button" variant="ghost" className="mt-5 w-full" onClick={supplementMissing} disabled={lookingUp}>{lookingUp ? <LoaderCircle className="animate-spin" /> : <Plus />}{lookingUp ? "正在准备补录" : "帮忙补录商品（可选）"}</Button>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">选择补录后，会用此条码查询公开商品资料，帮助预填。</p>
+        </div>}
         {recognizedPrice && <p className="px-5 text-sm text-emerald-400" role="status">已识别价格：¥{Number(recognizedPrice).toLocaleString("ja-JP")}（请确认含税价）</p>}
         {pendingProduct && <form className="scanner-details space-y-3" onSubmit={(event) => { event.preventDefault(); void saveScan(pendingProduct, recognizedPrice) }}>
           <p className="font-medium">{pendingProduct.name}</p>
@@ -462,6 +556,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
           <Button type="button" variant="outline" disabled={submitting} onClick={() => onFound(pendingProduct, recognizedPrice)}>查看商品</Button>
         </form>}
         {draft && <form className="scanner-details space-y-3" onSubmit={submitMissing}>
+          <Button type="button" variant="ghost" disabled={submitting} onClick={() => { setDraft(null); setStatus("") }}>返回未收录结果</Button>
           <div><p className="font-medium">补录缺失商品</p><p className="mt-1 text-xs text-muted-foreground">JAN {draft.barcode} · 提交后由管理员审核</p></div>
           <label className="block"><span className="mb-2 block text-sm font-medium">商品名称</span><Input autoFocus value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
           <details className="group">
@@ -997,13 +1092,6 @@ export default function CompareApp({ initialScan = false }) {
     }
   }
 
-  const handleSignOut = async () => {
-    await signOut()
-    setSession(null)
-    try { sessionStorage.removeItem(CATALOG_STATE_KEY) } catch {}
-    setCatalog((items) => items.map((product) => ({ ...product, offers: [] })))
-  }
-
   const handleScannedProduct = (product, price = "") => {
     if (supabaseConfigured) {
       setScanOpen(false)
@@ -1038,7 +1126,7 @@ export default function CompareApp({ initialScan = false }) {
             <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="#catalog">商品比价</a></Button>
             <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
             {session && <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/me/")} aria-label="我的账户"><UserRound /><span className="hidden sm:inline">我的</span></a></Button>}
-            {supabaseConfigured && (session ? <Button variant="ghost" size="sm" onClick={handleSignOut} className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9" aria-label="退出登录"><LogOut /><span className="hidden sm:inline">退出</span></Button> : <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9" aria-label="登录"><LogIn /><span className="hidden sm:inline">登录</span></Button>)}
+            {supabaseConfigured && !session && <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9" aria-label="登录"><LogIn /><span className="hidden sm:inline">登录</span></Button>}
             <ThemeButton />
       </SiteHeader>
 

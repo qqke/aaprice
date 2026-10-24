@@ -467,7 +467,7 @@ export function parseJancodeProductDraft(markdown, value) {
 export async function fetchJancodeProductDraft(value) {
   const barcode = String(value || "").replace(/\D/g, "")
   if (!barcode) return null
-  const response = await fetch(`https://r.jina.ai/http://www.jancode.xyz/${barcode}/`, { headers: { Accept: "text/plain" } })
+  const response = await fetch(`https://r.jina.ai/http://www.jancode.xyz/${barcode}/`, { headers: { Accept: "text/plain" }, signal: AbortSignal.timeout(4000) })
   if (!response.ok) return null
   return parseJancodeProductDraft(await response.text(), barcode)
 }
@@ -491,7 +491,7 @@ export function parseRakutenProductDraft(markdown, value) {
 export async function fetchRakutenProductDraft(value) {
   const barcode = String(value || "").replace(/\D/g, "")
   if (!barcode) return null
-  const response = await fetch(`https://r.jina.ai/http://search.rakuten.co.jp/search/mall/${barcode}/`, { headers: { Accept: "text/plain" } })
+  const response = await fetch(`https://r.jina.ai/http://search.rakuten.co.jp/search/mall/${barcode}/`, { headers: { Accept: "text/plain" }, signal: AbortSignal.timeout(4000) })
   if (!response.ok) return null
   return parseRakutenProductDraft(await response.text(), barcode)
 }
