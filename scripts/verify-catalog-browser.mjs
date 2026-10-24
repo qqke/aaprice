@@ -35,6 +35,8 @@ try {
   let commercialEnabled = false
   let accountFixtures = false
   const fixtureUserId = "00000000-0000-0000-0000-000000000001"
+  const missingJan = "4901234567894"
+  await page.route("https://r.jina.ai/**", route => route.fulfill({ status: route.request().url().includes("jancode.xyz") ? 404 : 200, contentType: "text/plain", body: "[別の商品](https://item.rakuten.co.jp/shop/4900000000000/)" }))
   const fixtureLists = {
     user_price_logs: Array.from({ length: 123 }, (_, i) => ({ id: `log-${i}`, product_id: "needle", price_yen: 100, created_at: "2026-10-24T00:00:00Z" })),
     credit_ledger: Array.from({ length: 137 }, (_, i) => ({ id: `credit-${i}`, amount: 1, reason: "隔离测试", created_at: "2026-10-24T00:00:00Z" })),
@@ -84,7 +86,7 @@ try {
       if (body.payload.offset) { await new Promise(r => { nextPage = r }); return route.fulfill({ json: [product("obsolete-page")] }) }
       return route.fulfill({ json: products })
     }
-    if (url.pathname.endsWith("/products")) return route.fulfill({ json: [product("needle", "搜索匹配商品")] })
+    if (url.pathname.endsWith("/products")) return route.fulfill({ json: [...url.searchParams.values()].some(value => value.includes(missingJan)) ? [] : [product("needle", "搜索匹配商品")] })
     if (url.pathname.includes("price_preview")) {
       if (failPreview) return route.fulfill({ status: 503, json: { message: "preview unavailable" } })
       return route.fulfill({ json: emptyPreview ? [] : (body.payload.product_ids || ["needle"]).map((id, i) => ({ product_id: id, min_price_yen: i === 0 ? 5500 : 292, store_count: 2, latest_collected_at: new Date().toISOString() })) })
@@ -253,6 +255,16 @@ try {
   }
   assert.equal(exported.price_alerts.length, 1)
   assert.ok(Number.isFinite(Date.parse(exported.exported_at)))
+  await page.getByRole("searchbox", { name: "搜索商品", exact: true }).fill(missingJan)
+  const supplement = page.getByRole("link", { name: "去补录商品", exact: true })
+  await supplement.waitFor()
+  assert.equal(new URL(await supplement.getAttribute("href"), origin).searchParams.get("jan"), missingJan)
+  await supplement.click()
+  await page.getByText("补录缺失商品", { exact: true }).waitFor()
+  assert.match(await page.getByRole("dialog").innerText(), new RegExp(`JAN ${missingJan}`))
+  assert.equal(await page.getByRole("dialog").getByLabel("商品名称", { exact: true }).inputValue(), "", "unrelated enrichment must leave the name blank for review")
+  await page.goto(origin + "/me/")
+  await page.getByRole("button", { name: "导出数据", exact: true }).waitFor()
   await page.getByRole("link", { name: "记录这个价格", exact: true }).click()
   await page.getByRole("option", { name: /任务门店/ }).waitFor({ state: "attached" })
   assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "task-store")

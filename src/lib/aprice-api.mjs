@@ -476,7 +476,12 @@ export function parseRakutenProductDraft(markdown, value) {
   const barcode = String(value || "").replace(/\D/g, "")
   const clean = (text = "") => String(text).replace(/!\[[^\]]*\]\([^)]+\)/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
   const links = [...String(markdown || "").matchAll(/\[([^\]]{2,200})\]\((https?:\/\/item\.rakuten\.co\.jp\/[^)]+)\)/gi)]
-  const match = links.find(([, , url]) => url.includes(barcode)) || links[0]
+  const match = links.find(([, , value]) => {
+    try {
+      const url = new URL(value.replaceAll("&amp;", "&"))
+      return url.pathname.split("/").includes(barcode) || url.searchParams.get("variantId") === barcode
+    } catch { return false }
+  })
   if (!barcode || !match) return null
   const name = clean(match[1])
   if (!name) return null

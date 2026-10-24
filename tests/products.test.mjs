@@ -26,7 +26,7 @@ test("catalog groups separate tax/brand labels and preserve every product and so
   assert.deepEqual(items, before)
 })
 import { filterProducts, getBasketSummary, getBestSingleStoreBasket, getCatalogPrice, getClosestOffer, getCompareSelectionFromSearch, getImageSrcSet, getMapUrl, getPriceFreshness, isOnlineStore, products, sanitizeCompareSelection, sanitizePriceSnapshots } from "../src/lib/products.mjs"
-import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseCommercialOfferRows, parseJancodeProductDraft } from "../src/lib/aprice-api.mjs"
+import { friendlyApiError, isMissingRelationError, mapProductRow, offersFromPriceRows, parseCommercialOfferRows, parseJancodeProductDraft, parseRakutenProductDraft } from "../src/lib/aprice-api.mjs"
 
 test("anonymous price previews can be sorted and filtered without entering verified basket totals", () => {
   const sample = (id, price) => ({ ...products[0], id, offers: [], pricePreview: { minPrice: price } })
@@ -139,6 +139,15 @@ test("infers useful drugstore categories when imported rows have none", () => {
 
 test("rejects JANCODE upstream error pages", () => {
   assert.equal(parseJancodeProductDraft("Warning: Target URL returned error 403\n## アクセスしようとしたページは表示できませんでした。", "4999999999999"), null)
+})
+
+test("missing JAN enrichment never substitutes an unrelated Rakuten search result", () => {
+  const barcode = "4901234567894"
+  const unrelated = "[別の商品](https://item.rakuten.co.jp/shop/4900000000000/)"
+  assert.equal(parseRakutenProductDraft(unrelated, barcode), null)
+  assert.equal(parseRakutenProductDraft(`[検索結果](https://item.rakuten.co.jp/shop/item/?keyword=${barcode})`, barcode), null)
+  assert.equal(parseRakutenProductDraft(`${unrelated}\n[対象商品](https://item.rakuten.co.jp/shop/${barcode}/)`, barcode).name, "対象商品")
+  assert.equal(parseRakutenProductDraft(`[対象 SKU](https://item.rakuten.co.jp/shop/parent/?x=1&amp;variantId=${barcode})`, barcode).barcode, barcode)
 })
 
 test("parses bulk commercial links without accepting duplicates or unsafe URLs", () => {
