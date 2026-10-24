@@ -308,3 +308,14 @@ test("visible commercial attribution excludes legacy, unrelated, early and out-o
   assert.match(sql, /revoke all on function public\.admin_fetch_commercial_validation\(jsonb\) from public, anon/)
   assert.match(sql, /nullif\(exposure\.eligible_sessions, 0\)/)
 })
+
+test("public store search stays read-only, bounded and respects caller RLS", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20261024101908_public_store_search.sql", import.meta.url), "utf8")
+  assert.match(sql, /security invoker/)
+  assert.doesNotMatch(sql, /security definer/)
+  assert.match(sql, /least\(500, greatest\(1/)
+  assert.match(sql, /strpos\(lower\(normalize/)
+  assert.match(sql, /asc nulls last/)
+  assert.match(sql, /store\.name asc, store\.id asc/)
+  assert.match(sql, /grant execute on function public\.search_public_stores\(jsonb\) to anon, authenticated/)
+})

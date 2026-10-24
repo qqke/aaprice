@@ -141,15 +141,23 @@ export async function fetchProductsByIds(ids = []) {
   return request("products", { query: { select: "*", id: `in.(${quoted})`, limit: values.length } })
 }
 
-export async function searchStores(term = "", limit = 100, offset = 0) {
-  const query = { select: "*", order: "name.asc", limit: Math.max(1, Math.min(Number(limit) || 100, 500)) }
-  if (Number.isInteger(Number(offset)) && Number(offset) > 0) query.offset = Number(offset)
-  const value = String(term || "").trim()
-  if (value) {
-    const pattern = `%${escapeIlike(value)}%`
-    query.or = `(${[`name.ilike.${pattern}`, `chain_name.ilike.${pattern}`, `pref.ilike.${pattern}`, `city.ilike.${pattern}`, `address.ilike.${pattern}`].join(",")})`
-  }
-  return request("stores", { query })
+export async function searchStores(term = "", limit = 100, offset = 0, { location, physicalOnly = false } = {}) {
+  return rpc("search_public_stores", { payload: {
+    query: String(term || "").trim(), limit: Math.max(1, Math.min(Math.trunc(Number(limit)) || 100, 500)),
+    offset: Math.max(0, Math.min(1_000_000, Math.trunc(Number(offset)) || 0)), physical_only: physicalOnly,
+    ...(location && Number.isFinite(location.lat) && Number.isFinite(location.lng) ? { lat: location.lat, lng: location.lng } : {}),
+  } })
+}
+
+export async function fetchStoresByIds(ids = []) {
+  const values = [...new Set(ids.map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 500)
+  if (!values.length) return []
+  const pages = await Promise.all(Array.from({ length: Math.ceil(values.length / 100) }, (_, page) => {
+    const batch = values.slice(page * 100, (page + 1) * 100)
+    const quoted = batch.map((id) => `"${id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")
+    return request("stores", { query: { select: "*", id: `in.(${quoted})`, limit: batch.length } })
+  }))
+  return pages.flat()
 }
 
 export async function fetchPricesForProduct(productId, { token, lat, lng, limit = 120 } = {}) {

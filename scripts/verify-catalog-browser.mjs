@@ -6,6 +6,7 @@ import { chromium } from "playwright-core"
 
 // Run after npm run build. All API traffic is intercepted; no real user data or events.
 const root = resolve("dist")
+await mkdir("artifacts/commercial-audit", { recursive: true })
 await access(resolve(root, "index.html"))
 const mime = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".woff2": "font/woff2", ".svg": "image/svg+xml" }
 const server = createServer(async (req, res) => {
@@ -41,9 +42,24 @@ try {
     product_submissions: Array.from({ length: 111 }, (_, i) => ({ id: `submission-${i}`, name: `隔离商品 ${i}`, barcode: "4511413405048", review_status: "pending", created_at: "2026-10-24T00:00:00Z" })),
   }
   const exposures = []
+  const storeCalls = []
+  let releaseOldStore, failStoreSearch = false
   await page.route("**/rest/v1/**", async route => {
     const request = route.request(), url = new URL(request.url()), body = request.postDataJSON()
     const table = url.pathname.split("/").at(-1)
+    if (table === "search_public_stores") {
+      storeCalls.push(body.payload)
+      const query = body.payload.query
+      if (query === "old-store") { await new Promise(resolve => { releaseOldStore = resolve }); return route.fulfill({ json: [{ id: "old-store", name: "过期搜索结果" }] }) }
+      if (query === "retry-store" && failStoreSearch) return route.fulfill({ status: 503, json: { message: "门店查询暂不可用" } })
+      return route.fulfill({ json: [{ id: query ? "remote-store" : "default-store", name: query ? "目录外门店" : "默认门店", lat: 35.71, lng: 139.7 }] })
+    }
+    if (table === "stores") return route.fulfill({ json: [
+      ...((url.searchParams.get("id") || "").includes('"sundrug-00000"') ? [{ id: "sundrug-00000", name: "官方在线商店" }] : []),
+      ...((url.searchParams.get("id") || "").includes('"task-store"') ? [{ id: "task-store", name: "任务门店", lat: 35.72, lng: 139.7 }] : []),
+      ...((url.searchParams.get("id") || "").includes('"store-0"') ? [{ id: "store-0", name: "远程收藏门店" }] : []),
+    ] })
+    if (accountFixtures && table === "get_active_price_task") return route.fulfill({ json: { id: "fixture-task", product_id: "needle", store_id: "task-store", expires_at: "2026-12-01T00:00:00Z" } })
     if (accountFixtures && fixtureLists[table]) {
       assert.equal(url.searchParams.get("user_id"), `eq.${fixtureUserId}`)
       assert.equal(url.searchParams.get("order"), "created_at.desc,id.desc")
@@ -190,9 +206,43 @@ try {
   assert.equal(await priceSection.getByText("最近", { exact: true }).count(), 1)
   const closestStore = priceSection.locator(".divide-y > div").filter({ has: page.getByRole("heading", { name: "附近实体店", exact: true }) })
   assert.equal(await closestStore.getByText("最近", { exact: true }).count(), 1)
+  await page.getByRole("option", { name: /默认门店/ }).waitFor({ state: "attached" })
+  assert.equal(storeCalls.filter(call => call.physical_only).length, 1, "detail should issue one bounded default store search, not 50 pages")
+  assert.equal(storeCalls.at(-1).lat, 35.7)
+  const storeInput = page.getByRole("searchbox", { name: "搜索门店", exact: true })
+  await page.getByLabel("价格（日元）", { exact: true }).fill("123")
+  const pendingOldStore = page.waitForRequest(request => request.url().endsWith("search_public_stores") && request.postDataJSON().payload.query === "old-store")
+  await storeInput.fill("old-store")
+  await pendingOldStore
+  await storeInput.press("Enter")
+  await storeInput.fill("remote-store")
+  await page.getByRole("option", { name: /目录外门店/ }).waitFor({ state: "attached" })
+  const oldStoreDone = page.waitForResponse(response => response.url().endsWith("search_public_stores") && response.request().postDataJSON().payload.query === "old-store")
+  releaseOldStore()
+  await oldStoreDone
+  assert.equal(await page.getByRole("option", { name: "过期搜索结果", exact: true }).count(), 0)
+  assert.equal(await page.getByLabel("价格（日元）", { exact: true }).inputValue(), "123", "Enter during store search must not submit a price")
+  await page.getByLabel("门店", { exact: true }).selectOption("remote-store")
+  await storeInput.fill("")
+  await page.getByRole("option", { name: /默认门店/ }).waitFor({ state: "attached" })
+  assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "remote-store")
+  failStoreSearch = true
+  await storeInput.fill("retry-store")
+  await page.getByRole("alert").filter({ hasText: "门店查询暂不可用" }).waitFor()
+  failStoreSearch = false
+  await page.getByRole("button", { name: "重试门店搜索", exact: true }).click()
+  await page.getByRole("option", { name: /目录外门店/ }).waitFor({ state: "attached" })
   accountFixtures = true
   await page.goto(origin + "/me/")
   await page.getByRole("button", { name: "导出数据", exact: true }).waitFor()
+  await page.getByText("远程收藏门店", { exact: true }).waitFor()
+  await page.getByText("任务门店", { exact: true }).waitFor()
+  await page.getByRole("searchbox", { name: "搜索门店", exact: true }).fill("remote-store")
+  await page.getByRole("option", { name: "目录外门店", exact: true }).waitFor({ state: "attached" })
+  await page.getByLabel("门店", { exact: true }).selectOption("remote-store")
+  await page.getByRole("searchbox", { name: "搜索门店", exact: true }).fill("")
+  await page.getByRole("option", { name: /默认门店/ }).waitFor({ state: "attached" })
+  assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "remote-store")
   const downloadReady = page.waitForEvent("download")
   await page.getByRole("button", { name: "导出数据", exact: true }).click()
   const download = await downloadReady
@@ -203,6 +253,12 @@ try {
   }
   assert.equal(exported.price_alerts.length, 1)
   assert.ok(Number.isFinite(Date.parse(exported.exported_at)))
+  await page.getByRole("link", { name: "记录这个价格", exact: true }).click()
+  await page.getByRole("option", { name: /任务门店/ }).waitFor({ state: "attached" })
+  assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "task-store")
+  await page.goto(origin + "/product/?id=needle&store=sundrug-00000")
+  await page.getByText("指定的实体门店未能加载，请重新搜索并选择。", { exact: true }).waitFor()
+  assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "")
   accountFixtures = false
   await page.evaluate(() => localStorage.clear())
   await mkdir("artifacts/commercial-audit", { recursive: true })
@@ -219,5 +275,5 @@ try {
     }
   }
   assert.deepEqual(errors, [])
-  console.log("Browser checks passed: missing/broken product image placeholders, public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, visible commercial exposure, closed comparison/hidden duplicates excluded, isolated signup/recovery callbacks, expired-link feedback, unknown distance/address maps, nearest physical store, full account JSON export across four paginated datasets, cached-location hydration, 6 responsive/theme views.")
+  console.log("Browser checks passed: missing/broken product image placeholders, public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, visible commercial exposure, isolated auth callbacks, address maps/nearest store, bounded full-catalog store search, stale store responses/retry/selection retention, task/favorite store names, invalid physical selection rejection, Enter does not submit a price, complete account export, cached-location hydration, 6 responsive/theme views.")
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(r => server.close(r)) }

@@ -206,7 +206,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
     if (!open || !session || !enableOcr) return
     let active = true
     const timer = setTimeout(() => {
-      searchStores(storeQuery, 30).then((rows) => { if (active) setScanStores(rows.filter((store) => !isOnlineStore(store))) }).catch((error) => { if (active) setStatus(friendlyApiError(error)) })
+      searchStores(storeQuery, 30, 0, { physicalOnly: true }).then((rows) => { if (active) setScanStores(rows) }).catch((error) => { if (active) setStatus(friendlyApiError(error)) })
     }, 250)
     return () => { active = false; clearTimeout(timer) }
   }, [open, session, storeQuery, enableOcr])

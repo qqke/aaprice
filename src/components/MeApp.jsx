@@ -3,6 +3,7 @@ import { Download, ListChecks, LoaderCircle, LogOut, Save, SkipForward, Sparkles
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
+import useStoreSearch from "@/components/useStoreSearch"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,7 +28,7 @@ import {
   recordTelemetryEvent,
   savePersonalLog,
   searchProducts,
-  searchStores,
+  fetchStoresByIds,
   signOut,
   skipPriceTask,
   toggleFavorite,
@@ -83,6 +84,7 @@ export default function MeApp() {
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" })
   const [alertForm, setAlertForm] = useState(blankAlert)
   const priceInputRef = useRef(null)
+  const storeSearchResult = useStoreSearch(storeSearch, { enabled: Boolean(session) })
 
   const load = async () => {
     setLoading(true)
@@ -92,32 +94,35 @@ export default function MeApp() {
       setSession(activeSession)
       if (!activeSession) return
       const results = await Promise.allSettled([
-        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), searchStores("", 500), fetchPersonalLogs(activeSession.user.id, { limit: 30 }), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(20), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }), fetchMyPriceAlerts(),
+        fetchCurrentProfile(), searchProducts("", 500, { curated: false }), fetchPersonalLogs(activeSession.user.id, { limit: 30 }), fetchFavorites(activeSession.user.id), fetchCreditSummary(), fetchCreditLedger(20), fetchMyProductSubmissions(activeSession.user.id), fetchActivePriceTask(), fetchFavoritePriceChanges({ days: 7 }), fetchMyPriceAlerts(),
       ])
       const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback
       const loadedProducts = value(1, [])
-      const favoriteRows = value(4, [])
-      const activeTask = value(8, null)
+      const favoriteRows = value(3, [])
+      const activeTask = value(7, null)
       const loadedProductIds = new Set(loadedProducts.map((item) => String(item.id)))
       const relatedProductIds = [
         ...favoriteRows.filter((item) => item.entity_type === "product").map((item) => item.entity_id),
         activeTask?.product_id,
       ].filter((id) => id && !loadedProductIds.has(String(id)))
-      let relatedProducts = []
       let partialLoad = results.some(({ status }) => status === "rejected")
-      try { relatedProducts = await fetchProductsByIds(relatedProductIds) } catch { partialLoad = true }
+      const relatedStoreIds = [...favoriteRows.filter(item => item.entity_type === "store").map(item => item.entity_id), activeTask?.store_id].filter(Boolean)
+      const [relatedProducts, relatedStores] = await Promise.all([
+        fetchProductsByIds(relatedProductIds).catch(() => { partialLoad = true; return [] }),
+        fetchStoresByIds(relatedStoreIds).catch(() => { partialLoad = true; return [] }),
+      ])
       setProfile(value(0, { id: activeSession.user.id, email: activeSession.user.email, role: "user" }))
       setProducts([...loadedProducts, ...relatedProducts])
-      setStores(value(2, []))
-      setLogs(value(3, []))
+      setStores(relatedStores)
+      setLogs(value(2, []))
       setFavorites(favoriteRows)
-      setCredit(value(5, null))
-      setLedger(value(6, []))
-      setHistoryMore({ logs: value(3, []).length === 30, credits: value(6, []).length === 20 })
-      setSubmissions(value(7, []))
+      setCredit(value(4, null))
+      setLedger(value(5, []))
+      setHistoryMore({ logs: value(2, []).length === 30, credits: value(5, []).length === 20 })
+      setSubmissions(value(6, []))
       setTask(activeTask)
-      setFavoriteChanges(value(9, { items: [] }).items)
-      setPriceAlerts(value(10, []))
+      setFavoriteChanges(value(8, { items: [] }).items)
+      setPriceAlerts(value(9, []))
       if (partialLoad) setStatus("部分账户数据暂时无法加载，请刷新页面重试。")
     } catch (error) { setStatus(friendlyApiError(error)) } finally { setLoading(false) }
   }
@@ -149,7 +154,7 @@ export default function MeApp() {
   }, [productSearch])
 
   const productNames = useMemo(() => new Map(products.map((item) => [String(item.id), item.name])), [products])
-  const storeNames = useMemo(() => new Map(stores.map((item) => [String(item.id), item.name])), [stores])
+  const storeNames = useMemo(() => new Map([...stores, ...storeSearchResult.rows].map((item) => [String(item.id), item.name])), [stores, storeSearchResult.rows])
   const favoriteChangeByProduct = useMemo(() => new Map(favoriteChanges.map((item) => [String(item.product_id), item])), [favoriteChanges])
   const alertByProduct = useMemo(() => new Map(priceAlerts.map((item) => [String(item.product_id), item])), [priceAlerts])
   const favoriteProducts = useMemo(() => favorites.filter((item) => item.entity_type === "product"), [favorites])
@@ -161,10 +166,13 @@ export default function MeApp() {
       : products.filter((item) => [item.name, item.brand, item.barcode].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle))
   }, [productSearch, productMatches, products])
   const selectedProductOutsideSearch = products.find((item) => String(item.id) === String(logForm.product_id) && !filteredProducts.some((match) => String(match.id) === String(item.id)))
-  const filteredStores = useMemo(() => {
-    const needle = storeSearch.trim().normalize("NFKC").toLocaleLowerCase("ja-JP")
-    return needle ? stores.filter((item) => [item.name, item.chain_name, item.pref, item.city, item.address].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase("ja-JP").includes(needle)) : stores
-  }, [storeSearch, stores])
+  const filteredStores = storeSearchResult.rows
+  const selectedStoreOutsideSearch = stores.find(item => String(item.id) === String(logForm.store_id) && !filteredStores.some(row => String(row.id) === String(item.id)))
+  const selectStore = (storeId) => {
+    const selected = filteredStores.find(item => String(item.id) === String(storeId))
+    if (selected) setStores(rows => [...rows.filter(row => row.id !== selected.id), selected])
+    setLogForm(value => ({ ...value, store_id: storeId }))
+  }
 
   const saveLog = async (event) => {
     event.preventDefault()
@@ -220,6 +228,10 @@ export default function MeApp() {
         if (!products.some((item) => String(item.id) === String(nextTask.product_id))) {
           const [claimedProduct] = await fetchProductsByIds([nextTask.product_id]).catch(() => [])
           if (claimedProduct) setProducts((items) => items.some((item) => String(item.id) === String(claimedProduct.id)) ? items : [...items, claimedProduct])
+        }
+        if (nextTask.store_id && !storeNames.has(String(nextTask.store_id))) {
+          const [claimedStore] = await fetchStoresByIds([nextTask.store_id]).catch(() => [])
+          if (claimedStore) setStores(rows => [...rows.filter(row => row.id !== claimedStore.id), claimedStore])
         }
       }
       setStatus(nextTask ? "已领取补价任务。" : "当前没有可领取的补价任务。")
@@ -378,7 +390,7 @@ export default function MeApp() {
                 {productSearch.trim() && !productSearchBusy && !productSearchError && filteredProducts.length === 0 && <div className="rounded-xl border border-dashed p-3 text-sm"><p>没有找到商品信息，可以先补录商品，再记录价格。</p><Button asChild size="sm" variant="outline" className="mt-3"><a href={appPath(`/scan/${/^\\d{8}$|^\\d{12,14}$/.test(productSearch.trim()) ? `?jan=${encodeURIComponent(productSearch.trim())}` : ""}`)}>去补录商品</a></Button></div>}
                 <label><span className="mb-2 block text-sm font-medium">商品</span><select value={logForm.product_id} onChange={(event) => { const productId = event.target.value; const selected = filteredProducts.find((item) => String(item.id) === productId); if (selected && !products.some((item) => String(item.id) === productId)) setProducts((items) => [...items, selected]); setLogForm({ ...logForm, product_id: productId }) }} className="h-11 w-full rounded-xl border bg-background px-3 text-sm" required><option value="">选择商品</option>{selectedProductOutsideSearch && <option value={selectedProductOutsideSearch.id}>{selectedProductOutsideSearch.name}（已选择）</option>}{filteredProducts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input ref={priceInputRef} type="number" min="1" inputMode="numeric" value={logForm.price_yen} onChange={(event) => setLogForm({ ...logForm, price_yen: event.target.value })} required /></label>
-                <details open><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground">门店与备注（可选）</summary><div className="mt-2 space-y-4"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && filteredStores[0]) { event.preventDefault(); setLogForm((value) => ({ ...value, store_id: String(filteredStores[0].id) })) } }} placeholder="店名、连锁、城市或地址" /></label><label><span className="mb-2 block text-sm font-medium">门店</span><select value={logForm.store_id} onChange={(event) => setLogForm({ ...logForm, store_id: event.target.value })} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{filteredStores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={logForm.note} onChange={(event) => setLogForm({ ...logForm, note: event.target.value })} placeholder="促销、会员价等" /></label></div></details>
+                <details open><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground">门店与备注（可选）</summary><div className="mt-2 space-y-4"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!storeSearchResult.busy && !storeSearchResult.error && filteredStores[0]) selectStore(String(filteredStores[0].id)) } }} placeholder="店名、连锁、城市或地址" maxLength={200} /></label><p className="text-xs text-muted-foreground" role={storeSearchResult.error ? "alert" : "status"} aria-live="polite">{storeSearchResult.busy ? "正在搜索完整门店目录…" : storeSearchResult.error || (filteredStores.length === 100 ? "显示前 100 家，请补充城市、地址或完整店名。" : `匹配 ${filteredStores.length} 家门店`)}{storeSearchResult.error && <Button type="button" variant="link" size="sm" onClick={storeSearchResult.retry}>重试门店搜索</Button>}</p><label><span className="mb-2 block text-sm font-medium">门店</span><select aria-label="门店" value={logForm.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{filteredStores.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={logForm.note} onChange={(event) => setLogForm({ ...logForm, note: event.target.value })} placeholder="促销、会员价等" /></label></div></details>
                 <Button type="submit" className="w-full" disabled={savingLog}>{savingLog ? <LoaderCircle className="animate-spin" /> : <Save />}{savingLog ? "正在保存" : "保存记录"}</Button>
               </form>
             </motion.section>
