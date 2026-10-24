@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import AppShell, { AppLoading } from "@/components/AppShell"
 import CommercialPurchaseButton from "@/components/CommercialPurchaseButton"
+import ProductImage from "@/components/ProductImage"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,7 +30,7 @@ import {
   submitStorePrice,
   toggleFavorite,
 } from "@/lib/aprice-api.mjs"
-import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getClosestOffer, getImageSrcSet, getMapUrl, getPriceFreshness, getPriceStats, isOnlineStore, sanitizeCompareSelection } from "@/lib/products.mjs"
+import { distanceKm, formatDistance, formatPrice, formatUnitPrice, getClosestOffer, getMapUrl, getPriceFreshness, getPriceStats, isOnlineStore, sanitizeCompareSelection } from "@/lib/products.mjs"
 import { appPath } from "@/lib/paths.mjs"
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "未知"
@@ -269,7 +270,7 @@ export default function ProductApp() {
       <section className="mx-auto grid max-w-[1200px] gap-8 px-4 pb-32 sm:px-6 lg:grid-cols-[0.7fr_1.3fr] lg:px-8 lg:pb-24">
         <div className="order-2 min-w-0 lg:order-1 lg:sticky lg:top-24 lg:self-start">
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="overflow-hidden rounded-2xl border bg-card">
-            <div className="aspect-[4/3] bg-muted"><img src={product.image} srcSet={getImageSrcSet(product.image)} sizes="(min-width: 1024px) 40vw, 100vw" width="1200" height="900" alt={product.name} fetchPriority="high" decoding="async" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.src = "/lowprice-logo.png"; event.currentTarget.srcset = "" }} className="h-full w-full bg-white object-contain p-4" /></div>
+            <div className="aspect-[4/3] bg-muted"><ProductImage src={product.image} sizes="(min-width: 1024px) 40vw, 100vw" width="1200" height="900" alt={product.name} fetchPriority="high" decoding="async" className="h-full w-full bg-white object-contain p-4" /></div>
             <div className="p-6"><div className="flex flex-wrap gap-2"><Badge>{product.category}</Badge>{product.pack !== "规格未登记" && <Badge variant="outline">{product.pack}</Badge>}</div>{product.active !== "商品说明未登记" && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{product.active}</p>}</div>
           </motion.div>
           {credit && <div className="mt-4 flex items-center justify-between rounded-xl border px-4 py-3 text-sm"><span>价格查询额度</span><span className="font-mono">积分 {credit.balance ?? 0}</span></div>}

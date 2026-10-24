@@ -1,5 +1,6 @@
 import { readLocation, requestLocation } from "@/lib/location.mjs"
 import CommercialPurchaseButton from "@/components/CommercialPurchaseButton"
+import ProductImage from "@/components/ProductImage"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
   Camera,
@@ -82,7 +83,6 @@ import {
   getCatalogPrice,
   getClosestOffer,
   getCompareSelectionFromSearch,
-  getImageSrcSet,
   getMapUrl,
   getPriceStats,
   isOnlineStore,
@@ -578,7 +578,7 @@ function ProductCard({ product, featured, selected, selectionFull, onToggle, red
     <motion.article layout={reduceMotion ? false : "position"} initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: 0.2 }} className="product-card group min-w-0 overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md">
       <div className="grid h-full grid-cols-[88px_minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-5 sm:p-5">
         <a href={appPath('/product/?id=' + encodeURIComponent(product.id))} aria-label={'查看 ' + product.name + ' 详情'} className="relative block aspect-square overflow-hidden rounded-lg bg-white outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <img src={product.image} srcSet={getImageSrcSet(product.image)} sizes="(min-width: 640px) 120px, 88px" width="120" height="120" alt={product.name} loading={featured ? "eager" : "lazy"} fetchPriority={featured ? "high" : "auto"} decoding="async" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.src = "/lowprice-logo.png"; event.currentTarget.srcset = "" }} className="absolute inset-0 h-full w-full object-contain p-2" />
+          <ProductImage src={product.image} sizes="(min-width: 640px) 120px, 88px" width="120" height="120" alt={product.name} loading={featured ? "eager" : "lazy"} fetchPriority={featured ? "high" : "auto"} decoding="async" className="absolute inset-0 h-full w-full object-contain p-2" />
         </a>
         <div className="flex min-w-0 flex-col">
           {product.maker !== "品牌未登记" && <p className="truncate text-xs text-muted-foreground">{product.maker}</p>}

@@ -273,11 +273,13 @@ export default function MeApp() {
           if (page.length < 100) return rows
         }
       }
-      const [allLogs, allCredits] = await Promise.all([
+      const [allLogs, allCredits, allFavorites, allSubmissions] = await Promise.all([
         allPages((offset) => fetchPersonalLogs(session.user.id, { limit: 100, offset })),
         allPages((offset) => fetchCreditLedger(100, offset)),
+        allPages((offset) => fetchFavorites(session.user.id, { limit: 100, offset })),
+        allPages((offset) => fetchMyProductSubmissions(session.user.id, 100, offset)),
       ])
-      const content = JSON.stringify({ exported_at: new Date().toISOString(), profile, price_logs: allLogs, favorites, favorite_price_changes: favoriteChanges, price_alerts: priceAlerts, credit, credit_ledger: allCredits, product_submissions: submissions, recent_views: recentViews }, null, 2)
+      const content = JSON.stringify({ exported_at: new Date().toISOString(), profile, price_logs: allLogs, favorites: allFavorites, favorite_price_changes: favoriteChanges, price_alerts: priceAlerts, credit, credit_ledger: allCredits, product_submissions: allSubmissions, recent_views: recentViews }, null, 2)
       const url = URL.createObjectURL(new Blob([content], { type: "application/json" }))
       const link = document.createElement("a")
       link.href = url

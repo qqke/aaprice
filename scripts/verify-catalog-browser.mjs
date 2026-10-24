@@ -28,11 +28,31 @@ try {
   page.on("pageerror", error => errors.push(error.message))
   const product = (id, name = id) => ({ id, name, brand: "テスト", pack: "100mL", category: "化粧水", image_url: "/lowprice-logo.png" })
   const products = Array.from({ length: 30 }, (_, i) => product(`p${i}`, `商品 ${i}`))
+  products[0].image_url = null
+  products[1].image_url = "/missing-fixture-product.png"
   let nextPage, failPreview = false, emptyPreview = false
   let commercialEnabled = false
+  let accountFixtures = false
+  const fixtureUserId = "00000000-0000-0000-0000-000000000001"
+  const fixtureLists = {
+    user_price_logs: Array.from({ length: 123 }, (_, i) => ({ id: `log-${i}`, product_id: "needle", price_yen: 100, created_at: "2026-10-24T00:00:00Z" })),
+    credit_ledger: Array.from({ length: 137 }, (_, i) => ({ id: `credit-${i}`, amount: 1, reason: "隔离测试", created_at: "2026-10-24T00:00:00Z" })),
+    favorites: Array.from({ length: 205 }, (_, i) => ({ id: `favorite-${i}`, entity_type: "store", entity_id: `store-${i}`, created_at: "2026-10-24T00:00:00Z" })),
+    product_submissions: Array.from({ length: 111 }, (_, i) => ({ id: `submission-${i}`, name: `隔离商品 ${i}`, barcode: "4511413405048", review_status: "pending", created_at: "2026-10-24T00:00:00Z" })),
+  }
   const exposures = []
   await page.route("**/rest/v1/**", async route => {
     const request = route.request(), url = new URL(request.url()), body = request.postDataJSON()
+    const table = url.pathname.split("/").at(-1)
+    if (accountFixtures && fixtureLists[table]) {
+      assert.equal(url.searchParams.get("user_id"), `eq.${fixtureUserId}`)
+      assert.equal(url.searchParams.get("order"), "created_at.desc,id.desc")
+      const offset = Number(url.searchParams.get("offset") || 0), limit = Number(url.searchParams.get("limit"))
+      return route.fulfill({ json: fixtureLists[table].slice(offset, offset + limit) })
+    }
+    if (accountFixtures && table === "profiles") return route.fulfill({ json: [{ id: fixtureUserId, email: "review@example.com", role: "user", full_name: "隔离测试账户" }] })
+    if (accountFixtures && table === "fetch_favorite_price_changes") return route.fulfill({ json: { days: 7, items: [] } })
+    if (accountFixtures && table === "fetch_my_price_alerts") return route.fulfill({ json: [{ product_id: "needle", target_price_yen: 300, is_active: true }] })
     if (url.pathname.endsWith("/fetch_credit_summary")) return route.fulfill({ json: { balance: 0, daily_free_price_references: 5, references_today: 0 } })
     if (url.pathname.endsWith("/fetch_product_prices")) return route.fulfill({ json: [
       { store_id: "unknown", price_yen: 100, distance_km: null, collected_at: new Date().toISOString(), stores: { name: "未知坐标店", address: "东京某街道", lat: null, lng: null } },
@@ -57,6 +77,8 @@ try {
   })
   await page.goto(origin)
   await page.locator("#catalog article").nth(29).waitFor()
+  await page.getByRole("img", { name: "商品 0：暂无商品图", exact: true }).waitFor()
+  await page.getByRole("img", { name: "商品 1：暂无商品图", exact: true }).waitFor()
   await page.getByRole("button", { name: /筛选与排序/ }).click()
   await page.getByLabel("结果排序", { exact: true }).click()
   await page.getByRole("option", { name: "最低价优先" }).click()
@@ -168,6 +190,20 @@ try {
   assert.equal(await priceSection.getByText("最近", { exact: true }).count(), 1)
   const closestStore = priceSection.locator(".divide-y > div").filter({ has: page.getByRole("heading", { name: "附近实体店", exact: true }) })
   assert.equal(await closestStore.getByText("最近", { exact: true }).count(), 1)
+  accountFixtures = true
+  await page.goto(origin + "/me/")
+  await page.getByRole("button", { name: "导出数据", exact: true }).waitFor()
+  const downloadReady = page.waitForEvent("download")
+  await page.getByRole("button", { name: "导出数据", exact: true }).click()
+  const download = await downloadReady
+  const exported = JSON.parse(await readFile(await download.path(), "utf8"))
+  assert.equal(exported.profile.id, fixtureUserId)
+  for (const [table, key] of [["user_price_logs", "price_logs"], ["credit_ledger", "credit_ledger"], ["favorites", "favorites"], ["product_submissions", "product_submissions"]]) {
+    assert.deepEqual(exported[key].map(item => item.id), fixtureLists[table].map(item => item.id), `export must include every ${table} page`)
+  }
+  assert.equal(exported.price_alerts.length, 1)
+  assert.ok(Number.isFinite(Date.parse(exported.exported_at)))
+  accountFixtures = false
   await page.evaluate(() => localStorage.clear())
   await mkdir("artifacts/commercial-audit", { recursive: true })
   for (const width of [375, 768, 1440]) {
@@ -183,5 +219,5 @@ try {
     }
   }
   assert.deepEqual(errors, [])
-  console.log("Browser checks passed: public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, visible commercial exposure, closed comparison/hidden duplicates excluded, isolated signup/recovery callbacks, expired-link feedback, unknown distance/address maps, nearest physical store, cached-location hydration, 6 responsive/theme views.")
+  console.log("Browser checks passed: missing/broken product image placeholders, public price filtering/sorting, stale pagination, search links/reload, preview retry/empty state, visible commercial exposure, closed comparison/hidden duplicates excluded, isolated signup/recovery callbacks, expired-link feedback, unknown distance/address maps, nearest physical store, full account JSON export across four paginated datasets, cached-location hydration, 6 responsive/theme views.")
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(r => server.close(r)) }

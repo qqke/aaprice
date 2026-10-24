@@ -326,11 +326,11 @@ export async function submitStorePrice(entry) {
   return rpc("submit_store_price", { payload: { ...entry, price_yen: price } }, session.access_token)
 }
 
-export async function fetchFavorites(userId) {
+export async function fetchFavorites(userId, { limit = 200, offset = 0 } = {}) {
   const session = await requireSession()
   return request("favorites", {
     token: session.access_token,
-    query: { select: "*", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc", limit: 200 },
+    query: { select: "*", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc,id.desc", limit: Math.max(1, Math.min(Math.trunc(Number(limit)) || 200, 200)), offset: Math.max(0, Math.trunc(Number(offset)) || 0) },
   })
 }
 
@@ -407,12 +407,12 @@ export async function skipPriceTask(id) {
   return rpc("skip_price_task", { payload: { id } }, session.access_token)
 }
 
-export async function fetchMyProductSubmissions(userId, limit = 30) {
+export async function fetchMyProductSubmissions(userId, limit = 30, offset = 0) {
   const session = await requireSession()
   try {
     return await request("product_submissions", {
       token: session.access_token,
-      query: { select: "*", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc", limit },
+      query: { select: "*", user_id: `eq.${userId || session.user.id}`, order: "created_at.desc,id.desc", limit: Math.max(1, Math.min(Math.trunc(Number(limit)) || 30, 200)), offset: Math.max(0, Math.trunc(Number(offset)) || 0) },
     })
   } catch (error) {
     if (isMissingRelationError(error)) return []
@@ -698,12 +698,6 @@ export function clearRecentViews() {
   if (typeof window !== "undefined") try { window.localStorage.removeItem(RECENT_VIEWS_KEY) } catch {}
 }
 
-const productImages = {
-  医薬品: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1200&q=82",
-  化粧品: "https://images.unsplash.com/photo-1571781926291-c477ebfd024b?auto=format&fit=crop&w=1200&q=82",
-  default: "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=1200&q=82",
-}
-
 export function mapProductRow(row) {
   const pack = String(row?.pack || "规格未登记")
   const match = pack.match(/([\d.]+)\s*(錠|粒|包|枚|本|個|mL|ml|g|kg)/i)
@@ -717,7 +711,6 @@ export function mapProductRow(row) {
           : /サプリ|ビタミン|健康食品|プロテイン/.test(productText) ? "营养保健"
             : "其他"
   )
-  const imageKey = category.includes("医薬") || category.includes("药") ? "医薬品" : category.includes("化粧") || category.includes("护") ? "化粧品" : "default"
   return {
     id: String(row.id),
     barcode: String(row.barcode || ""),
@@ -731,7 +724,7 @@ export function mapProductRow(row) {
     target: category,
     score: 0,
     tags: [],
-    image: String(row.image_url || productImages[imageKey]),
+    image: String(row.image_url || "").trim(),
     offers: [],
     sourceRow: row,
   }

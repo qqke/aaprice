@@ -5,7 +5,7 @@ import test from "node:test"
 const readSource = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8")
 
 test("keeps production UI interaction contracts", async () => {
-  const [buttons, inputs, admin, layout, shell, compare, product, auth, account, api] = await Promise.all([
+  const [buttons, inputs, admin, layout, shell, compare, product, auth, account, api, productImage] = await Promise.all([
     readSource("src/components/ui/button.tsx"),
     readSource("src/components/ui/input.tsx"),
     readSource("src/components/AdminApp.jsx"),
@@ -16,6 +16,7 @@ test("keeps production UI interaction contracts", async () => {
     readSource("src/components/AuthApp.jsx"),
     readSource("src/components/MeApp.jsx"),
     readSource("src/lib/aprice-api.mjs"),
+    readSource("src/components/ProductImage.jsx"),
   ])
 
   assert.match(buttons, /default:\s*\n\s*"h-11[^"]*md:h-10/, "buttons need 44px mobile targets")
@@ -50,7 +51,9 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(compare, /recordCommercialClick\(offer\.id, "compare"\)/)
   assert.match(compare, />合作购买<\/CommercialPurchaseButton>/)
   assert.match(compare, /setSavedProducts\(\(items\) => items\.map/)
-  assert.match(compare, /referrerPolicy="no-referrer"/)
+  assert.match(compare, /<ProductImage src=\{product\.image\}/)
+  assert.match(product, /<ProductImage src=\{product\.image\}/)
+  assert.match(productImage, /referrerPolicy="no-referrer"/)
   assert.match(compare, /inline-flex min-h-11 items-center/)
   assert.match(account, /比较商品 \{dataCompareIds\.length\}/)
   assert.match(product, /env\(safe-area-inset-bottom\)/)
