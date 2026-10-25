@@ -43,6 +43,7 @@ export default function ProductApp() {
   const taskFlow = pageParams.get("task") === "1"
   const requestedStoreId = String(pageParams.get("store") || "").slice(0, 128)
   const scannedPrice = pageParams.get("price") || ""
+  const recordIntent = pageParams.get("record") === "1"
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [product, setProduct] = useState(null)
@@ -71,7 +72,7 @@ export default function ProductApp() {
   const [storeSearch, setStoreSearch] = useState("")
   const [visibleStoreLimit, setVisibleStoreLimit] = useState(20)
   const [historyLimit, setHistoryLimit] = useState(12)
-  const [recordOpen, setRecordOpen] = useState(taskFlow || Boolean(scannedPrice) || (typeof window !== "undefined" && window.location.hash === "#record-price"))
+  const [recordOpen, setRecordOpen] = useState(recordIntent || taskFlow || Boolean(scannedPrice) || (typeof window !== "undefined" && window.location.hash === "#record-price"))
   const [form, setForm] = useState({ store_id: requestedStoreId, price_yen: /^\d+$/.test(scannedPrice) ? scannedPrice : "", note: "", evidence_url: "", share_to_public: taskFlow })
   const storeSearchResult = useStoreSearch(storeSearch, { enabled: Boolean(session), location, physicalOnly: true })
 
@@ -148,8 +149,12 @@ export default function ProductApp() {
   }, [loadRetry])
 
   useEffect(() => {
+    if (!loading && recordIntent && session) {
+      const frame = requestAnimationFrame(() => { priceInputRef.current?.focus(); priceInputRef.current?.scrollIntoView({ block: "center" }) })
+      return () => cancelAnimationFrame(frame)
+    }
     if (!loading && window.location.hash === "#record-price") requestAnimationFrame(() => document.getElementById("record-price")?.scrollIntoView({ block: "start" }))
-  }, [loading])
+  }, [loading, recordIntent, session])
 
   const offers = useMemo(() => offersFromPriceRows(priceRows).map((offer) => location && !isOnlineStore(offer) && Number.isFinite(offer.lat) && Number.isFinite(offer.lng) ? { ...offer, distance: distanceKm(location.lat, location.lng, offer.lat, offer.lng) } : offer), [priceRows, location])
   const newestOffer = offers.toSorted((a, b) => new Date(b.sampledAt || 0) - new Date(a.sampledAt || 0))[0]
@@ -169,7 +174,7 @@ export default function ProductApp() {
   const visibleStores = filteredStores.slice(0, visibleStoreLimit)
   const selectedStoreOutsideSearch = physicalStores.find((store) => String(store.id) === String(form.store_id) && !filteredStores.some((match) => match.id === store.id))
   useEffect(() => {
-    if (!form.store_id && filteredStores[0]?.id) selectStore(filteredStores[0].id)
+    if (!recordIntent && !form.store_id && filteredStores[0]?.id) selectStore(filteredStores[0].id)
   }, [form.store_id, filteredStores])
   const locate = async () => {
     if (locating) return
@@ -219,6 +224,8 @@ export default function ProductApp() {
       setStatus(result.action === "added" ? "已收藏门店。" : "已取消门店收藏。")
     } catch (error) { setStatus(friendlyApiError(error)) }
   }
+
+  const priceField = <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input ref={priceInputRef} type="number" min="1" inputMode="numeric" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
 
   const savePrice = async (event) => {
     event.preventDefault()
@@ -272,6 +279,7 @@ export default function ProductApp() {
         </div>
 
         <div className="order-1 min-w-0 space-y-8 lg:order-2">
+          {product.sourceRow?.needs_details && <p className="rounded-xl border bg-card px-4 py-3 text-sm" role="status">商品已登记，可先记录价格。资料待管理员完善。</p>}
           {status && <p className="rounded-xl border bg-card px-4 py-3 text-sm" role="status" aria-live="polite">{status}</p>}
           {previewError && <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-4" role="alert"><p className="text-sm">价格预览暂时无法加载：{previewError}</p><Button variant="outline" className="mt-3" onClick={() => { setLoading(true); setLoadRetry((value) => value + 1) }}>重试价格预览</Button></div>}
           {!session ? (
@@ -303,9 +311,10 @@ export default function ProductApp() {
               <details open={recordOpen} onToggle={(event) => setRecordOpen(event.currentTarget.open)} id="record-price" className="scroll-mt-24 rounded-2xl border bg-card p-6">
                 <summary className="cursor-pointer text-lg font-semibold">{taskFlow ? "完成补价任务" : "记录价格"}</summary><div><p className="mt-2 text-sm text-muted-foreground">{taskFlow ? !form.share_to_public ? "当前仅保存私人记录，不会提交任务审核。" : requestedStoreId ? "任务门店已预选；保存时会同时提交公共价格审核。" : "选择门店并输入价格；保存时会同时提交公共价格审核。" : "只需选择门店并输入价格。"}</p></div>
                 <form onSubmit={savePrice} className="mt-6 grid gap-4 sm:grid-cols-2">
+                  {recordIntent && priceField}
                   <div className="sm:col-span-2"><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => { setStoreSearch(event.target.value); setVisibleStoreLimit(20) }} placeholder="店名、连锁、城市或地址" maxLength={200} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!storeSearchResult.busy && !storeSearchResult.error && filteredStores[0]) selectStore(String(filteredStores[0].id)) } }} /></label><p className="mt-2 text-xs text-muted-foreground" role={storeSearchResult.error ? "alert" : "status"} aria-live="polite">{storeSearchResult.busy ? "正在搜索完整门店目录…" : storeSearchResult.error || (filteredStores.length === 100 ? "显示前 100 家，请补充城市、地址或完整店名。" : `匹配 ${filteredStores.length} 家门店`)}{storeSearchResult.error && <Button type="button" variant="link" size="sm" onClick={storeSearchResult.retry}>重试门店搜索</Button>}</p><div className="mt-2 flex flex-wrap items-center gap-3"><p className="text-xs text-muted-foreground" role="status">{location ? "已按 GPS 距离排序" : "未定位，可按门店名称搜索"}{storeSearch && !filteredStores.length ? "；请尝试店名、城市或连锁名称。" : ""}</p>{!location && <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={locate} disabled={locating}><LocateFixed />{locating ? "正在定位…" : "获取当前位置"}</Button>}</div></div>
                   <label><span className="mb-2 block text-sm font-medium">门店</span><select aria-label="门店" value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">不指定门店</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{visibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}{location && Number.isFinite(store.lat) && Number.isFinite(store.lng) ? ` · ${formatDistance(distanceKm(location.lat, location.lng, store.lat, store.lng))}` : ""}</option>)}</select>{filteredStores.length > visibleStores.length && <Button type="button" variant="ghost" size="sm" className="mt-2 px-0" onClick={() => setVisibleStoreLimit((value) => value + 20)}>加载更多</Button>}</label>
-                  <label><span className="mb-2 block text-sm font-medium">价格（日元）</span><Input ref={priceInputRef} type="number" min="1" inputMode="numeric" value={form.price_yen} onChange={(event) => setForm({ ...form, price_yen: event.target.value })} required /></label>
+                  {!recordIntent && priceField}
                   <details className="sm:col-span-2">
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground">补充信息与公共提交（可选）</summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-sm font-medium">备注</span><Input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="会员价、促销等" /></label><label><span className="mb-2 block text-sm font-medium">凭证 URL</span><Input type="url" value={form.evidence_url} onChange={(event) => setForm({ ...form, evidence_url: event.target.value })} /></label><label className="flex items-center gap-3 self-end pb-2 text-sm"><input type="checkbox" checked={form.share_to_public} onChange={(event) => setForm({ ...form, share_to_public: event.target.checked })} /> 提交公共比价审核</label></div>

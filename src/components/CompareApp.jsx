@@ -54,6 +54,7 @@ import {
   fetchJancodeProductDraft,
   fetchRakutenProductDraft,
   fetchProductByBarcode,
+  registerScannedProduct,
   fetchProductById,
   friendlyApiError,
   getSession,
@@ -96,6 +97,7 @@ import { appPath } from "@/lib/paths.mjs"
 import { CATALOG_STATE_KEY, readCatalogState } from "@/lib/catalog-state.mjs"
 import { getCatalogCategory } from "@/lib/catalog-category.mjs"
 import { parseShelfPrice } from "@/lib/scan-price.mjs"
+import { readScanPriceFirst, saveScanPriceFirst } from "@/lib/scan-preferences.mjs"
 import { cameraErrorMessage, createBarcodeScanner, getBarcodeCrop, scanBarcodeImage } from "@/lib/barcode-scanner.mjs"
 import "@/styles/scanner.css"
 
@@ -154,6 +156,8 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
   const imageRequestRef = useRef(0)
   const [readingImage, setReadingImage] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
+  const [priceFirst, setPriceFirst] = useState(false)
+  useEffect(() => { if (open) setPriceFirst(readScanPriceFirst()) }, [open])
   const [manualError, setManualError] = useState("")
   const [missingCode, setMissingCode] = useState("")
   const [cameraStarting, setCameraStarting] = useState(false)
@@ -305,9 +309,18 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
       ])
       if (!openRef.current || epoch !== scanEpochRef.current || (bounds && !fromImage && !streamRef.current)) return
       if (productRead.status === "rejected") throw productRead.reason
-      const row = productRead.value
+      let row = productRead.value
       const priceResult = priceRead.status === "fulfilled" ? priceRead.value : { price: "", automatic: false }
       setRecognizedPrice(priceResult.price)
+      if (!row && supabaseConfigured) {
+        const activeSession = session || await getSession()
+        if (!openRef.current || epoch !== scanEpochRef.current) return
+        if (activeSession) {
+          setStatus("正在登记商品，稍后由管理员完善资料…")
+          row = await registerScannedProduct(barcode)
+          if (!openRef.current || epoch !== scanEpochRef.current) return
+        }
+      }
       if (!row) {
         stopCamera()
         setManualOpen(false)
@@ -505,6 +518,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
           <span className="w-11" aria-hidden="true" />
           <DialogDescription className="sr-only">扫描商品条形码，或从相册选择图片识别商品。管理员还可扫描价签入库。</DialogDescription>
         </DialogHeader>
+        <label className="scanner-preference"><input type="checkbox" checked={priceFirst} onChange={(event) => { setPriceFirst(event.target.checked); saveScanPriceFirst(event.target.checked) }} /><span>扫码后优先输入价格</span></label>
         {!manualOpen && !missingCode && !draft && isAdmin && <label className="scanner-mode">扫描方式<select aria-label="扫描方式" value={scanMode} disabled={scanning || cameraStarting || lookingUp || submitting || readingImage} onChange={(event) => { setScanMode(event.target.value); pendingProductRef.current = null; setPendingProduct(null); setRecognizedPrice("") }}><option value="barcode">条形码直接扫码</option><option value="shelf">价签扫描入库</option></select></label>}
         {!manualOpen && !missingCode && !draft && enableOcr && session && <div className="scanner-details space-y-3">
           <label className="block text-sm font-medium">入库方式<select aria-label="入库方式" className="mt-2 w-full rounded-lg border bg-background p-2" value={saveMode} disabled={scanning || lookingUp || submitting} onChange={(event) => setSaveMode(event.target.value)}><option value="manual">手动确认后保存</option><option value="auto">自动入库（明确含税价时）</option></select></label>
@@ -544,6 +558,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
           <p className="mt-2 text-sm text-muted-foreground">已识别条码：{missingCode}</p>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">重新扫描，或试试商品名称、品牌。</p>
           <div className="scanner-result-actions"><Button type="button" className="w-full" onClick={returnToCamera} disabled={lookingUp}><ScanLine />重新扫描</Button>
+          {!session && <Button asChild className="mt-3 w-full"><a href={appPath(`/login/?redirect=${encodeURIComponent(appPath(`/scan/?jan=${missingCode}`))}`)}>登录并登记商品</a></Button>}
           <Button asChild variant="outline" className="mt-3 w-full" disabled={lookingUp}><a href={appPath("/#product-search")} aria-disabled={lookingUp} onClick={(event) => { if (lookingUp) event.preventDefault() }}>输入名称搜索</a></Button>
           <Button type="button" variant="ghost" className="mt-5 w-full" onClick={supplementMissing} disabled={lookingUp}>{lookingUp ? <LoaderCircle className="animate-spin" /> : <Plus />}{lookingUp ? "正在准备补录" : "帮忙补录商品（可选）"}</Button>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">选择补录后，会用此条码查询公开商品资料，帮助预填。</p>
@@ -1100,7 +1115,9 @@ export default function CompareApp({ initialScan = false }) {
       setScanOpen(false)
       const params = new URLSearchParams({ id: product.id })
       if (/^\d+$/.test(String(price))) params.set("price", price)
-      window.location.assign(appPath(`/product/?${params.toString()}`))
+      const priceFirst = readScanPriceFirst()
+      if (priceFirst) params.set("record", "1")
+      window.location.assign(appPath(`/product/?${params.toString()}${priceFirst ? "#record-price" : ""}`))
       return
     }
     setCatalog(demoProducts)

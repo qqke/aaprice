@@ -162,6 +162,8 @@ test("parses bulk commercial links without accepting duplicates or unsafe URLs",
 test("translates price task empty and daily limit states", () => {
   assert.equal(friendlyApiError(new Error("no_price_tasks_available")), "当前没有可领取的补价任务。")
   assert.equal(friendlyApiError(new Error("daily_task_claim_limit_reached")), "今天领取任务的次数已达上限。")
+  assert.equal(friendlyApiError(new Error("daily product registration limit reached")), "今日新商品登记已达上限，请明天再试。")
+  assert.equal(friendlyApiError(new Error("real product name required")), "请先填写真实商品名称并完善资料，再完成审核。")
 })
 
 test("recognizes optional Supabase relation failures", () => {

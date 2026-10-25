@@ -128,6 +128,12 @@ export async function fetchProductByBarcode(value) {
   return rows?.[0] || null
 }
 
+export async function registerScannedProduct(barcode) {
+  const session = await requireSession()
+  if (!/^\d{8}$|^\d{12,14}$/.test(String(barcode))) throw new Error("请提供有效的商品条码")
+  return rpc("register_scanned_product", { payload: { barcode: String(barcode) } }, session.access_token)
+}
+
 export async function fetchProductById(id) {
   if (!id) return null
   const rows = await request("products", { query: { select: "*", id: `eq.${id}`, limit: 1 } })
@@ -544,7 +550,7 @@ export async function adminReviewProductSubmission(id, action, note = "") {
 
 export async function adminUpsertProduct(payload) {
   const session = await requireSession()
-  return rpc("admin_upsert_product", { payload }, session.access_token)
+  return rpc(payload.needs_details ? "admin_complete_scanned_product" : "admin_upsert_product", { payload }, session.access_token)
 }
 
 export async function adminUpsertStore(payload) {
@@ -772,6 +778,8 @@ export function friendlyApiError(error) {
   if (/insufficient|credit|quota/i.test(message)) return "价格查询额度不足，请稍后再试。"
   if (/no_price_tasks_available/i.test(message)) return "当前没有可领取的补价任务。"
   if (/daily_task_claim_limit_reached/i.test(message)) return "今天领取任务的次数已达上限。"
+  if (/daily product registration limit reached/i.test(message)) return "今日新商品登记已达上限，请明天再试。"
+  if (/real product name required|complete product details before approval/i.test(message)) return "请先填写真实商品名称并完善资料，再完成审核。"
   if (/failed to fetch|network/i.test(message)) return "网络连接失败，请检查后重试。"
   return message || "请求失败，请稍后再试。"
 }

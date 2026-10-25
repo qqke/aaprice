@@ -28,6 +28,9 @@ try {
   const page = await browser.newPage({ locale: "zh-CN", reducedMotion: "reduce", hasTouch: true })
   const errors = []
   page.on("pageerror", error => errors.push(error.message))
+  await page.addInitScript(() => {
+    if (navigator.mediaDevices) Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable: true, value: async () => { throw new DOMException("Isolated camera", "NotAllowedError") } })
+  })
   const product = (id, name = id) => ({ id, name, brand: "テスト", pack: "100mL", category: "化粧水", image_url: "/lowprice-logo.png" })
   const products = Array.from({ length: 30 }, (_, i) => product(`p${i}`, `商品 ${i}`))
   products[0].image_url = null
@@ -39,6 +42,8 @@ try {
   let accountFixtures = false
   const fixtureUserId = "00000000-0000-0000-0000-000000000001"
   const missingJan = "4901234567894"
+  let stubRegistered = false, adminFixture = false, stubCompleted = false, registrations = 0
+  const scannedStub = () => ({ ...product(missingJan, stubCompleted ? "已完善测试商品" : `待完善商品 · JAN ${missingJan}`), barcode: missingJan, image_url: "", needs_details: !stubCompleted })
   await page.route("https://r.jina.ai/**", route => route.fulfill({ status: route.request().url().includes("jancode.xyz") ? 404 : 200, contentType: "text/plain", body: "[別の商品](https://item.rakuten.co.jp/shop/4900000000000/)" }))
   const fixtureLists = {
     user_price_logs: Array.from({ length: 123 }, (_, i) => ({ id: `log-${i}`, product_id: "needle", price_yen: 100, created_at: "2026-10-24T00:00:00Z" })),
@@ -48,10 +53,16 @@ try {
   }
   const exposures = []
   const storeCalls = []
+  const savedPrices = []
   let releaseOldStore, failStoreSearch = false
   await page.route("**/rest/v1/**", async route => {
     const request = route.request(), url = new URL(request.url()), body = request.postDataJSON()
     const table = url.pathname.split("/").at(-1)
+    if (table === "user_price_logs" && request.method() === "POST") { savedPrices.push(body); return route.fulfill({ json: [{ id: "isolated-price", ...body }] }) }
+    if (table === "register_scanned_product") { registrations++; stubRegistered = true; return route.fulfill({ json: scannedStub() }) }
+    if (adminFixture && table === "profiles") return route.fulfill({ json: [{ id: fixtureUserId, role: "admin", full_name: "隔离管理员" }] })
+    if (adminFixture && table === "product_submissions") return route.fulfill({ json: stubCompleted ? [] : [{ id: "stub-review", barcode: missingJan, name: `待完善商品 · JAN ${missingJan}`, promoted_product_id: missingJan }] })
+    if (table === "admin_complete_scanned_product") { assert.equal(body.payload.id, missingJan); assert.equal(body.payload.name, "已完善测试商品"); stubCompleted = true; return route.fulfill({ json: scannedStub() }) }
     if (table === "search_public_stores") {
       storeCalls.push(body.payload)
       const query = body.payload.query
@@ -94,7 +105,7 @@ try {
       if (body.payload.offset) { await new Promise(r => { nextPage = r }); return route.fulfill({ json: [product("obsolete-page")] }) }
       return route.fulfill({ json: products })
     }
-    if (url.pathname.endsWith("/products")) return route.fulfill({ json: [...url.searchParams.values()].some(value => value.includes(missingJan)) ? [] : [product("needle", "搜索匹配商品")] })
+    if (url.pathname.endsWith("/products")) return route.fulfill({ json: [...url.searchParams.values()].some(value => value.includes(missingJan)) ? stubRegistered ? [scannedStub()] : [] : [product("needle", "搜索匹配商品")] })
     if (url.pathname.includes("price_preview")) {
       if (failPreview) return route.fulfill({ status: 503, json: { message: "preview unavailable" } })
       return route.fulfill({ json: emptyPreview ? [] : (body.payload.product_ids || ["needle"]).map((id, i) => ({ product_id: id, min_price_yen: i === 0 ? 5500 : 292, store_count: 2, latest_collected_at: new Date().toISOString() })) })
@@ -266,6 +277,8 @@ try {
   failStoreSearch = false
   await page.getByRole("button", { name: "重试门店搜索", exact: true }).click()
   await page.getByRole("option", { name: /目录外门店/ }).waitFor({ state: "attached" })
+  await page.goto(origin + "/scan/")
+  await page.getByRole("checkbox", { name: "扫码后优先输入价格", exact: true }).check()
   accountFixtures = true
   await page.goto(origin + "/me/")
   await page.getByRole("button", { name: "导出数据", exact: true }).waitFor()
@@ -292,10 +305,34 @@ try {
   await supplement.waitFor()
   assert.equal(new URL(await supplement.getAttribute("href"), origin).searchParams.get("jan"), missingJan)
   await supplement.click()
-  await page.getByRole("button", { name: "帮忙补录商品（可选）", exact: true }).click()
-  await page.getByText("补录缺失商品", { exact: true }).waitFor()
-  assert.match(await page.getByRole("dialog").innerText(), new RegExp(`JAN ${missingJan}`))
-  assert.equal(await page.getByRole("dialog").getByLabel("商品名称", { exact: true }).inputValue(), "", "unrelated enrichment must leave the name blank for review")
+  await page.waitForURL(origin + `/product/?id=${missingJan}&record=1#record-price`)
+  await page.getByText("商品已登记，可先记录价格。资料待管理员完善。", { exact: true }).waitFor()
+  assert.equal(registrations, 1)
+  const firstPrice = page.getByLabel("价格（日元）", { exact: true })
+  await page.waitForFunction(() => document.activeElement?.getAttribute("type") === "number")
+  assert.equal(await page.locator("#record-price").getAttribute("open"), "")
+  assert.equal(await page.locator("#record-price form input").first().getAttribute("type"), "number")
+  assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "")
+  await firstPrice.fill("429")
+  await page.getByRole("button", { name: "保存价格", exact: true }).click()
+  await page.getByText("个人价格记录已保存。", { exact: true }).waitFor()
+  assert.equal(savedPrices.at(-1).product_id, missingJan)
+  assert.equal(savedPrices.at(-1).price_yen, 429)
+  assert.equal(savedPrices.at(-1).store_id, null)
+  adminFixture = true
+  accountFixtures = false
+  await page.goto(origin + "/admin/")
+  await page.getByRole("button", { name: "完善资料", exact: true }).click()
+  await page.getByRole("heading", { name: "完善商品资料", exact: true }).waitFor()
+  assert.equal(await page.getByLabel("JAN 码", { exact: true }).isDisabled(), true)
+  await page.getByLabel("商品名称", { exact: true }).fill("已完善测试商品")
+  await page.getByRole("button", { name: "保存", exact: true }).click()
+  await page.getByText("商品已保存。", { exact: true }).waitFor()
+  assert.equal(stubCompleted, true)
+  await page.getByRole("tab", { name: "审核", exact: true }).click()
+  await page.getByText("没有待审核商品。", { exact: true }).waitFor()
+  adminFixture = false
+  accountFixtures = true
   await page.goto(origin + "/me/")
   await page.getByRole("button", { name: "导出数据", exact: true }).waitFor()
   await page.getByRole("link", { name: "记录这个价格", exact: true }).click()
@@ -305,6 +342,7 @@ try {
   await page.getByText("指定的实体门店未能加载，请重新搜索并选择。", { exact: true }).waitFor()
   assert.equal(await page.getByLabel("门店", { exact: true }).inputValue(), "")
   accountFixtures = false
+  stubRegistered = false
   await page.evaluate(() => localStorage.clear())
   await verifyScannerBrowser(page, origin, missingJan)
   await mkdir("artifacts/commercial-audit", { recursive: true })
