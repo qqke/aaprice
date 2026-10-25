@@ -16,6 +16,12 @@ const origins = {
   tsuruha: "https://shop.tsuruha.co.jp",
   earth: "https://www.earth.jp",
   tomods: "https://tomods-ap.com",
+  create: "https://netshop.create-sd.co.jp",
+  kyorindo: "https://www.kyorindo-onlineshop.jp",
+  doramori: "https://net-shop.doramori.co.jp",
+  seims: "https://www.seims.co.jp",
+  kai: "https://store.kai-group.com",
+  elpa: "https://www.elpadirect.jp",
 }
 
 export function validGtin(value) {
@@ -29,6 +35,8 @@ export function prepareRows(products) {
   for (const product of products) {
     try {
       if (!validGtin(product.barcode)) throw Error("Invalid GTIN/check digit")
+      // GS1 020–029, 040–049 and 200–299 identify restricted circulation, not cross-store products.
+      if (product.barcode.length >= 12 && /^(?:02|04|2)/.test(product.barcode.padStart(14, "0").slice(1))) throw Error("Restricted circulation code")
       if (typeof product.name !== "string" || !product.name.trim()) throw Error("Missing product name")
       if (!origins[product.catalogSource] || new URL(product.sourceUrl).origin !== origins[product.catalogSource]) throw Error("Unverified source URL")
       const row = { barcode: product.barcode, catalogSource: product.catalogSource, sourceUrl: product.sourceUrl }

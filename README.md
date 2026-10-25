@@ -121,6 +121,19 @@ node --env-file=.env scripts/crawl-tomods-products.mjs
 
 Welcia 核对公开商品列表与 sitemap；Unicharm 使用官方子规格 JAN；Earth 要求当前商品主购买链接与主图条码一致。鹤羽按 sitemap SKU 批量读取公开接口的 `tgmd_jan_code`，校验 SKU、URL 和分页一致性，内部商品 ID 不作为 JAN。Tomod’s 要求商品卡、购物车链接、图片编码一致，并逐个核对未知商品详情中的商品コード、Product.mpn、名称和图片；列表标示数与可见卡片差异保留在报告。采集与导入仍分开，沿用只插入、等价条码去重和旧商品指纹校验。
 
+继续扩展现有店铺与品牌（默认结果写入 `artifacts/products-round5-2026-10-25/`）：
+
+```sh
+node --env-file=.env scripts/crawl-create-products.mjs
+node --env-file=.env scripts/crawl-kyorindo-products.mjs
+node --env-file=.env scripts/crawl-doramori-products.mjs
+node --env-file=.env scripts/crawl-seims-products.mjs
+node --env-file=.env scripts/crawl-kai-products.mjs
+node --env-file=.env scripts/crawl-elpa-products.mjs
+```
+
+Create SD 与杏林堂核对全目录分页及未知商品详情；Doramori 核对当前结构化商品、链接及主图身份。Seims 遵守至少 10 秒的请求间隔，列表候选单独保存在 `seims-list-candidates.json`，只有通过详情核验的商品写入 `seims.json`。貝印使用页面明确标注且与当前商品数据一致的 JAN，商城内部编号不作为条码；ELPA 仅接受直营目录中厂家明确为朝日電器的商品。导入器另排除 GS1 020–029、040–049、200–299 限制流通号，不修改库中已有记录。`complete` 表示相应公开范围的抓取和核验完成，仍须查看被排除的无条码、套装及证据不足商品。各次执行应使用不同 `--out=` 目录保留入库证据，正在采集的结果不可当作全量报告。
+
 全国药妆连锁门店目录扩充：
 
 ```sh

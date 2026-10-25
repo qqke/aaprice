@@ -26,9 +26,26 @@ test("UPC and zero-prefixed EAN forms share one identity without changing the so
 })
 
 test("accepts verified new catalog origins and rejects lookalike domains", () => {
-  for (const [catalogSource, origin] of [["lion", "https://map.lion.co.jp"], ["kirindo", "https://www.kirindo-shop.com"], ["welcia", "https://www.e-welcia.com"], ["unicharm", "https://map.unicharm.co.jp"], ["tsuruha", "https://shop.tsuruha.co.jp"]]) {
+  for (const [catalogSource, origin] of [["lion", "https://map.lion.co.jp"], ["kirindo", "https://www.kirindo-shop.com"], ["welcia", "https://www.e-welcia.com"], ["unicharm", "https://map.unicharm.co.jp"], ["tsuruha", "https://shop.tsuruha.co.jp"], ["create", "https://netshop.create-sd.co.jp"], ["kyorindo", "https://www.kyorindo-onlineshop.jp"], ["doramori", "https://net-shop.doramori.co.jp"]]) {
     assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product` }]).rows.length, 1)
     assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.evil.invalid/product` }]).excluded.length, 1)
+  }
+})
+
+test("rejects store circulation codes including equivalent UPC and padded forms", () => {
+  for (const barcode of ["2220000000253", "0405048569630", "0205048569636", "405048569630", "00405048569630"]) {
+    assert.equal(validGtin(barcode), true)
+    const result = prepareRows([{ ...product, barcode }])
+    assert.equal(result.rows.length, 0)
+    assert.equal(result.excluded[0].reason, "Restricted circulation code")
+  }
+  assert.equal(prepareRows([{ ...product, barcode: "705928001206" }]).rows.length, 1)
+})
+
+test("accepts Seims and existing-brand official catalogs without accepting lookalikes", () => {
+  for (const [catalogSource, origin] of [["seims", "https://www.seims.co.jp"], ["kai", "https://store.kai-group.com"], ["elpa", "https://www.elpadirect.jp"]]) {
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product` }]).rows.length, 1)
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.invalid/product` }]).rows.length, 0)
   }
 })
 
