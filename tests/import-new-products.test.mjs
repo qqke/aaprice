@@ -49,6 +49,17 @@ test("accepts Seims and existing-brand official catalogs without accepting looka
   }
 })
 
+test("rejects short internal circulation codes and zero-padded aliases while retaining global GTIN-8", () => {
+  for (const raw of ["02345673", "22345677"]) for (const length of [8, 12, 13, 14]) {
+    const barcode = raw.padStart(length, "0")
+    assert.equal(validGtin(barcode), true)
+    const result = prepareRows([{ ...product, barcode }])
+    assert.equal(result.rows.length, 0)
+    assert.equal(result.excluded[0].reason, "Restricted circulation code")
+  }
+  for (const length of [8, 12, 13, 14]) assert.equal(prepareRows([{ ...product, barcode: "96385074".padStart(length, "0") }]).rows.length, 1)
+})
+
 test("import SQL inserts only with collision guards and verifies old records before commit", () => {
   const sql = insertSql(prepareRows([product]).rows)
   assert.match(sql, /on conflict do nothing/)

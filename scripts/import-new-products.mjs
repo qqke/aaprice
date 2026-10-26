@@ -35,8 +35,9 @@ export function prepareRows(products) {
   for (const product of products) {
     try {
       if (!validGtin(product.barcode)) throw Error("Invalid GTIN/check digit")
-      // GS1 020–029, 040–049 and 200–299 identify restricted circulation, not cross-store products.
-      if (product.barcode.length >= 12 && /^(?:02|04|2)/.test(product.barcode.padStart(14, "0").slice(1))) throw Error("Restricted circulation code")
+      const identity = product.barcode.padStart(14, "0"), prefix = identity.slice(1)
+      // GS1 RCN-8 (0/2) and prefixes 020–029, 040–049, 200–299 are restricted circulation.
+      if (/^(?:02|04|2)/.test(prefix) || /^0{5}[02]\d{7}$/.test(prefix)) throw Error("Restricted circulation code")
       if (typeof product.name !== "string" || !product.name.trim()) throw Error("Missing product name")
       if (!origins[product.catalogSource] || new URL(product.sourceUrl).origin !== origins[product.catalogSource]) throw Error("Unverified source URL")
       const row = { barcode: product.barcode, catalogSource: product.catalogSource, sourceUrl: product.sourceUrl }
@@ -45,7 +46,6 @@ export function prepareRows(products) {
         row[key] = (product[key] || "").replace(/\s+/g, " ").trim()
       }
       if (row.imageUrl && !/^https?:\/\//.test(row.imageUrl)) throw Error("Invalid image URL")
-      const identity = row.barcode.padStart(14, "0")
       if (!unique.has(identity)) unique.set(identity, row)
     } catch (error) {
       excluded.push({ barcode: product?.barcode, sourceUrl: product?.sourceUrl, reason: error.message })
