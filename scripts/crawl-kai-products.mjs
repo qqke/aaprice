@@ -59,7 +59,8 @@ async function main() {
     let next = 0
     await Promise.all([0, 1].map(async () => { while (next < items.length && !blocked) { const item = items[next++]; try { await fn(item) } catch (e) { report.failures.push({ item, reason: e.message }); if (/HTTP (403|429)/.test(e.message)) blocked = true } } }))
   }
-  const known = new Map(JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\nselect json_agg(json_build_object('barcode',barcode,'name',name)) from public.products;")).map(p => [p.barcode.padStart(14, "0"), p.name]))
+  const queryPrefix = "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\n"
+  const known = new Set(JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select coalesce(json_agg(barcode),'[]') from public.products;`)).map(barcode => barcode.padStart(14, "0")))
   const sitemap = new Set(), current = new Set(), rows = new Map(), all = new Set(), conflicts = new Map()
   const index = locations((await get(`${origin}/sitemap_index.xml`)).html)
   for (const url of index) {
@@ -106,10 +107,16 @@ async function main() {
     else {
       const identity = row.barcode.padStart(14, "0"); all.add(identity)
       if (!known.has(identity)) mergeKaiCandidate(rows, conflicts, row)
-      else if (report.knownSamples.length < 10) report.knownSamples.push({ barcode: row.barcode, officialName: row.name, existingName: known.get(identity) })
+      else if (report.knownSamples.length < 10) report.knownSamples.push({ barcode: row.barcode, officialName: row.name })
     }
     if (report.detailPages % 100 === 0) { await save(); console.log(`Kai ${report.detailPages}/${urls.length}: ${rows.size} new`) }
   })
+  if (report.knownSamples.length) {
+    const codes = report.knownSamples.map(p => `'${p.barcode.padStart(14, "0")}'`).join(",")
+    const samples = JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select json_agg(json_build_object('barcode',barcode,'name',name)) from public.products where lpad(barcode,14,'0') in (${codes});`))
+    const names = new Map(samples.map(p => [p.barcode.padStart(14, "0"), p.name]))
+    report.knownSamples.forEach(p => { p.existingName = names.get(p.barcode.padStart(14, "0")) })
+  }
   report.complete = report.listComplete && report.detailPages === urls.length && !report.failures.length
   await save()
   console.log(JSON.stringify({ ...report, excluded: report.excluded.length, knownSamples: report.knownSamples.length }))
