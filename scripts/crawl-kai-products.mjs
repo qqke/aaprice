@@ -32,6 +32,7 @@ export function parseKaiProduct(html, sourceUrl) {
   const p = data?.productDataList?.find(p => p.productPageUrl === sourceUrl)
   const canonical = decode(html.match(/<link rel="canonical" href="([^"]+)"/)?.[1] || "")
   const title = plain(html.match(/<h1 class="[^"]*block-goods-name--text[^"]*">([\s\S]*?)<\/h1>/)?.[1] || "")
+  if (/^【名入れ対応】|\/\s*ギフト包装付き/.test(title)) return null
   // Variant pages canonically link to their family leader; the explicit current JAN remains authoritative.
   const canonicalMatches = canonical === sourceUrl || (p?.variationGroup && canonical.startsWith(`${origin}/`) && productUrl(canonical))
   if (!p || p.jan !== labelled || !title || plain(p.productName) !== title || detail?.name !== p.productName || detail?.goods !== p.productCd || sourceUrl !== `${origin}/shop/g/g${p.productCd}/` || !canonicalMatches || detail.set_fg !== "0") return null

@@ -12,6 +12,8 @@ test("Kai uses explicitly labelled JAN, not the internal numeric product ID", ()
   assert.equal(row.name, p.productName)
   for (const changed of [{ jan: "4903301010944" }, { productCd: "15672" }, { productName: "別商品" }, { productPageUrl: url + "wrong" }]) assert.equal(parseKaiProduct(fixture({ ...p, ...changed }), url), null)
   assert.equal(parseKaiProduct(fixture(p, "1"), url), null)
+  assert.equal(parseKaiProduct(fixture().replaceAll(p.productName, `【名入れ対応】${p.productName}`), url), null)
+  assert.equal(parseKaiProduct(fixture().replaceAll(p.productName, `${p.productName} / ギフト包装付き(KAI Gift)`), url), null)
   assert.throws(() => parseKaiProduct(fixture(), "https://invalid.test/shop/g/g15671/"))
 })
 

@@ -52,6 +52,20 @@ export function verifySeimsDetail(html, row) {
   return { ...row, imageUrl, evidenceType: "official-current-detail-code-canonical-image-name", verifiedAt: new Date().toISOString() }
 }
 
+export async function readSeimsResponse(url, fetcher, beforeAttempt) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await beforeAttempt()
+    try {
+      const response = await fetcher(url, { headers: { "User-Agent": "AAPriceCatalog/1.0" }, signal: AbortSignal.timeout(30000) })
+      if (new URL(response.url).origin !== origin) throw Error(`Redirected outside official origin: ${url}`)
+      if (!response.ok) throw Object.assign(Error(`HTTP ${response.status} ${url}`), { status: response.status })
+      return await response.text()
+    } catch (error) {
+      if (attempt === 2 || error.message.startsWith("Redirected") || (error.status && error.status < 500)) throw error
+    }
+  }
+}
+
 async function main() {
   const out = process.argv.find(x => x.startsWith("--out="))?.slice(6) || "artifacts/products-round5-2026-10-25"
   const cache = `${out}/seims-cache`; await mkdir(cache, { recursive: true })
@@ -62,12 +76,11 @@ async function main() {
     const file = `${cache}/${createHash("sha256").update(url).digest("hex")}.json`
     try { return JSON.parse(await readFile(file, "utf8")).html } catch {}
     if (process.argv.includes("--offline")) throw Error(`Missing cached ${url}`)
-    await new Promise(resolve => setTimeout(resolve, Math.max(0, 10200 - (Date.now() - lastRequest))))
-    lastRequest = Date.now()
-    const response = await fetch(url, { headers: { "User-Agent": "AAPriceCatalog/1.0" }, signal: AbortSignal.timeout(30000) })
-    if (!response.ok) throw Error(`HTTP ${response.status} ${url}`)
-    if (new URL(response.url).origin !== origin) throw Error(`Redirected outside official origin: ${url}`)
-    const html = await response.text(); await writeFile(file, JSON.stringify({ url, collectedAt: new Date().toISOString(), html })); return html
+    const html = await readSeimsResponse(url, fetch, async () => {
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, 10200 - (Date.now() - lastRequest))))
+      lastRequest = Date.now()
+    })
+    await writeFile(file, JSON.stringify({ url, collectedAt: new Date().toISOString(), html })); return html
   }
   try { robots = await readFile(`${out}/seims-robots.txt`, "utf8") } catch { robots = await get(`${origin}/robots.txt`); await writeFile(`${out}/seims-robots.txt`, robots) }
   const db = JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(json_build_object('barcode',barcode,'name',name)),'[]') from public.products;"))

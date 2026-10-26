@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { parseSeimsList, verifySeimsDetail, recordSeimsCoverage } from "../scripts/crawl-seims-products.mjs"
+import { parseSeimsList, verifySeimsDetail, recordSeimsCoverage, readSeimsResponse } from "../scripts/crawl-seims-products.mjs"
 const url = "https://www.seims.co.jp/shop/c/c10/"
 const html = (code = "4560389400083", image = code, name = "点鼻薬 30ml") => `<link rel="next" href="https://www.seims.co.jp/shop/c/c10_p2/"><span class="pager-count"><span>2252</span></span><li class="block-pickup-list-p--item js-enhanced-ecommerce-item"><div class="block-pickup-list-p--goods-name"><a href="/shop/g/g${code}/">${name}</a></div><a data-category="点鼻薬(100304)" data-brand=""><img src="/img/goods/S/${image}.jpg" alt="${name}"></a></li>`
 test("Seims binds each list name to the same product URL and main image", () => { const p = parseSeimsList(html(), url); assert.equal(p.rows[0].barcode, "4560389400083"); assert.equal(p.rows[0].category, "点鼻薬"); assert.equal(p.total, 2252); assert.equal(p.next, "https://www.seims.co.jp/shop/c/c10_p2/"); assert.equal(parseSeimsList(html("4560389400083", "4903301316039"), url).rows.length, 0) })
@@ -31,4 +31,13 @@ test("Seims completeness counts all unique card URLs and notices changing totals
   assert.equal(coverage.complete, true)
   coverage = recordSeimsCoverage(coverage, { ...page, total: 3 }, seen)
   assert.equal(coverage.totalChanged, true); assert.equal(coverage.complete, false)
+})
+test("Seims retries temporary failures at the rate gate but never access restrictions", async () => {
+  let calls = 0, gates = 0
+  const successful = { url, ok: true, text: async () => "page" }
+  assert.equal(await readSeimsResponse(url, async () => { if (++calls === 1) throw Error("fetch failed"); return successful }, async () => { gates++ }), "page")
+  assert.equal(calls, 2); assert.equal(gates, 2)
+  for (const status of [403, 404, 429]) { calls = 0; await assert.rejects(readSeimsResponse(url, async () => { calls++; return { url, ok: false, status } }, async () => {}), new RegExp(`HTTP ${status}`)); assert.equal(calls, 1) }
+  calls = 0; await assert.rejects(readSeimsResponse(url, async () => { calls++; throw Error("fetch failed") }, async () => {}), /fetch failed/); assert.equal(calls, 3)
+  calls = 0; await assert.rejects(readSeimsResponse(url, async () => { calls++; return { ...successful, url: "https://example.com/" } }, async () => {}), /outside/); assert.equal(calls, 1)
 })
