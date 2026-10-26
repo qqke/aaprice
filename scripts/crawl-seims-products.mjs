@@ -66,6 +66,13 @@ export async function readSeimsResponse(url, fetcher, beforeAttempt) {
   }
 }
 
+export function summarizeSeimsCompletion(report, finishedAt = new Date().toISOString()) {
+  const paginationComplete = report.remainingPages.length === 0 && !report.failures.some(f => /\/shop\/c\//.test(f.url))
+  const countsStable = Object.values(report.categories).every(category => !category.totalChanged)
+  const processingFinished = paginationComplete && report.detailsComplete
+  return { paginationComplete, countsStable, processingFinished, finishedAt: processingFinished ? finishedAt : null }
+}
+
 async function main() {
   const out = process.argv.find(x => x.startsWith("--out="))?.slice(6) || "artifacts/products-round5-2026-10-25"
   const cache = `${out}/seims-cache`; await mkdir(cache, { recursive: true })
@@ -117,6 +124,7 @@ async function main() {
   }
   report.detailsComplete = report.detailsAttempted === rows.size && !report.failures.length
   report.complete = report.listComplete && report.detailsComplete
+  Object.assign(report, summarizeSeimsCompletion(report))
   await save(); if (!report.complete) process.exitCode = 1
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => { console.error(error.message); process.exitCode = 1 })
