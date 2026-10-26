@@ -8,7 +8,7 @@ import { databaseProcess } from "./sync-sundrug.mjs"
 import { validGtin } from "./import-new-products.mjs"
 
 const origin = "https://store.kai-group.com"
-const decode = s => s.replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, " ")
+const decode = s => s.replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&apos;/g, "'").replace(/&nbsp;/g, " ")
 const plain = s => decode(s.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim()
 const locations = xml => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => decode(m[1]))
 const productUrl = url => new URL(url).origin === origin && /^\/shop\/g\/g[\w-]+\/$/.test(new URL(url).pathname)
@@ -26,7 +26,7 @@ export function parseKaiList(html) {
 export function parseKaiProduct(html, sourceUrl) {
   if (!productUrl(sourceUrl)) throw Error("Unexpected product URL")
   const labelled = plain(html.match(/<dl class="block-goods-comment5">\s*<dd>([\s\S]*?)<\/dd>/)?.[1] || "")
-  if (!validGtin(labelled)) return null
+  if (!validGtin(labelled) || (labelled.length >= 12 && /^(?:02|04|2)/.test(labelled.padStart(14, "0").slice(1)))) return null
   const data = JSON.parse(html.match(/<script type="application\/json" id="revico-productmaster-data-origin">([\s\S]*?)<\/script>/)?.[1] || "null")
   const detail = JSON.parse(decode(html.match(/<meta property="etm:goods_detail" content="([^"]+)"/)?.[1] || "null"))
   const p = data?.productDataList?.find(p => p.productPageUrl === sourceUrl)
