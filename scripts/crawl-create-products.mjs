@@ -9,6 +9,7 @@ const origin = "https://netshop.create-sd.co.jp"
 const decode = s => s.replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
 const plain = s => decode(s.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim()
 const storeBundle = name => /《セット(?:販売)?》|【セット販売】/.test(name)
+const imageMatchesCode = (image, code) => image.split("/").pop().match(/^(\d+)\.(?:jpe?g|png|gif)$/i)?.[1] === code
 
 export function parseCreateList(html) {
   const total = Number(html.match(/navipage_sum_"><strong>([\d,]+)<\/strong>/)?.[1]?.replaceAll(",", ""))
@@ -21,7 +22,7 @@ export function parseCreateList(html) {
     const barcode = link[2], sourceUrl = new URL(link[1], origin).href, name = plain(link[3])
     const image = decode(card.match(/<img[^>]*src="(\/img\/goods\/S\/[^"?]+)"/)?.[1] || "")
     const cart = decode(card.match(/cart\.aspx\?goods=([^&"]+)/)?.[1] || "")
-    if (!validGtin(barcode) || (barcode.length >= 12 && /^(?:02|04|2)/.test(barcode.padStart(14, "0").slice(1))) || /^0{5}/.test(barcode) || storeBundle(name) || !name || (cart && cart !== barcode) || image.split("/").pop() !== `${barcode}.jpg`) {
+    if (!validGtin(barcode) || (barcode.length >= 12 && /^(?:02|04|2)/.test(barcode.padStart(14, "0").slice(1))) || /^0{5}/.test(barcode) || storeBundle(name) || !name || (cart && cart !== barcode) || !imageMatchesCode(image, barcode)) {
       excluded.push({ sourceUrl, barcode, reason: "No consistent global product/image/cart identity or store bundle" }); continue
     }
     products.push({ barcode, name, sourceUrl, imageUrl: new URL(image, origin).href,
@@ -37,7 +38,7 @@ export function verifyCreateProduct(html, expected) {
   const hidden = html.match(/<input type="hidden" value="([^"]+)" id="hidden_goods">/)?.[1]
   const canonical = decode(html.match(/<link rel="canonical" href="([^"]+)"/)?.[1] || "")
   const image = html.match(/<a href="(\/img\/goods\/L\/[^"?]+)" class="img_"/)?.[1] || ""
-  return code === expected.barcode && hidden === code && canonical === expected.sourceUrl && name === expected.name && !storeBundle(name) && image.split("/").pop() === `${code}.jpg`
+  return code === expected.barcode && hidden === code && canonical === expected.sourceUrl && name === expected.name && !storeBundle(name) && imageMatchesCode(image, code)
 }
 
 export function parseCreateCategory(html) {
@@ -116,7 +117,7 @@ async function main() {
   await parallel(pending, async p => {
     const html = await load(p.sourceUrl); report.detailPages++
     if (!verifyCreateProduct(html, p)) report.excluded.push({ sourceUrl: p.sourceUrl, reason: "Detail code/name/canonical/image mismatch" })
-    else products.push({ ...p, category: parseCreateCategory(html), imageUrl: p.imageUrl.replace("/goods/S/", "/goods/L/"), evidenceType: "official-labelled-product-code-hidden-code-image" })
+    else products.push({ ...p, category: parseCreateCategory(html), imageUrl: new URL(html.match(/<a href="(\/img\/goods\/L\/[^"?]+)" class="img_"/)[1], origin).href, evidenceType: "official-labelled-product-code-hidden-code-image" })
     if (report.detailPages % 100 === 0) { console.log(`Create details ${report.detailPages}/${pending.length}: ${products.length} candidates`); await save() }
   })
   report.complete = report.categories.length === categories.length && report.categories.every(c => c.complete) && report.detailPages === pending.length && !report.failures.length

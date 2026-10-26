@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { parseKaiList, parseKaiProduct } from "../scripts/crawl-kai-products.mjs"
+import { parseKaiList, parseKaiProduct, mergeKaiCandidate } from "../scripts/crawl-kai-products.mjs"
 
 const url = "https://store.kai-group.com/shop/g/g15671/"
 const p = { productCd: "15671", productPageUrl: url, productName: "カミソリ 替刃2個付", jan: "4901331003134", productImageUrl: "https://store.kai-group.com/img/goods/L/main.jpg", categoryName: "カミソリ" }
@@ -23,6 +23,18 @@ test("Kai variants may canonically reference their official family while retaini
   assert.equal(parseKaiProduct(html, url).barcode, p.jan)
   assert.equal(parseKaiProduct(html.replace('"variationGroup":"series"', '"variationGroup":""'), url), null)
   assert.equal(parseKaiProduct(html.replace('href="https://store.kai-group.com/shop/g/g15670/"', 'href="https://invalid.test/shop/g/g15670/"'), url), null)
+})
+
+test("Kai quarantines conflicting names sharing one JAN instead of keeping the last variant", () => {
+  const rows = new Map(), conflicts = new Map(), row = parseKaiProduct(fixture(), url)
+  mergeKaiCandidate(rows, conflicts, row)
+  mergeKaiCandidate(rows, conflicts, { ...row, sourceUrl: url + "alias" })
+  assert.equal(rows.size, 1)
+  mergeKaiCandidate(rows, conflicts, { ...row, name: "別の形状" })
+  mergeKaiCandidate(rows, conflicts, row)
+  assert.equal(rows.size, 0)
+  assert.equal(conflicts.size, 1)
+  assert.equal(conflicts.values().next().value.length, 3)
 })
 
 test("Kai list scope excludes recommendations and deduplicates image/name links", () => {

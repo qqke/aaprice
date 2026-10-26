@@ -35,10 +35,17 @@ export function parseKaiProduct(html, sourceUrl) {
   if (/^【名入れ対応】|\/\s*ギフト包装付き/.test(title)) return null
   // Variant pages canonically link to their family leader; the explicit current JAN remains authoritative.
   const canonicalMatches = canonical === sourceUrl || (p?.variationGroup && canonical.startsWith(`${origin}/`) && productUrl(canonical))
-  if (!p || p.jan !== labelled || !title || plain(p.productName) !== title || detail?.name !== p.productName || detail?.goods !== p.productCd || sourceUrl !== `${origin}/shop/g/g${p.productCd}/` || !canonicalMatches || detail.set_fg !== "0") return null
+  if (!p || p.jan !== labelled || !title || plain(p.productName) !== title || plain(detail?.name || "") !== title || detail?.goods !== p.productCd || sourceUrl !== `${origin}/shop/g/g${p.productCd}/` || !canonicalMatches || detail.set_fg !== "0") return null
   const image = new URL(p.productImageUrl || "/", origin)
   if (image.origin !== origin || !/^\/img\/(?:goods\/|goods-bulk-upload-2601\/)/.test(image.pathname)) return null
   return { barcode: labelled, name: title, brand: "貝印株式会社", pack: "", category: p.categoryName || "", description: "", imageUrl: image.href, catalogSource: "kai", sourceUrl, evidenceType: "official-labelled-jan-productmaster-current-product" }
+}
+
+export function mergeKaiCandidate(rows, conflicts, row) {
+  const identity = row.barcode.padStart(14, "0"), previous = rows.get(identity)
+  if (previous && previous.name !== row.name) { conflicts.set(identity, [previous]); rows.delete(identity) }
+  if (conflicts.has(identity)) conflicts.get(identity).push(row)
+  else rows.set(identity, row)
 }
 
 async function main() {
@@ -53,7 +60,7 @@ async function main() {
     await Promise.all([0, 1].map(async () => { while (next < items.length && !blocked) { const item = items[next++]; try { await fn(item) } catch (e) { report.failures.push({ item, reason: e.message }); if (/HTTP (403|429)/.test(e.message)) blocked = true } } }))
   }
   const known = new Map(JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\nselect json_agg(json_build_object('barcode',barcode,'name',name)) from public.products;")).map(p => [p.barcode.padStart(14, "0"), p.name]))
-  const sitemap = new Set(), current = new Set(), rows = new Map(), all = new Set()
+  const sitemap = new Set(), current = new Set(), rows = new Map(), all = new Set(), conflicts = new Map()
   const index = locations((await get(`${origin}/sitemap_index.xml`)).html)
   for (const url of index) {
     if (new URL(url).origin !== origin || !robotsAllow(robots, url) || !url.endsWith(".xml.gz")) throw Error("Unexpected sitemap URL")
@@ -88,6 +95,7 @@ async function main() {
   Object.assign(report, { sitemapProducts: sitemap.size, currentListings: current.size, discoveredProducts: urls.length, listComplete: report.categories.every(c => c.complete) })
   async function save() {
     report.candidates = rows.size; report.validGtins = all.size
+    report.identityConflicts = [...conflicts.values()]
     await writeFile(`${out}/kai.json`, JSON.stringify([...rows.values()], null, 2))
     await writeFile(`${out}/kai-report.json`, JSON.stringify(report, null, 2))
   }
@@ -97,7 +105,7 @@ async function main() {
     if (!row) report.excluded.push({ url, reason: "Missing consistent labelled JAN/current identity or store bundle" })
     else {
       const identity = row.barcode.padStart(14, "0"); all.add(identity)
-      if (!known.has(identity)) rows.set(identity, row)
+      if (!known.has(identity)) mergeKaiCandidate(rows, conflicts, row)
       else if (report.knownSamples.length < 10) report.knownSamples.push({ barcode: row.barcode, officialName: row.name, existingName: known.get(identity) })
     }
     if (report.detailPages % 100 === 0) { await save(); console.log(`Kai ${report.detailPages}/${urls.length}: ${rows.size} new`) }

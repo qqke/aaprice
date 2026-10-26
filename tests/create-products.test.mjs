@@ -8,6 +8,7 @@ const card = `<div class="StyleD_Item_"><img src="/img/goods/S/${barcode}.jpg"><
 test("Create accepts consistent card identity and rejects cart conflicts and local codes", () => {
   const wrap = html => `<span class="navipage_sum_"><strong>1</strong></span><div class="goods_ goods_list_">${html}<div class="navipage_ bottom_">`
   assert.equal(parseCreateList(wrap(card)).products[0].name, "A&B")
+  for (const ext of ["JPG", "png", "gif", "jpeg"]) assert.equal(parseCreateList(wrap(card.replace(".jpg", `.${ext}`))).products[0].imageUrl, `https://netshop.create-sd.co.jp/img/goods/S/${barcode}.${ext}`)
   assert.equal(parseCreateList(wrap(card.replace(`goods=${barcode}`, "goods=other"))).excluded.length, 1)
   assert.equal(parseCreateList(wrap(card.replaceAll(barcode, "2220000000253"))).excluded.length, 1)
   for (const prefix of ["020", "040", "200"]) {
@@ -24,6 +25,8 @@ test("Create detail requires labelled product code, hidden identity, name, canon
   const html = `<link rel="canonical" href="${sourceUrl}"><input type="hidden" value="${barcode}" id="hidden_goods"><a href="/img/goods/L/${barcode}.jpg" class="img_"><p class="title_">商品名 : </p><p class="txt_">A&amp;B</p><p class="title_">商品コード : </p><p class="txt_">${barcode}</p>`
   const expected = {barcode, sourceUrl, name: "A&B"}
   assert.equal(verifyCreateProduct(html, expected), true)
+  for (const ext of ["JPG", "png", "gif", "jpeg"]) assert.equal(verifyCreateProduct(html.replace(".jpg", `.${ext}`), expected), true)
+  assert.equal(verifyCreateProduct(html.replace(`${barcode}.jpg`, "other.jpg"), expected), false)
   assert.equal(verifyCreateProduct(html, {...expected, barcode: "4901301448362"}), false)
   assert.equal(verifyCreateProduct(html.replace(sourceUrl, "https://evil.invalid/"), expected), false)
   assert.equal(verifyCreateProduct(html.replace("商品コード", "関連商品"), expected), false)
