@@ -6,6 +6,7 @@ const spec = jan => `<meta property="etm:goods_detail" content="{&quot;goods&quo
 const sample = `<h1>ジキナ顆粒ゴールド（6包）</h1>${spec('4987524032631')}<div class="pane-goods-footer">${spec('4987524033454')}</div>`
 assert.equal(parseProduct(sample, url).barcode, '4987524032631')
 assert.match(parseProduct(sample, url).name, /6包/)
+assert.equal(parseProduct(sample.replace('ジキナ顆粒ゴールド（6包）', '&quot;10&#215;14&#x63;m&quot; &apos;'), url).name, '"10×14cm" \'')
 assert.equal(parseProduct(sample, url).imageUrl, 'https://www.fujiyaku-direct.com/img/goods/L/498752403263n.jpg')
 assert.equal(parseProduct(sample, url.replace('498752403263n', 'different')).reason, 'Product metadata identity mismatch')
 assert.equal(parseProduct(sample.replace('/img/goods/L/498752403263n.jpg', '/img/goods/L/different.jpg'), url).reason, 'Main image product identity mismatch')

@@ -5,7 +5,7 @@ import { databaseProcess } from './sync-sundrug.mjs'
 
 const origin = 'https://www.fujiyaku-direct.com'
 const out = 'artifacts/products-round6-fujiyaku-2026-10-28'
-const plain = value => value.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+const plain = value => value.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(x[\da-f]+|\d+);/gi, (entity, code) => { const point = code[0].toLowerCase() === 'x' ? parseInt(code.slice(1), 16) : Number(code); return point <= 0x10ffff ? String.fromCodePoint(point) : entity }).replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
 export function parseProduct(html, sourceUrl) {
   html = html.split('<div class="pane-goods-footer">')[0]
   const name = plain(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || '')
