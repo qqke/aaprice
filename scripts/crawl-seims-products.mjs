@@ -52,6 +52,17 @@ export function verifySeimsDetail(html, row) {
   return { ...row, imageUrl, evidenceType: "official-current-detail-code-canonical-image-name", verifiedAt: new Date().toISOString() }
 }
 
+export async function verifySeimsCandidate(row, get) {
+  let html
+  try { html = await get(row.sourceUrl) }
+  catch (error) {
+    if (error.status !== 404) throw error
+    return { excluded: { url: row.sourceUrl, reason: error.message, status: 404 } }
+  }
+  try { return { product: verifySeimsDetail(html, row) } }
+  catch (error) { return { excluded: { url: row.sourceUrl, reason: error.message } } }
+}
+
 export async function readSeimsResponse(url, fetcher, beforeAttempt) {
   for (let attempt = 0; attempt < 3; attempt++) {
     await beforeAttempt()
@@ -81,12 +92,19 @@ async function main() {
   async function get(url) {
     if (new URL(url).origin !== origin || (url !== `${origin}/robots.txt` && (!robots || !robotsAllow(robots, url)))) throw Error(`Disallowed URL ${url}`)
     const file = `${cache}/${createHash("sha256").update(url).digest("hex")}.json`
-    try { return JSON.parse(await readFile(file, "utf8")).html } catch {}
+    let cached
+    try { cached = JSON.parse(await readFile(file, "utf8")) } catch {}
+    if (cached?.status === 404) throw Object.assign(Error(`HTTP 404 ${url}`), { status: 404 })
+    if (cached) return cached.html
     if (process.argv.includes("--offline")) throw Error(`Missing cached ${url}`)
-    const html = await readSeimsResponse(url, fetch, async () => {
+    let html
+    try { html = await readSeimsResponse(url, fetch, async () => {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, 10200 - (Date.now() - lastRequest))))
       lastRequest = Date.now()
-    })
+    }) } catch (error) {
+      if (error.status === 404) await writeFile(file, JSON.stringify({ url, collectedAt: new Date().toISOString(), status: 404 }))
+      throw error
+    }
     await writeFile(file, JSON.stringify({ url, collectedAt: new Date().toISOString(), html })); return html
   }
   try { robots = await readFile(`${out}/seims-robots.txt`, "utf8") } catch { robots = await get(`${origin}/robots.txt`); await writeFile(`${out}/seims-robots.txt`, robots) }
@@ -118,19 +136,22 @@ async function main() {
   report.listComplete = queue.length === 0 && !report.failures.length && Object.values(report.categories).every(c => c.complete)
   if (!report.failures.length) for (const row of rows.values()) {
     if (report.detailsAttempted >= maxDetails) break
-    try { const html = await get(row.sourceUrl); try { verified.set(identity(row.barcode), verifySeimsDetail(html, row)) } catch (error) { report.detailExcluded.push({ url: row.sourceUrl, reason: error.message }) } }
+    try { const result = await verifySeimsCandidate(row, get); if (result.product) verified.set(identity(row.barcode), result.product); else report.detailExcluded.push(result.excluded) }
     catch (error) { report.failures.push({ url: row.sourceUrl, reason: error.message }); break }
     report.detailsAttempted++; await save(); console.log(`Seims details ${report.detailsAttempted}/${rows.size}: ${verified.size} verified`)
   }
   report.detailsComplete = report.detailsAttempted === rows.size && !report.failures.length
+  report.complete = report.listComplete && report.detailsComplete
+  Object.assign(report, summarizeSeimsCompletion(report))
+  await save()
   if (report.knownSamples.length) {
+    try {
     const codes = report.knownSamples.map(p => `'${identity(p.barcode)}'`).join(",")
     const samples = JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select json_agg(json_build_object('barcode',barcode,'name',name)) from public.products where lpad(barcode,14,'0') in (${codes});`))
     const names = new Map(samples.map(p => [identity(p.barcode), p.name]))
     report.knownSamples.forEach(p => { p.existingName = names.get(identity(p.barcode)) })
+    } catch (error) { report.knownSampleFailure = error.message }
   }
-  report.complete = report.listComplete && report.detailsComplete
-  Object.assign(report, summarizeSeimsCompletion(report))
   await save(); if (!report.complete) process.exitCode = 1
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => { console.error(error.message); process.exitCode = 1 })

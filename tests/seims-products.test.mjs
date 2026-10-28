@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { parseSeimsList, verifySeimsDetail, recordSeimsCoverage, readSeimsResponse, summarizeSeimsCompletion } from "../scripts/crawl-seims-products.mjs"
+import { parseSeimsList, verifySeimsDetail, verifySeimsCandidate, recordSeimsCoverage, readSeimsResponse, summarizeSeimsCompletion } from "../scripts/crawl-seims-products.mjs"
 const url = "https://www.seims.co.jp/shop/c/c10/"
 const html = (code = "4560389400083", image = code, name = "点鼻薬 30ml") => `<link rel="next" href="https://www.seims.co.jp/shop/c/c10_p2/"><span class="pager-count"><span>2252</span></span><li class="block-pickup-list-p--item js-enhanced-ecommerce-item"><div class="block-pickup-list-p--goods-name"><a href="/shop/g/g${code}/">${name}</a></div><a data-category="点鼻薬(100304)" data-brand=""><img src="/img/goods/S/${image}.jpg" alt="${name}"></a></li>`
 test("Seims rejects restricted short codes and zero-padded aliases", () => {
@@ -50,4 +50,13 @@ test("Seims separates completed processing from changing catalog totals", () => 
   assert.equal(report.listComplete, false)
   assert.equal(summarizeSeimsCompletion({ ...report, remainingPages: [url] }).processingFinished, false)
   assert.equal(summarizeSeimsCompletion({ ...report, detailsComplete: false }).finishedAt, null)
+})
+test("Seims isolates missing details but propagates access restrictions and network failures", async () => {
+  const row = parseSeimsList(html(), url).rows[0]
+  const missing = await verifySeimsCandidate(row, async () => { throw Object.assign(Error('HTTP 404 missing'), { status: 404 }) })
+  assert.equal(missing.excluded.status, 404)
+  assert.equal(missing.excluded.url, row.sourceUrl)
+  for (const status of [403, 429, 503]) await assert.rejects(verifySeimsCandidate(row, async () => { throw Object.assign(Error(`HTTP ${status}`), { status }) }), new RegExp(`HTTP ${status}`))
+  await assert.rejects(verifySeimsCandidate(row, async () => { throw Error('fetch failed') }), /fetch failed/)
+  assert.ok((await verifySeimsCandidate(row, async () => '')).excluded)
 })
