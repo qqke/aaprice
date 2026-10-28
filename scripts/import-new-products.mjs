@@ -34,6 +34,8 @@ const origins = {
   itoen: "https://www.itoen.jp",
   kirin: "https://products.kirin.co.jp",
   asahi: "https://www.asahiinryo.co.jp",
+  bourbon: "https://www.bourbon.co.jp",
+  sakura: "https://www.sakurasyokuhin.jp",
 }
 
 export function validGtin(value) {

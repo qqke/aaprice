@@ -70,6 +70,13 @@ test("accepts official Itoen, Kirin and Asahi native records without trusting lo
   }
 })
 
+test("accepts verified Bourbon and Sakura native product origins without trusting lookalikes", () => {
+  for (const [catalogSource, origin] of [["bourbon", "https://www.bourbon.co.jp"], ["sakura", "https://www.sakurasyokuhin.jp"]]) {
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product`, pack: "150g" }]).rows.length, 1)
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.invalid/product` }]).rows.length, 0)
+  }
+})
+
 test("rejects short internal circulation codes and zero-padded aliases while retaining global GTIN-8", () => {
   for (const raw of ["02345673", "22345677"]) for (const length of [8, 12, 13, 14]) {
     const barcode = raw.padStart(length, "0")
