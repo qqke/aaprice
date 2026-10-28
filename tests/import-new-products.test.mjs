@@ -63,6 +63,13 @@ test("accepts verified manufacturer native packs while rejecting lookalike domai
   }
 })
 
+test("accepts official Itoen, Kirin and Asahi native records without trusting lookalikes", () => {
+  for (const [catalogSource, origin] of [["itoen", "https://www.itoen.jp"], ["kirin", "https://products.kirin.co.jp"], ["asahi", "https://www.asahiinryo.co.jp"]]) {
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product`, pack: "500ml" }]).rows.length, 1)
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.invalid/product` }]).rows.length, 0)
+  }
+})
+
 test("rejects short internal circulation codes and zero-padded aliases while retaining global GTIN-8", () => {
   for (const raw of ["02345673", "22345677"]) for (const length of [8, 12, 13, 14]) {
     const barcode = raw.padStart(length, "0")
