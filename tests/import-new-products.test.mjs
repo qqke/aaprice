@@ -43,7 +43,7 @@ test("rejects store circulation codes including equivalent UPC and padded forms"
 })
 
 test("accepts Seims and existing-brand official catalogs without accepting lookalikes", () => {
-  for (const [catalogSource, origin] of [["seims", "https://www.seims.co.jp"], ["kai", "https://store.kai-group.com"], ["elpa", "https://www.elpadirect.jp"]]) {
+  for (const [catalogSource, origin] of [["seims", "https://www.seims.co.jp"], ["kai", "https://store.kai-group.com"], ["elpa", "https://www.elpadirect.jp"], ["fujiyaku", "https://www.fujiyaku-direct.com"]]) {
     assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product` }]).rows.length, 1)
     assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.invalid/product` }]).rows.length, 0)
   }

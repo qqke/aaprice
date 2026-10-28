@@ -22,6 +22,7 @@ const origins = {
   seims: "https://www.seims.co.jp",
   kai: "https://store.kai-group.com",
   elpa: "https://www.elpadirect.jp",
+  fujiyaku: "https://www.fujiyaku-direct.com",
 }
 
 export function validGtin(value) {

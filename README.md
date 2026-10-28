@@ -130,9 +130,12 @@ node --env-file=.env scripts/crawl-doramori-products.mjs
 node --env-file=.env scripts/crawl-seims-products.mjs
 node --env-file=.env scripts/crawl-kai-products.mjs
 node --env-file=.env scripts/crawl-elpa-products.mjs
+node --env-file=.env scripts/crawl-fujiyaku-products.mjs
 ```
 
 Create SD 与杏林堂核对全目录分页及未知商品详情；Doramori 核对当前结构化商品、链接及主图身份。Seims 遵守至少 10 秒的请求间隔，列表候选单独保存在 `seims-list-candidates.json`，只有通过详情核验的商品写入 `seims.json`。貝印使用页面明确标注且与当前商品数据一致的 JAN，商城内部编号不作为条码；ELPA 仅接受直营目录中厂家明确为朝日電器的商品。导入器另排除 GS1 020–029、040–049、200–299 限制流通号，以及 0/2 开头的 8 位店内码及其补零形式（[GS1 规则](https://ref.gs1.org/standards/genspecs/23.0.0/)），不修改库中已有记录。`complete` 表示相应公开范围的抓取和核验完成，仍须查看被排除的无条码、套装及证据不足商品。各次执行应使用不同 `--out=` 目录保留入库证据，正在采集的结果不可当作全量报告。
+
+富士药品直营品牌目录使用每次至少 2.1 秒的间隔，读取主商品说明中的明确 JAN，并核对当前商品元数据和主图编号；订阅、店铺组合装及同 JAN 不同名称或规格的冲突商品保留排除证据。商城内部编号不作为条码。该来源输出在 `artifacts/products-round6-fujiyaku-2026-10-28/`，导入后请保留候选及入库报告，避免重新采集覆盖证据。
 
 全国药妆连锁门店目录扩充：
 
