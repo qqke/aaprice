@@ -56,6 +56,13 @@ test("accepts official Ohm and Soft99 catalogs while rejecting lookalikes", () =
   }
 })
 
+test("accepts verified manufacturer native packs while rejecting lookalike domains", () => {
+  for (const [catalogSource, origin] of [["suntory", "https://products.suntory.co.jp"], ["pokka", "https://www.pokkasapporo-fb.jp"], ["maruchan", "https://www.maruchan.co.jp"], ["nissin", "https://www.nissin.com"], ["sanyo", "https://www.sanyofoods.co.jp"], ["myojo", "https://www.myojofoods.co.jp"]]) {
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product`, pack: "3食" }]).rows.length, 1)
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.invalid/product` }]).rows.length, 0)
+  }
+})
+
 test("rejects short internal circulation codes and zero-padded aliases while retaining global GTIN-8", () => {
   for (const raw of ["02345673", "22345677"]) for (const length of [8, 12, 13, 14]) {
     const barcode = raw.padStart(length, "0")

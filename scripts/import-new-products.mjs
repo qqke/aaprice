@@ -25,6 +25,12 @@ const origins = {
   fujiyaku: "https://www.fujiyaku-direct.com",
   ohm: "https://www.ohm-direct.com",
   soft99: "https://www.soft99.co.jp",
+  suntory: "https://products.suntory.co.jp",
+  pokka: "https://www.pokkasapporo-fb.jp",
+  maruchan: "https://www.maruchan.co.jp",
+  nissin: "https://www.nissin.com",
+  sanyo: "https://www.sanyofoods.co.jp",
+  myojo: "https://www.myojofoods.co.jp",
 }
 
 export function validGtin(value) {

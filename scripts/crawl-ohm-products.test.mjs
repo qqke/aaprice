@@ -3,6 +3,10 @@ import {parseOhmProduct,ohmLinks,parseOhmList} from './crawl-ohm-products.mjs'
 const url='https://www.ohm-direct.com/shopdetail/000000031921/'
 const sample='<p id="item" class="clearfix">モール DZ-AMD1-ML</p><div id="itemImgBox"><a><img src="https://makeshop-multi-images.akamaized.net/ohmelectric/itemimages/0000000319212_main.jpg"></a></div><div id="itemInfo"><p>[商品名] モール DZ-AMD1-ML</p><p>[JAN]4971275927551<br>[型番] DZ-AMD1-ML</p><p id="price">'
 assert.equal(parseOhmProduct(sample,url).barcode,'4971275927551')
+assert.equal(parseOhmProduct(sample,url).brand,'')
+assert.equal(parseOhmProduct(sample.replaceAll('モール DZ-AMD1-ML','Panasonic モール DZ-AMD1-ML'),url).brand,'')
+assert.equal(parseOhmProduct(sample.replace('0000000319212_main.jpg','0000000319212.jpg'),url).barcode,'4971275927551')
+assert.equal(parseOhmProduct(sample.replace('0000000319212_main.jpg','00000003192129.jpg'),url).reason,'Missing or mismatched main product image')
 assert.equal(parseOhmProduct(sample.replace('<a><img src="https://makeshop-multi-images.akamaized.net/ohmelectric/itemimages/0000000319212_main.jpg">','<div class="M_imageWrap"><div class="M_imageMain"><a><img src="https://makeshop-multi-images.akamaized.net/ohmelectric/shopimages/21/19/1_000000031921.jpg?123">'),url).barcode,'4971275927551')
 const gallerySample=sample.replace('itemimages/0000000319212_main.jpg','shopimages/21/19/19_000000031921.jpg')
 assert.equal(parseOhmProduct(gallerySample,url).barcode,'4971275927551')
