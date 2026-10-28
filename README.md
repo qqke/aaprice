@@ -199,3 +199,5 @@ node --env-file=.env scripts/crawl-drugstores.mjs --import=artifacts/drugstores-
 首次导入前需要应用 `supabase/migrations/20260911143635_allow_online_store_null_coordinates.sql`，允许网店使用空坐标，同时保留实体门店必须有坐标的约束。本次数据库已应用该迁移。
 
 导入复用 Sundrug 的数据库连接方法，通过环境变量将密码传给 `psql`，默认强制 SSL。采集报告不会因后续单独导入而自动改写；导入是否成功以命令退出状态和数据库复查为准。不要把服务端连接串提交到仓库。已完成的首批导入见 [2026-09-11 采集报告](docs/drugstore-expansion-2026-09-11.md)。
+
+食品厂家采集可加 `--source=maruchan` 或 `--source=sanyo` 只续跑指定厂家，避免重写另一家已完成的结果；未知厂家参数会中止。
