@@ -1,8 +1,8 @@
 const PRICE_FIRST_KEY = "aprice:scan-price-first"
-let sessionPreference = false
+let sessionPreference = true
 
 export function readScanPriceFirst() {
-  try { return globalThis.localStorage ? globalThis.localStorage.getItem(PRICE_FIRST_KEY) === "1" : sessionPreference } catch { return sessionPreference }
+  try { return globalThis.localStorage ? globalThis.localStorage.getItem(PRICE_FIRST_KEY) !== "0" : sessionPreference } catch { return sessionPreference }
 }
 
 export function saveScanPriceFirst(enabled) {

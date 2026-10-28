@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readScanPriceFirst, saveScanPriceFirst } from '../src/lib/scan-preferences.mjs'
 
-test('scan price preference defaults off, persists toggles and tolerates blocked storage', () => {
+test('scan price preference defaults on, persists toggles and tolerates blocked storage', () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
   const values = new Map()
   try {
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) } })
-    assert.equal(readScanPriceFirst(), false)
+    assert.equal(readScanPriceFirst(), true)
     saveScanPriceFirst(true)
     assert.equal(readScanPriceFirst(), true)
     saveScanPriceFirst(false)
