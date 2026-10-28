@@ -18,7 +18,7 @@ export function parseOhmProduct(html,sourceUrl){
  const gallery=html.match(/<div id="itemImgBox"[^>]*>([\s\S]*?)<div id="itemInfo">/i)?.[1]||''
  const image=gallery.match(/<img[^>]*src="([^"]+)"/i)?.[1]
  const imageUrl=image?new URL(image,origin):null
- if(!imageUrl||imageUrl.origin!=='https://makeshop-multi-images.akamaized.net'||!(new RegExp(`^/ohmelectric/itemimages/${id}(?:[123])?_[a-z0-9_]+\\.[a-z]+$`,'i').test(imageUrl.pathname)||new RegExp(`^/ohmelectric/shopimages/\\d+/\\d+/1_${id}\\.[a-z]+$`,'i').test(imageUrl.pathname)))return {reason:'Missing or mismatched main product image',name,barcode}
+ if(!imageUrl||imageUrl.origin!=='https://makeshop-multi-images.akamaized.net'||!(new RegExp(`^/ohmelectric/itemimages/${id}(?:[123])?_[a-z0-9_]+\\.[a-z]+$`,'i').test(imageUrl.pathname)||new RegExp(`^/ohmelectric/shopimages/\\d+/\\d+/[1-9][0-9]*_${id}\\.[a-z]+$`,'i').test(imageUrl.pathname)))return {reason:'Missing or mismatched main product image',name,barcode}
  const model=plain(info.match(/\[型番\]([\s\S]*?)<\/p>/)?.[1]||'')
  if(!model||!name.includes(model))return {reason:'Missing or mismatched explicit model',name,barcode}
  return {barcode,name,brand:'株式会社オーム電機',pack:'',category:'',description:'',imageUrl:imageUrl.href,catalogSource:'ohm',sourceUrl}
