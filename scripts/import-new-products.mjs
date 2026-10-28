@@ -23,6 +23,8 @@ const origins = {
   kai: "https://store.kai-group.com",
   elpa: "https://www.elpadirect.jp",
   fujiyaku: "https://www.fujiyaku-direct.com",
+  ohm: "https://www.ohm-direct.com",
+  soft99: "https://www.soft99.co.jp",
 }
 
 export function validGtin(value) {

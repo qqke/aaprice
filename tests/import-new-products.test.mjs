@@ -49,6 +49,13 @@ test("accepts Seims and existing-brand official catalogs without accepting looka
   }
 })
 
+test("accepts official Ohm and Soft99 catalogs while rejecting lookalikes", () => {
+  for (const [catalogSource, origin] of [["ohm", "https://www.ohm-direct.com"], ["soft99", "https://www.soft99.co.jp"]]) {
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}/product` }]).rows.length, 1)
+    assert.equal(prepareRows([{ ...product, catalogSource, sourceUrl: `${origin}.invalid/product` }]).rows.length, 0)
+  }
+})
+
 test("rejects short internal circulation codes and zero-padded aliases while retaining global GTIN-8", () => {
   for (const raw of ["02345673", "22345677"]) for (const length of [8, 12, 13, 14]) {
     const barcode = raw.padStart(length, "0")
