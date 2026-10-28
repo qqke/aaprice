@@ -39,7 +39,7 @@ export function parseProduct(html, sourceUrl, source) {
     if (images.length !== 1) return fail('Missing or ambiguous same-page product image')
     image = images[0][0].match(/src="([^"]+)"/)?.[1]
   }
-  if (!name || !/\d/.test(pack) || !/(?:[gｇＧmMlLℓ]|枚|本|個|袋|粒|包|缶|食|箱)/.test(pack)) return fail('Missing explicit native product name/unit')
+  if (!name || !/\d/.test(pack) || !/(?:[gｇＧmMlLｍＭｌＬℓ]|枚|本|個|袋|粒|包|缶|食|箱)/.test(pack)) return fail('Missing explicit native product name/unit')
   if (!/^(?:\d{8}|\d{12,14})$/.test(barcode) || !validGtin(barcode)) return fail('Invalid explicit GTIN')
   if (!image) return fail('Missing same-page image URL')
   const imageUrl = new URL(image.replace(/&amp;/g, '&'), sourceUrl).href

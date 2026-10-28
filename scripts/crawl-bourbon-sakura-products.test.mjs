@@ -46,3 +46,11 @@ test('HTTP page/server failures terminate; definite image 404/non-image stays a 
   assert.ok(imageHeadReason({ status: 200, contentType: 'application/pdf' }))
   assert.equal(imageHeadReason({ status: 200, contentType: 'image/jpeg' }), null)
 })
+
+test('fullwidth native capacity letters are preserved verbatim', () => {
+  for (const pack of ['500ｍｌ', '500ＭＬ']) {
+    const row = parseProduct(bourbon.replace('32本（2本×16袋）', pack), bUrl, 'bourbon')
+    assert.equal(row.pack, pack)
+    assert.equal(row.reason, undefined)
+  }
+})
