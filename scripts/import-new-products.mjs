@@ -42,6 +42,7 @@ export function prepareRows(products) {
       // GS1 RCN-8 (0/2) and prefixes 020–029, 040–049, 200–299 are restricted circulation.
       if (/^(?:02|04|2)/.test(prefix) || /^0{5}[02]\d{7}$/.test(prefix)) throw Error("Restricted circulation code")
       if (typeof product.name !== "string" || !product.name.trim()) throw Error("Missing product name")
+      if (/[0-9０-９]+\s*ケース/.test(product.name)) throw Error("Retail carton requires pack-level GTIN verification")
       if (!origins[product.catalogSource] || new URL(product.sourceUrl).origin !== origins[product.catalogSource]) throw Error("Unverified source URL")
       const row = { barcode: product.barcode, catalogSource: product.catalogSource, sourceUrl: product.sourceUrl }
       for (const key of ["name", "brand", "pack", "category", "description", "imageUrl"]) {

@@ -67,6 +67,15 @@ test("rejects short internal circulation codes and zero-padded aliases while ret
   for (const length of [8, 12, 13, 14]) assert.equal(prepareRows([{ ...product, barcode: "96385074".padStart(length, "0") }]).rows.length, 1)
 })
 
+test("holds retailer cartons without rejecting native multipacks or storage cases", () => {
+  for (const name of ["飲料 525ml×24本(1ケース)", "飲料 １ケース 250ml×30本", "つゆ 1L(1ケース6本)"]) {
+    const checked = prepareRows([{ ...product, name }])
+    assert.equal(checked.rows.length, 0)
+    assert.equal(checked.excluded[0].reason, "Retail carton requires pack-level GTIN verification")
+  }
+  for (const name of ["ジキナD30ロイヤル 30ml×10本", "チュチュ おでかけ消毒ケース 1個入"]) assert.equal(prepareRows([{ ...product, name }]).rows.length, 1)
+})
+
 test("import SQL inserts only with collision guards and verifies old records before commit", () => {
   const sql = insertSql(prepareRows([product]).rows)
   assert.match(sql, /on conflict do nothing/)
