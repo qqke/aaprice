@@ -135,6 +135,8 @@ node --env-file=.env scripts/crawl-ohm-products.mjs --all
 node --env-file=.env scripts/crawl-soft99-products.mjs
 node scripts/crawl-pokka-products.mjs
 node scripts/crawl-suntory-products.mjs
+node scripts/crawl-nissin-products.mjs
+node scripts/crawl-maruchan-sanyo-products.mjs
 ```
 
 Create SD 与杏林堂核对全目录分页及未知商品详情；Doramori 核对当前结构化商品、链接及主图身份。Seims 遵守至少 10 秒的请求间隔，列表候选单独保存在 `seims-list-candidates.json`，只有通过详情核验的商品写入 `seims.json`。貝印使用页面明确标注且与当前商品数据一致的 JAN，商城内部编号不作为条码；ELPA 仅接受直营目录中厂家明确为朝日電器的商品。导入器另排除 GS1 020–029、040–049、200–299 限制流通号，以及 0/2 开头的 8 位店内码及其补零形式（[GS1 规则](https://ref.gs1.org/standards/genspecs/23.0.0/)），不修改库中已有记录。`complete` 表示相应公开范围的抓取和核验完成，仍须查看被排除的无条码、套装及证据不足商品。各次执行应使用不同 `--out=` 目录保留入库证据，正在采集的结果不可当作全量报告。
@@ -152,6 +154,8 @@ Create SD 与杏林堂核对全目录分页及未知商品详情；Doramori 核�
 Pokka 动态读取当前公开消费品分类与子类接口；Suntory 合并同站品牌、分类及营养成分表中的公开商品链接。两者核对页面明确 JAN、原生包装量和当前主图，并隔离同 JAN 的名称或包装冲突。缺少已知条码快照时只输出待去重候选，最终仍由导入器检查数据库，仅插入新商品。独立结果保存在 `artifacts/products-round8-2026-10-28/`；不代表未链接商品或历史停产全集已覆盖。
 
 Seims 可加 `--known=artifacts/products-round7-2026-10-28/known-barcodes.json` 复用已知条码快照续跑缓存；该模式不读取数据库，最终导入仍重新去重且只插入新商品。错误快照会中止，不会当作空库继续请求。
+
+日清集团与明星核对当前官网目录、详情页和公开商品接口中的 JAN、名称及主图，保留页面原生整包内容量；东洋水产与三洋食品核对当前消费品目录、明确 JAN、原生内容量及主图。四个来源均隔离同 JAN 不同名称或包装的整组冲突，不从发布者推测品牌；结果保存在 `artifacts/products-round9-2026-10-28/`，采集完成后再独立导入。缺失规格的页面不自动猜测包装量。
 
 全国药妆连锁门店目录扩充：
 
