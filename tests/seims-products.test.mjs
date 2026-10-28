@@ -1,6 +1,11 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { parseSeimsList, verifySeimsDetail, verifySeimsCandidate, recordSeimsCoverage, readSeimsResponse, summarizeSeimsCompletion } from "../scripts/crawl-seims-products.mjs"
+import { parseSeimsList, verifySeimsDetail, verifySeimsCandidate, recordSeimsCoverage, readSeimsResponse, summarizeSeimsCompletion, seimsKnownSnapshot } from "../scripts/crawl-seims-products.mjs"
+test("Seims known snapshots normalize string identities and reject malformed snapshots", () => {
+  assert.deepEqual([...seimsKnownSnapshot({ canonicalBarcodes: ["45191763", "00000045191763"] })], ["00000045191763"])
+  assert.equal(seimsKnownSnapshot({ canonicalBarcodes: [] }).size, 0)
+  for (const snapshot of [null, {}, { canonicalBarcodes: "45191763" }, { canonicalBarcodes: [45191763] }, { canonicalBarcodes: [null] }, { canonicalBarcodes: ["bad"] }]) assert.throws(() => seimsKnownSnapshot(snapshot), /Invalid known snapshot/)
+})
 const url = "https://www.seims.co.jp/shop/c/c10/"
 const html = (code = "4560389400083", image = code, name = "点鼻薬 30ml") => `<link rel="next" href="https://www.seims.co.jp/shop/c/c10_p2/"><span class="pager-count"><span>2252</span></span><li class="block-pickup-list-p--item js-enhanced-ecommerce-item"><div class="block-pickup-list-p--goods-name"><a href="/shop/g/g${code}/">${name}</a></div><a data-category="点鼻薬(100304)" data-brand=""><img src="/img/goods/S/${image}.jpg" alt="${name}"></a></li>`
 test("Seims rejects restricted short codes and zero-padded aliases", () => {

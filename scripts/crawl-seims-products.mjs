@@ -8,6 +8,10 @@ import { validGtin } from "./import-new-products.mjs"
 const origin = "https://www.seims.co.jp"
 const plain = s => String(s || "").replace(/<[^>]*>/g, " ").replaceAll("&amp;", "&").replaceAll("&nbsp;", " ").replaceAll("&quot;", '"').replaceAll("&#39;", "'").replace(/&#(x[0-9a-f]+|\d+);/gi, (_, code) => String.fromCodePoint(code[0].toLowerCase() === "x" ? parseInt(code.slice(1), 16) : Number(code))).replace(/\s+/g, " ").trim()
 const identity = code => code.padStart(14, "0")
+export function seimsKnownSnapshot(snapshot) {
+  if (!Array.isArray(snapshot?.canonicalBarcodes) || !snapshot.canonicalBarcodes.every(code => typeof code === "string" && /^\d{8,14}$/.test(code))) throw Error("Invalid known snapshot canonicalBarcodes")
+  return new Set(snapshot.canonicalBarcodes.map(identity))
+}
 const restricted = code => /^(?:02|04|2)/.test(identity(code).slice(1)) || /^0{5}[02]\d{7}$/.test(identity(code).slice(1))
 const matchesImage = (url, barcode, size) => url.origin === origin && new RegExp(`^/img/goods/${size}/${barcode}(?:_[A-Za-z0-9_-]+)?\\.jpg$`).test(url.pathname)
 
@@ -109,7 +113,8 @@ async function main() {
   }
   try { robots = await readFile(`${out}/seims-robots.txt`, "utf8") } catch { robots = await get(`${origin}/robots.txt`); await writeFile(`${out}/seims-robots.txt`, robots) }
   const queryPrefix = "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\n"
-  const known = new Set(JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select coalesce(json_agg(barcode),'[]') from public.products;`)).map(identity))
+  const knownPath = process.argv.find(x => x.startsWith("--known="))?.slice(8)
+  const known = knownPath ? seimsKnownSnapshot(JSON.parse(await readFile(knownPath, "utf8"))) : new Set(JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select coalesce(json_agg(barcode),'[]') from public.products;`)).map(identity))
   let home
   try { home = await readFile(`${out}/seims-home.html`, "utf8") } catch { home = await get(`${origin}/`); await writeFile(`${out}/seims-home.html`, home) }
   const queue = [...new Set([...home.matchAll(/\/shop\/c\/c\d{2}\//g)].map(m => origin + m[0]))]
@@ -144,7 +149,7 @@ async function main() {
   report.complete = report.listComplete && report.detailsComplete
   Object.assign(report, summarizeSeimsCompletion(report))
   await save()
-  if (report.knownSamples.length) {
+  if (report.knownSamples.length && !knownPath) {
     try {
     const codes = report.knownSamples.map(p => `'${identity(p.barcode)}'`).join(",")
     const samples = JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select json_agg(json_build_object('barcode',barcode,'name',name)) from public.products where lpad(barcode,14,'0') in (${codes});`))
