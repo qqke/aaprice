@@ -133,6 +133,8 @@ node --env-file=.env scripts/crawl-elpa-products.mjs
 node --env-file=.env scripts/crawl-fujiyaku-products.mjs
 node --env-file=.env scripts/crawl-ohm-products.mjs --all
 node --env-file=.env scripts/crawl-soft99-products.mjs
+node scripts/crawl-pokka-products.mjs
+node scripts/crawl-suntory-products.mjs
 ```
 
 Create SD 与杏林堂核对全目录分页及未知商品详情；Doramori 核对当前结构化商品、链接及主图身份。Seims 遵守至少 10 秒的请求间隔，列表候选单独保存在 `seims-list-candidates.json`，只有通过详情核验的商品写入 `seims.json`。貝印使用页面明确标注且与当前商品数据一致的 JAN，商城内部编号不作为条码；ELPA 仅接受直营目录中厂家明确为朝日電器的商品。导入器另排除 GS1 020–029、040–049、200–299 限制流通号，以及 0/2 开头的 8 位店内码及其补零形式（[GS1 规则](https://ref.gs1.org/standards/genspecs/23.0.0/)），不修改库中已有记录。`complete` 表示相应公开范围的抓取和核验完成，仍须查看被排除的无条码、套装及证据不足商品。各次执行应使用不同 `--out=` 目录保留入库证据，正在采集的结果不可当作全量报告。
@@ -146,6 +148,8 @@ Create SD 与杏林堂核对全目录分页及未知商品详情；Doramori 核�
 导入器暂时隔离名称中明确标注数字加“ケース”的整箱销售条目，避免把单品 JAN 当成整箱标识；这类商品须先单独核实厂家包装层级。厂家原装多件包装及收纳盒不因此排除。已有商品不作批量修订。
 
 包装待核商品可在厂家页面明确提供相同 JAN、原生包装量及同品主图后，按厂家原生单品或多件包装另行补采；不沿用零售整箱名称，也不修改已有记录。厂家补充回执与页面证据保存在对应采集目录，不代表该厂家全目录已覆盖。
+
+Pokka 动态读取当前公开消费品分类与子类接口；Suntory 合并同站品牌、分类及营养成分表中的公开商品链接。两者核对页面明确 JAN、原生包装量和当前主图，并隔离同 JAN 的名称或包装冲突。缺少已知条码快照时只输出待去重候选，最终仍由导入器检查数据库，仅插入新商品。独立结果保存在 `artifacts/products-round8-2026-10-28/`；不代表未链接商品或历史停产全集已覆盖。
 
 全国药妆连锁门店目录扩充：
 
