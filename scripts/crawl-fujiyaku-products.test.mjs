@@ -5,6 +5,7 @@ const mainImage = '<li class="block-goods-gallery--src-l"><a href="/img/goods/L/
 const spec = jan => `<meta property="etm:goods_detail" content="{&quot;goods&quot;:&quot;498752403263n&quot;}">${mainImage}<dl class="goods-detail-description block-goods-spec"><dt>その他</dt><dd>●JANコード<br>${jan}</dd></dl>`
 const sample = `<h1>ジキナ顆粒ゴールド（6包）</h1>${spec('4987524032631')}<div class="pane-goods-footer">${spec('4987524033454')}</div>`
 assert.equal(parseProduct(sample, url).barcode, '4987524032631')
+assert.equal(parseProduct(sample, url).brand, '')
 assert.match(parseProduct(sample, url).name, /6包/)
 assert.equal(parseProduct(sample.replace('ジキナ顆粒ゴールド（6包）', '&quot;10&#215;14&#x63;m&quot; &apos;'), url).name, '"10×14cm" \'')
 assert.equal(parseProduct(sample, url).imageUrl, 'https://www.fujiyaku-direct.com/img/goods/L/498752403263n.jpg')

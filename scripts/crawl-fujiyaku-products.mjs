@@ -24,7 +24,7 @@ export function parseProduct(html, sourceUrl) {
   const imageUrl = mainImage ? new URL(mainImage.replace(/&amp;/g, '&'), origin).href : ''
   if (!imageUrl.startsWith(`${origin}/img/goods/L/`)) return { reason: 'Missing official main product image', name, barcode }
   if (new URL(imageUrl).pathname.split('/').at(-1).replace(/\.[^.]+$/, '') !== goods) return { reason: 'Main image product identity mismatch', name, barcode }
-  return { barcode, name, brand: meta.brand_name || '富士薬品', pack: meta.variation_name1 || '', category: meta.category_name || '', description: '', imageUrl, catalogSource: 'fujiyaku', sourceUrl }
+  return { barcode, name, brand: meta.brand_name || '', pack: meta.variation_name1 || '', category: meta.category_name || '', description: '', imageUrl, catalogSource: 'fujiyaku', sourceUrl }
 }
 export function uniqueProducts(products) {
   const groups = new Map(), rows = new Map(), excluded = []
