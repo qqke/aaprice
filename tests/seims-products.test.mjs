@@ -3,6 +3,9 @@ import assert from "node:assert/strict"
 import { parseSeimsList, verifySeimsDetail, recordSeimsCoverage, readSeimsResponse, summarizeSeimsCompletion } from "../scripts/crawl-seims-products.mjs"
 const url = "https://www.seims.co.jp/shop/c/c10/"
 const html = (code = "4560389400083", image = code, name = "点鼻薬 30ml") => `<link rel="next" href="https://www.seims.co.jp/shop/c/c10_p2/"><span class="pager-count"><span>2252</span></span><li class="block-pickup-list-p--item js-enhanced-ecommerce-item"><div class="block-pickup-list-p--goods-name"><a href="/shop/g/g${code}/">${name}</a></div><a data-category="点鼻薬(100304)" data-brand=""><img src="/img/goods/S/${image}.jpg" alt="${name}"></a></li>`
+test("Seims rejects restricted short codes and zero-padded aliases", () => {
+  for (const code of ["02345673", "22345677", "000002345673", "000022345677", "0000002345673", "0000022345677", "00000002345673", "00000022345677"]) assert.equal(parseSeimsList(html(code), url).rows.length, 0)
+})
 test("Seims binds each list name to the same product URL and main image", () => { const p = parseSeimsList(html(), url); assert.equal(p.rows[0].barcode, "4560389400083"); assert.equal(p.rows[0].category, "点鼻薬"); assert.equal(p.total, 2252); assert.equal(p.next, "https://www.seims.co.jp/shop/c/c10_p2/"); assert.equal(parseSeimsList(html("4560389400083", "4903301316039"), url).rows.length, 0) })
 test("Seims excludes invalid identities, local codes and shop bundles", () => { for (const h of [html("4560389400084"), ...["2220000000253", "0405048569630", "0205048569636", "405048569630", "00405048569630"].map(x => html(x)), html("4560389400083", "4560389400083", "点鼻薬 3個セット")]) assert.equal(parseSeimsList(h, url).rows.length, 0); assert.throws(() => parseSeimsList(html(), "https://example.com/shop/c/c10/")); assert.throws(() => parseSeimsList("", url)) })
 test("Seims only releases candidates supported by current detail metadata", () => {

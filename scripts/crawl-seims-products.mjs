@@ -8,7 +8,7 @@ import { validGtin } from "./import-new-products.mjs"
 const origin = "https://www.seims.co.jp"
 const plain = s => String(s || "").replace(/<[^>]*>/g, " ").replaceAll("&amp;", "&").replaceAll("&nbsp;", " ").replaceAll("&quot;", '"').replaceAll("&#39;", "'").replace(/&#(x[0-9a-f]+|\d+);/gi, (_, code) => String.fromCodePoint(code[0].toLowerCase() === "x" ? parseInt(code.slice(1), 16) : Number(code))).replace(/\s+/g, " ").trim()
 const identity = code => code.padStart(14, "0")
-const restricted = code => code.length >= 12 && /^(?:02|04|2)/.test(identity(code).slice(1))
+const restricted = code => /^(?:02|04|2)/.test(identity(code).slice(1)) || /^0{5}[02]\d{7}$/.test(identity(code).slice(1))
 const matchesImage = (url, barcode, size) => url.origin === origin && new RegExp(`^/img/goods/${size}/${barcode}(?:_[A-Za-z0-9_-]+)?\\.jpg$`).test(url.pathname)
 
 export function parseSeimsList(html, sourceUrl) {
@@ -90,8 +90,8 @@ async function main() {
     await writeFile(file, JSON.stringify({ url, collectedAt: new Date().toISOString(), html })); return html
   }
   try { robots = await readFile(`${out}/seims-robots.txt`, "utf8") } catch { robots = await get(`${origin}/robots.txt`); await writeFile(`${out}/seims-robots.txt`, robots) }
-  const db = JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\nselect coalesce(json_agg(json_build_object('barcode',barcode,'name',name)),'[]') from public.products;"))
-  const known = new Map(db.map(p => [identity(p.barcode), p]))
+  const queryPrefix = "\\set QUIET 1\n\\pset tuples_only on\n\\pset format unaligned\n"
+  const known = new Set(JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select coalesce(json_agg(barcode),'[]') from public.products;`)).map(identity))
   let home
   try { home = await readFile(`${out}/seims-home.html`, "utf8") } catch { home = await get(`${origin}/`); await writeFile(`${out}/seims-home.html`, home) }
   const queue = [...new Set([...home.matchAll(/\/shop\/c\/c\d{2}\//g)].map(m => origin + m[0]))]
@@ -110,7 +110,7 @@ async function main() {
       if (!categorySeen.has(category)) categorySeen.set(category, new Set())
       report.categories[category] = recordSeimsCoverage(report.categories[category], result, categorySeen.get(category))
       report.excluded.push(...result.excluded)
-      for (const row of result.rows) { const id = identity(row.barcode); if (all.has(id)) continue; all.add(id); if (known.has(id)) { report.existing++; if (report.knownSamples.length < 30) report.knownSamples.push({ barcode: row.barcode, officialName: row.name, existingName: known.get(id).name }) } else rows.set(id, row) }
+      for (const row of result.rows) { const id = identity(row.barcode); if (all.has(id)) continue; all.add(id); if (known.has(id)) { report.existing++; if (report.knownSamples.length < 30) report.knownSamples.push({ barcode: row.barcode, officialName: row.name }) } else rows.set(id, row) }
       if (result.next && !visited.has(result.next)) queue.push(result.next)
       await save(); console.log(`Seims ${report.pages} pages; ${rows.size} new; ${report.existing} known; ${queue.length} category continuations`)
     } catch (error) { report.failures.push({ url, reason: error.message }); queue.unshift(url); break }
@@ -123,6 +123,12 @@ async function main() {
     report.detailsAttempted++; await save(); console.log(`Seims details ${report.detailsAttempted}/${rows.size}: ${verified.size} verified`)
   }
   report.detailsComplete = report.detailsAttempted === rows.size && !report.failures.length
+  if (report.knownSamples.length) {
+    const codes = report.knownSamples.map(p => `'${identity(p.barcode)}'`).join(",")
+    const samples = JSON.parse(databaseProcess(process.env.AAPRICE_DB_URL, `${queryPrefix}select json_agg(json_build_object('barcode',barcode,'name',name)) from public.products where lpad(barcode,14,'0') in (${codes});`))
+    const names = new Map(samples.map(p => [identity(p.barcode), p.name]))
+    report.knownSamples.forEach(p => { p.existingName = names.get(identity(p.barcode)) })
+  }
   report.complete = report.listComplete && report.detailsComplete
   Object.assign(report, summarizeSeimsCompletion(report))
   await save(); if (!report.complete) process.exitCode = 1
