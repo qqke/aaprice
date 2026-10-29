@@ -43,6 +43,7 @@ export default function ProductApp() {
   const taskFlow = pageParams.get("task") === "1"
   const requestedStoreId = String(pageParams.get("store") || "").slice(0, 128)
   const scannedPrice = pageParams.get("price") || ""
+  const scanIntent = pageParams.get("scan") === "1"
   const recordIntent = pageParams.get("record") === "1"
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -67,6 +68,8 @@ export default function ProductApp() {
   const [savingPrice, setSavingPrice] = useState(false)
   const priceSaveBusy = useRef(false)
   const priceInputRef = useRef(null)
+  const storeChosen = useRef(Boolean(requestedStoreId))
+  const scanLocationRequested = useRef(false)
   const savedPersonalEntries = useRef(new Set())
   const [status, setStatus] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
@@ -174,8 +177,17 @@ export default function ProductApp() {
   const visibleStores = filteredStores.slice(0, visibleStoreLimit)
   const selectedStoreOutsideSearch = physicalStores.find((store) => String(store.id) === String(form.store_id) && !filteredStores.some((match) => match.id === store.id))
   useEffect(() => {
-    if (!recordIntent && !form.store_id && filteredStores[0]?.id) selectStore(filteredStores[0].id)
-  }, [form.store_id, filteredStores])
+    if (storeChosen.current || form.store_id || storeSearch || storeSearchResult.busy || storeSearchResult.error) return
+    const nearest = location ? filteredStores.find(store => Number.isFinite(store.lat) && Number.isFinite(store.lng)) : null
+    if (scanIntent || recordIntent) {
+      if (nearest) selectStore(nearest.id, false)
+    } else if (filteredStores[0]?.id) selectStore(filteredStores[0].id, false)
+  }, [form.store_id, filteredStores, location, storeSearch, scanIntent, recordIntent])
+  useEffect(() => {
+    if (!scanIntent || !session || location || scanLocationRequested.current) return
+    scanLocationRequested.current = true
+    void locate()
+  }, [scanIntent, session, location])
   const locate = async () => {
     if (locating) return
     setLocating(true)
@@ -188,7 +200,8 @@ export default function ProductApp() {
     finally { setLocating(false) }
   }
 
-  const selectStore = (storeId) => {
+  const selectStore = (storeId, manual = true) => {
+    if (manual) storeChosen.current = true
     const selected = filteredStores.find(store => String(store.id) === String(storeId))
     if (selected) setStores(rows => [...rows.filter(row => row.id !== selected.id), selected])
     const latestPrice = offers.find((offer) => String(offer.id) === String(storeId))?.price
@@ -315,7 +328,8 @@ export default function ProductApp() {
                   <div className="flex items-end"><Button type="submit" disabled={savingPrice}>{savingPrice ? <LoaderCircle className="animate-spin" /> : <Save />}{savingPrice ? "正在保存" : "保存价格"}</Button></div>
 
                   <label><span className="mb-2 block text-sm font-medium">门店</span><select aria-label="门店" value={form.store_id} onChange={(event) => selectStore(event.target.value)} className="h-11 w-full rounded-xl border bg-background px-3 text-sm"><option value="">{location ? "选择附近门店（可选）" : "选择门店（可选）"}</option>{selectedStoreOutsideSearch && <option value={selectedStoreOutsideSearch.id}>{selectedStoreOutsideSearch.name}（已选择）</option>}{visibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}{location && Number.isFinite(store.lat) && Number.isFinite(store.lng) ? ` · ${formatDistance(distanceKm(location.lat, location.lng, store.lat, store.lng))}` : ""}</option>)}</select>{filteredStores.length > visibleStores.length && <Button type="button" variant="ghost" size="sm" className="mt-2 px-0" onClick={() => setVisibleStoreLimit((value) => value + 20)}>加载更多</Button>}</label>
-                  {recordIntent && !location && <Button type="button" variant="outline" className="sm:col-span-2" onClick={locate} disabled={locating}><LocateFixed />{locating ? "正在定位…" : "选择附近门店：获取当前位置"}</Button>}
+                  {(recordIntent || scanIntent) && !location && <Button type="button" variant="outline" className="sm:col-span-2" onClick={locate} disabled={locating}><LocateFixed />{locating ? "正在定位…" : "选择附近门店：获取当前位置"}</Button>}
+                  {(scanIntent || recordIntent) && <p className="text-xs text-muted-foreground sm:col-span-2" role="status">{locationStatus || (location ? "默认选择距离最近的实体店，保存前请确认，可手动更换。" : "允许定位后自动选择最近门店，也可手动搜索。")}</p>}
                   <details className="sm:col-span-2" open={recordIntent ? undefined : true}><summary className="cursor-pointer text-sm font-medium">搜索门店与定位</summary><label><span className="mb-2 block text-sm font-medium">搜索门店</span><Input type="search" value={storeSearch} onChange={(event) => { setStoreSearch(event.target.value); setVisibleStoreLimit(20) }} placeholder="店名、连锁、城市或地址" maxLength={200} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!storeSearchResult.busy && !storeSearchResult.error && filteredStores[0]) selectStore(String(filteredStores[0].id)) } }} /></label><p className="mt-2 text-xs text-muted-foreground" role={storeSearchResult.error ? "alert" : "status"} aria-live="polite">{storeSearchResult.busy ? "正在搜索完整门店目录…" : storeSearchResult.error || (filteredStores.length === 100 ? "显示前 100 家，请补充城市、地址或完整店名。" : `匹配 ${filteredStores.length} 家门店`)}{storeSearchResult.error && <Button type="button" variant="link" size="sm" onClick={storeSearchResult.retry}>重试门店搜索</Button>}</p><div className="mt-2 flex flex-wrap items-center gap-3"><p className="text-xs text-muted-foreground" role="status">{location ? "已按 GPS 距离排序" : "未定位，可按门店名称搜索"}{storeSearch && !filteredStores.length ? "；请尝试店名、城市或连锁名称。" : ""}</p>{!location && <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={locate} disabled={locating}><LocateFixed />{locating ? "正在定位…" : "获取当前位置"}</Button>}</div></details>
                   <details className="sm:col-span-2">
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground">补充信息与公共提交（可选）</summary>

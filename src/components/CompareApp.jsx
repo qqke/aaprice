@@ -1113,7 +1113,7 @@ export default function CompareApp({ initialScan = false }) {
   const handleScannedProduct = (product, price = "") => {
     if (supabaseConfigured) {
       setScanOpen(false)
-      const params = new URLSearchParams({ id: product.id })
+      const params = new URLSearchParams({ id: product.id, scan: "1" })
       if (/^\d+$/.test(String(price))) params.set("price", price)
       const priceFirst = readScanPriceFirst()
       if (priceFirst) params.set("record", "1")

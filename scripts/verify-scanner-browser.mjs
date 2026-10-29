@@ -150,7 +150,7 @@ export async function verifyScannerBrowser(page, origin, missingJan) {
   await dialog.getByRole("checkbox", { name: "扫码后优先输入价格", exact: true }).check()
   await input.fill("4511413405048")
   await input.press("Enter")
-  await page.waitForURL(origin + "/product/?id=needle&record=1#record-price")
+  await page.waitForURL(origin + "/product/?id=needle&scan=1&record=1#record-price")
   await page.getByText("匿名价格预览", { exact: true }).waitFor()
   assert.match(await page.getByRole("link", { name: "登录查看报价", exact: true }).last().getAttribute("href"), /record%3D1/)
   await page.goto(origin + "/scan/?jan=123")
@@ -165,7 +165,7 @@ export async function verifyScannerBrowser(page, origin, missingJan) {
   await dialog.getByText(/相机权限未开启/).waitFor()
   await page.evaluate(() => { window.__scannerFixture.results = [{ rawValue: "4511413405048", boundingBox: { x: 0, y: 0, width: 1, height: 1 } }] })
   await dialog.locator('input[type="file"]').setInputFiles({ name: "fixture.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKWQAAAAASUVORK5CYII=", "base64") })
-  await page.waitForURL(origin + "/product/?id=needle")
+  await page.waitForURL(origin + "/product/?id=needle&scan=1")
   await page.getByText("匿名价格预览", { exact: true }).waitFor()
   console.log("Scanner checks passed: single automatic start, permission fallback, focused standalone input, inline errors, opt-in enrichment, result focus, guide crop, torch, track cleanup, late permission cancellation, manual and album result navigation (synthetic camera).")
 }
