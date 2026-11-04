@@ -22,12 +22,11 @@ import {
   Search,
   Share2,
   SlidersHorizontal,
-  UserRound,
   X,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { SiteHeader, ThemeButton } from "@/components/AppShell.jsx"
+import { SiteHeader } from "@/components/AppShell.jsx"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -1143,20 +1142,14 @@ export default function CompareApp({ initialScan = false }) {
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
-      <SiteHeader>
-            <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="#catalog">商品比价</a></Button>
-            <Button asChild variant="ghost" className="h-11 min-w-11 px-2"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="text-xs">扫码</span></a></Button>
-            {session && <Button asChild variant="ghost" className="h-11 min-w-11 px-2"><a href={appPath("/me/")} aria-label="我的账户"><UserRound /><span className="text-xs">我的</span></a></Button>}
-            {supabaseConfigured && !session && <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="h-11 min-w-11 px-2" aria-label="登录"><LogIn /><span className="text-xs">登录</span></Button>}
-            <ThemeButton />
-      </SiteHeader>
+      <SiteHeader session={session} catalogHref="#catalog" showLogin={supabaseConfigured} onLogin={() => setAuthOpen(true)} />
 
       <main id="main-content" tabIndex={-1}>
         <section className="catalog-search mx-auto max-w-[1200px] px-4 pb-8 pt-8 sm:px-6 md:pt-12 lg:px-8">
           <motion.div initial={reduceMotion ? false : "hidden"} animate="visible" variants={{ visible: { transition: { staggerChildren: 0.07 } } }}>
-            <motion.h1 variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.48, ease: [0.16, 1, 0.3, 1] } } }} className="max-w-3xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">日本药妆，查价更清楚。</motion.h1>
-            <p className="mt-2 text-sm text-muted-foreground">搜索商品名、品牌或 JAN，先看近期价格，再比较门店。</p>
-            <motion.div variants={{ hidden: { opacity: 0, y: 12, scale: 0.99 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.46, ease: [0.16, 1, 0.3, 1] } } }} className="search-shell mt-5 flex gap-2 rounded-xl border bg-card p-2 shadow-sm">
+            <motion.h1 variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.48, ease: [0.16, 1, 0.3, 1] } } }} className="max-w-3xl text-2xl font-bold leading-tight tracking-tight sm:text-4xl">日本药妆，查价更清楚。</motion.h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">搜索商品名、品牌或 JAN，先看近期价格，再比较门店。</p>
+            <motion.div variants={{ hidden: { opacity: 0, y: 12, scale: 0.99 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.46, ease: [0.16, 1, 0.3, 1] } } }} className="search-shell mt-5 flex max-w-3xl gap-1 rounded-2xl border bg-card p-1.5 shadow-sm sm:gap-2">
               <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" type="search" maxLength={300} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN" aria-label="搜索商品" className={`h-12 border-0 bg-transparent pl-10 text-base shadow-none focus-visible:ring-0 ${query ? "pr-14" : "pr-3"}`} />{query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
               <Button size="lg" onClick={() => setScanOpen(true)} aria-label="扫码检索" className="h-12 shrink-0 px-4 sm:px-6"><ScanLine /><span className="text-xs">扫码</span></Button>
             </motion.div>

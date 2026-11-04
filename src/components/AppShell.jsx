@@ -1,11 +1,11 @@
-import { Moon, ScanLine, ShieldCheck, Sun, UserRound } from "lucide-react"
+import { LogIn, Moon, ScanLine, ShieldCheck, Sun, UserRound } from "lucide-react"
 import { MotionConfig } from "motion/react"
 
 import BrandLink from "@/components/BrandLink"
 import { Button } from "@/components/ui/button"
 import { appPath } from "@/lib/paths.mjs"
 
-export function ThemeButton() {
+function ThemeButton() {
   const toggle = () => {
     const next = !document.documentElement.classList.contains("dark")
     document.documentElement.classList.toggle("dark", next)
@@ -14,11 +14,26 @@ export function ThemeButton() {
   return <Button variant="ghost" size="icon" className="size-11" onClick={toggle} aria-label="切换颜色模式"><Moon className="dark:hidden" /><Sun className="hidden dark:block" /></Button>
 }
 
-export function SiteHeader({ children }) {
-  return <header className="site-header sticky top-0 z-30 border-b bg-card/95 backdrop-blur-xl">
-    <div className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+function NavAction({ icon: Icon, label, name = label, href, onClick }) {
+  const content = <><Icon /><span>{label}</span></>
+  return (
+    <Button asChild={Boolean(href)} variant="ghost" size="sm" className="h-11 min-w-11 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground" aria-label={name} onClick={onClick}>
+      {href ? <a href={href}>{content}</a> : content}
+    </Button>
+  )
+}
+
+export function SiteHeader({ session, isAdmin, catalogHref = appPath("/#catalog"), onLogin, showLogin = true }) {
+  return <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur-xl">
+    <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-2 px-4 sm:h-[72px] sm:px-6 lg:px-8">
       <BrandLink compact />
-      <nav className="flex min-w-0 items-center gap-1" aria-label="主导航">{children}</nav>
+      <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="主导航">
+        <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex"><a href={catalogHref}>商品比价</a></Button>
+        <NavAction href={appPath("/scan/")} icon={ScanLine} label="扫码" name="扫码检索" />
+        {session ? <NavAction href={appPath("/me/")} icon={UserRound} label="我的" name="我的账户" /> : showLogin && <NavAction href={onLogin ? undefined : appPath("/login/")} onClick={onLogin} icon={onLogin ? LogIn : UserRound} label="登录" />}
+        {isAdmin && <NavAction href={appPath("/admin/")} icon={ShieldCheck} label="管理" name="管理后台" />}
+        <ThemeButton />
+      </nav>
     </div>
   </header>
 }
@@ -42,13 +57,7 @@ export default function AppShell({ children, eyebrow, title, description, sessio
   return (
     <MotionConfig reducedMotion="user">
       <div className="min-h-[100dvh] bg-background text-foreground">
-      <SiteHeader>
-            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex"><a href={appPath("/#catalog")}>商品比价</a></Button>
-            <Button asChild variant="ghost" size="sm" className="h-11 min-w-11 px-2"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="text-xs">扫码</span></a></Button>
-            <Button asChild variant="ghost" size="sm" className="h-11 min-w-11 px-2"><a href={appPath(session ? "/me/" : "/login/")} aria-label={session ? "我的账户" : "登录"}><UserRound /><span className="text-xs">{session ? "我的" : "登录"}</span></a></Button>
-            {profile?.role === "admin" && <Button asChild variant="ghost" size="sm" className="h-11 min-w-11 px-2"><a href={appPath("/admin/")} aria-label="管理后台"><ShieldCheck /><span className="text-xs">管理</span></a></Button>}
-            <ThemeButton />
-      </SiteHeader>
+      <SiteHeader session={session} isAdmin={profile?.role === "admin"} />
       <main id="main-content" tabIndex={-1}>
         {(title || eyebrow) && (
           <section className="app-enter mx-auto max-w-[1200px] px-4 py-7 sm:px-6 lg:px-8 lg:py-10">

@@ -164,13 +164,6 @@
     animation: app-rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  .search-shell {
-    transition: border-color 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1), transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .search-shell:focus-within {
-    transform: translateY(-2px);
-  }
 }
 
 .search-shell:focus-within {
