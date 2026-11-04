@@ -118,11 +118,16 @@ export default function ProductApp() {
     ;(async () => {
       try {
         if (!productId) throw new Error("URL 中缺少商品 id")
-        const row = await fetchProductById(productId)
+        const signal = AbortSignal.timeout(12000)
+        const row = await fetchProductById(productId, { signal }).catch((error) => {
+          if (signal.aborted) throw new Error("读取商品超时，请检查网络后重试。")
+          throw error
+        })
         if (!row) throw new Error("数据库中没有这件商品")
         if (!active) return
         const mappedProduct = mapProductRow(row)
         setProduct(mappedProduct)
+        setLoading(false)
         recordRecentView(mappedProduct)
         void recordTelemetryEvent("product_viewed", { product_id: productId }).catch(() => {})
         fetchCommercialOffers([productId]).then((rows) => {
@@ -277,7 +282,7 @@ export default function ProductApp() {
     } finally { priceSaveBusy.current = false; setSavingPrice(false) }
   }
 
-  if (loading) return <AppShell title="商品详情"><AppLoading label="正在读取商品" /></AppShell>
+  if (loading) return <AppShell title="商品详情"><AppLoading label="正在读取商品…" /><div className="mx-auto max-w-[1200px] px-4 pb-8"><Button asChild variant="outline"><a href={appPath("/")}>返回搜索</a></Button></div></AppShell>
   if (!product) return <AppShell eyebrow="商品" title="无法打开商品" description={status}><div className="mx-auto flex max-w-[1200px] flex-wrap gap-2 px-4 pb-24"><Button onClick={() => { setStatus(""); setLoading(true); setLoadRetry((value) => value + 1) }}><LoaderCircle className={loading ? "animate-spin" : "hidden"} />重试</Button><Button asChild variant="outline"><a href={appPath("/")}>返回搜索</a></Button></div></AppShell>
 
   return (

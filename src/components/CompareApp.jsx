@@ -145,6 +145,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
   const ocrWorkerRef = useRef(null)
   const [manualCode, setManualCode] = useState("")
   const [status, setStatus] = useState("")
+  const cameraAvailable = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia)
   const [scanning, setScanning] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
   const [draft, setDraft] = useState(null)
@@ -399,7 +400,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
     setPendingProduct(null)
     setRecognizedPrice("")
     if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus("当前浏览器不支持相机，请使用手动输入或相册。")
+      setStatus(window.isSecureContext ? "当前浏览器不支持相机，请手动输入条码或选择相册。" : "相机需要安全连接（HTTPS），请手动输入条码或选择相册。")
       return
     }
     cameraStartingRef.current = true
@@ -526,17 +527,17 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
           <select aria-label="扫描入库门店" className="w-full rounded-lg border bg-background p-2" value={scanStore?.id || ""} disabled={scanning || lookingUp || submitting} onChange={(event) => setScanStore(scanStores.find((store) => String(store.id) === event.target.value) || null)}><option value="">请选择当前门店</option>{scanStore && !scanStores.some((store) => store.id === scanStore.id) && <option value={scanStore.id}>{scanStore.name}</option>}{scanStores.map((store) => <option key={store.id} value={store.id}>{store.name} · {store.city || store.address}</option>)}</select>
           <p className="text-xs text-muted-foreground">保存到我的价格记录。自动入库需先选门店；多价或模糊结果需手动确认。</p>
         </div>}
-        {!manualOpen && !missingCode && !draft && <div ref={stageRef} className={`scanner-stage${enableOcr ? " scanner-shelf" : ""}`}>
+        {!manualOpen && !missingCode && !draft && (cameraAvailable || readingImage || lookingUp) && <div ref={stageRef} className={`scanner-stage${enableOcr ? " scanner-shelf" : ""}`}>
           <video ref={videoRef} muted playsInline className="absolute inset-0 h-full w-full object-cover" aria-label="条码扫描相机预览" />
           <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
           <div ref={viewfinderRef} className="scanner-viewfinder" aria-hidden="true"><span /><span /><span /><span />{scanning && <div className="scanner-line" />}</div>
-          {!scanning && !cameraStarting && !lookingUp && !readingImage && <button type="button" className="scanner-start" onClick={startCamera} disabled={submitting}><Camera className="size-8" /><span>启动相机</span></button>}
+          {cameraAvailable && !scanning && !cameraStarting && !lookingUp && !readingImage && <button type="button" className="scanner-start" onClick={startCamera} disabled={submitting}><Camera className="size-8" /><span>启动相机</span></button>}
           {(cameraStarting || readingImage || lookingUp) && <div className="scanner-progress"><LoaderCircle className="size-7 animate-spin" /><span>{cameraStarting ? "正在启动相机" : readingImage ? "正在识别图片" : "正在查询商品"}</span></div>}
-          <p className="scanner-hint">{enableOcr ? "对准价签条码，同时拍入上方价格" : "将商品条形码放入框内，即可自动扫描"}</p>
+          {cameraAvailable && <p className="scanner-hint">{enableOcr ? "对准价签条码，同时拍入上方价格" : "将商品条形码放入框内，即可自动扫描"}</p>}
         </div>}
         {status && <p className="scanner-status" role="status" aria-live="polite">{status}</p>}
         {!manualOpen && !missingCode && !draft && <div className="scanner-actions">
-          <button type="button" onClick={() => { stopCamera(); setStatus(""); setManualOpen(true) }} disabled={lookingUp || submitting || readingImage}><Keyboard /><span>手动输入</span></button>
+          <button type="button" className={cameraAvailable ? undefined : "bg-primary text-primary-foreground"} onClick={() => { stopCamera(); setStatus(""); setManualOpen(true) }} disabled={lookingUp || submitting || readingImage}><Keyboard /><span>手动输入</span></button>
           {scanning && <button type="button" onClick={stopCamera} aria-label="暂停扫描" disabled={lookingUp || submitting || readingImage}><ScanLine /><span>暂停</span></button>}
           {torchAvailable && <button type="button" onClick={toggleTorch} aria-label={torchOn ? "关闭手电筒" : "开启手电筒"} aria-pressed={torchOn}><Flashlight /><span>{torchOn ? "关闭补光" : "补光"}</span></button>}
           <button type="button" onClick={() => { stopCamera(); imageInputRef.current?.click() }} disabled={lookingUp || submitting || readingImage}><ImagePlus /><span>相册</span></button>
@@ -1144,9 +1145,9 @@ export default function CompareApp({ initialScan = false }) {
     <div className="min-h-[100dvh] bg-background text-foreground">
       <SiteHeader>
             <Button asChild variant="ghost" className="hidden sm:inline-flex"><a href="#catalog">商品比价</a></Button>
-            <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="hidden sm:inline">扫码</span></a></Button>
-            {session && <Button asChild variant="ghost" className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9"><a href={appPath("/me/")} aria-label="我的账户"><UserRound /><span className="hidden sm:inline">我的</span></a></Button>}
-            {supabaseConfigured && !session && <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="size-11 px-0 sm:w-auto sm:px-2.5 md:h-9" aria-label="登录"><LogIn /><span className="hidden sm:inline">登录</span></Button>}
+            <Button asChild variant="ghost" className="h-11 min-w-11 px-2"><a href={appPath("/scan/")} aria-label="扫码检索"><ScanLine /><span className="text-xs">扫码</span></a></Button>
+            {session && <Button asChild variant="ghost" className="h-11 min-w-11 px-2"><a href={appPath("/me/")} aria-label="我的账户"><UserRound /><span className="text-xs">我的</span></a></Button>}
+            {supabaseConfigured && !session && <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} className="h-11 min-w-11 px-2" aria-label="登录"><LogIn /><span className="text-xs">登录</span></Button>}
             <ThemeButton />
       </SiteHeader>
 
@@ -1157,11 +1158,11 @@ export default function CompareApp({ initialScan = false }) {
             <p className="mt-2 text-sm text-muted-foreground">搜索商品名、品牌或 JAN，先看近期价格，再比较门店。</p>
             <motion.div variants={{ hidden: { opacity: 0, y: 12, scale: 0.99 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.46, ease: [0.16, 1, 0.3, 1] } } }} className="search-shell mt-5 flex gap-2 rounded-xl border bg-card p-2 shadow-sm">
               <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" type="search" maxLength={300} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN" aria-label="搜索商品" className={`h-12 border-0 bg-transparent pl-10 text-base shadow-none focus-visible:ring-0 ${query ? "pr-14" : "pr-3"}`} />{query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
-              <Button size="lg" onClick={() => setScanOpen(true)} aria-label="扫码检索" className="h-12 shrink-0 px-4 sm:px-6"><ScanLine /><span className="hidden sm:inline">扫码</span></Button>
+              <Button size="lg" onClick={() => setScanOpen(true)} aria-label="扫码检索" className="h-12 shrink-0 px-4 sm:px-6"><ScanLine /><span className="text-xs">扫码</span></Button>
             </motion.div>
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
               <Button variant="outline" onClick={locate} disabled={locationStatus === "loading"}><MapPin />{locationCopy}</Button>
-              <p className="text-xs text-muted-foreground" role="status" aria-live="polite">{locationError || (location ? "已获取位置，实体门店按距离比较。" : "尚未定位，报价门店可能不在你附近。")} <span className="text-muted-foreground/75">位置仅用于附近排序，30 分钟后自动失效。</span></p>
+              <p className="text-sm leading-relaxed text-foreground" role="status" aria-live="polite">{locationError || (location ? "已获取位置，实体门店按距离比较。" : "尚未定位，报价门店可能不在你附近。")} <span className="text-muted-foreground">位置仅用于附近排序，30 分钟后自动失效。</span></p>
             </div>
           </motion.div>
         </section>
@@ -1176,7 +1177,7 @@ export default function CompareApp({ initialScan = false }) {
               </div>
               <AnimatePresence initial={false}>
                 {filtersOpen && <motion.div id="catalog-filters" initial={reduceMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={reduceMotion ? undefined : { opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
-                <div className={`mt-4 grid gap-5 border-t pt-5 ${hasCatalogPrices ? "md:grid-cols-[1.3fr_1fr_0.9fr]" : "md:grid-cols-[1.3fr_1fr]"}`}>
+                <div className={`mt-4 grid grid-cols-1 gap-5 border-t pt-5 ${hasCatalogPrices ? "md:grid-cols-[1.3fr_1fr_0.9fr]" : "md:grid-cols-[1.3fr_1fr]"}`}>
                   <div><p className="text-sm font-medium">商品分类 <span className="font-normal text-muted-foreground">· 当前已加载商品</span></p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div><label className="mt-4 block text-sm font-medium" htmlFor="brand-filter">品牌 / 厂商</label><select id="brand-filter" className="mt-2 h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" value={brand} onChange={(event) => setBrand(event.target.value)}><option value="">全部品牌 / 厂商</option>{brands.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
                   {hasCatalogPrices ? <><div><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">最高预算</span><span className="font-mono text-sm">{budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])}</span></div><Slider aria-label="最高预算" aria-valuetext={budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])} value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
                   <div><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem>{hasUnitPrices && <SelectItem value="unit">单位价优先</SelectItem>}{hasPriceDifferences && <SelectItem value="saving">差价最大</SelectItem>}{hasStoreDistances && <SelectItem value="distance">离我最近</SelectItem>}</SelectContent></Select><p className="mt-2 text-xs text-muted-foreground">价格排序使用已显示报价或近期价格概览。</p></div></> : <p className="text-sm text-muted-foreground">价格筛选将在查价后启用。</p>}

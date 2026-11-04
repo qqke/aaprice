@@ -31,9 +31,10 @@ function buildUrl(path, query = {}) {
   return url
 }
 
-async function request(path, { method = "GET", query, body, token, prefer } = {}) {
+async function request(path, { method = "GET", query, body, token, prefer, signal } = {}) {
   const response = await fetch(buildUrl(path, query), {
     method,
+    signal,
     headers: {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
@@ -134,9 +135,9 @@ export async function registerScannedProduct(barcode) {
   return rpc("register_scanned_product", { payload: { barcode: String(barcode) } }, session.access_token)
 }
 
-export async function fetchProductById(id) {
+export async function fetchProductById(id, { signal } = {}) {
   if (!id) return null
-  const rows = await request("products", { query: { select: "*", id: `eq.${id}`, limit: 1 } })
+  const rows = await request("products", { signal, query: { select: "*", id: `eq.${id}`, limit: 1 } })
   return rows?.[0] || null
 }
 
