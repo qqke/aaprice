@@ -31,7 +31,7 @@ try {
   await page.addInitScript(() => {
     if (navigator.mediaDevices) Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable: true, value: async () => { throw new DOMException("Isolated camera", "NotAllowedError") } })
   })
-  const product = (id, name = id) => ({ id, name, brand: "テスト", pack: "100mL", category: "化粧水", image_url: "/lowprice-logo.png" })
+  const product = (id, name = id) => ({ id, name, brand: "テスト", pack: "100mL", category: "化粧水", image_url: "/favicon.svg" })
   const products = Array.from({ length: 30 }, (_, i) => product(`p${i}`, `商品 ${i}`))
   products[0].image_url = null
   products[1].image_url = "/missing-fixture-product.png"

@@ -1,6 +1,7 @@
 import { Moon, ScanLine, ShieldCheck, Sun, UserRound } from "lucide-react"
 import { MotionConfig } from "motion/react"
 
+import BrandLink from "@/components/BrandLink"
 import { Button } from "@/components/ui/button"
 import { appPath } from "@/lib/paths.mjs"
 
@@ -16,10 +17,7 @@ export function ThemeButton() {
 export function SiteHeader({ children }) {
   return <header className="site-header sticky top-0 z-30 border-b bg-card/95 backdrop-blur-xl">
     <div className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-      <a href={appPath("/")} className="flex min-h-11 shrink-0 items-center gap-2" aria-label="LOWPRICE 首页">
-        <img src="/lowprice-logo.png" alt="LOWPRICE" className="h-10 w-auto object-contain" />
-        <span className="hidden text-base font-bold tracking-tight sm:inline">LOWPRICE</span>
-      </a>
+      <BrandLink compact />
       <nav className="flex min-w-0 items-center gap-1" aria-label="主导航">{children}</nav>
     </div>
   </header>
