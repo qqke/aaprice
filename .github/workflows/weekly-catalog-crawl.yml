@@ -1,0 +1,34 @@
+name: Weekly product and store crawl
+
+on:
+  schedule:
+    # GitHub Actions cron is UTC: Wednesday 18:10 UTC is Thursday 03:10 JST.
+    - cron: "10 18 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-product-store-crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Crawl product prices and store locations
+        run: npm run drugstores:crawl -- --limit=300 --stores=200 --welcia-stores=3000
+      - name: Save crawl output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-product-store-crawl-${{ github.run_id }}
+          path: artifacts/drugstores-*/
+          if-no-files-found: warn
+          retention-days: 30
