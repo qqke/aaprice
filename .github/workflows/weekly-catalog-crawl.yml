@@ -1,16 +1,16 @@
-name: Weekly product and store crawl
+name: Daily product and store crawl
 
 on:
   schedule:
-    # GitHub Actions cron is UTC: Wednesday 18:10 UTC is Thursday 03:10 JST.
-    - cron: "10 18 * * 3"
+    # GitHub Actions cron is UTC: 18:10 UTC is 03:10 JST the next day.
+    - cron: "10 18 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: weekly-product-store-crawl
+  group: daily-product-store-crawl
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-product-store-crawl-${{ github.run_id }}
+          name: daily-product-store-crawl-${{ github.run_id }}
           path: artifacts/drugstores-*/
           if-no-files-found: warn
           retention-days: 30
