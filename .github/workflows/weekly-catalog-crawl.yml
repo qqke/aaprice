@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 24
       - name: Crawl product prices and store locations
-        run: npm run drugstores:crawl -- --limit=300 --stores=200 --welcia-stores=3000
+        run: npm run drugstores:crawl -- --limit=300 --stores=200 --welcia-stores=3000 --allow-partial
       - name: Save crawl output
         if: always()
         uses: actions/upload-artifact@v4

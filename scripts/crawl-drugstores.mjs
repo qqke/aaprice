@@ -298,7 +298,15 @@ async function main() {
     await writeFile(`${out}/report.json`, JSON.stringify(report, null, 2))
     await writeFile(`${out}/import.sql`, buildImportSql(unique, uniqueStores))
     console.log(JSON.stringify({ ...report, failures: failures.length }, null, 2))
-    if (selectedSources.some((source) => !report.sources[source].eligible) || (storeLimit && !uniqueStores.length)) throw new Error("A source has no usable rows; inspect report before import")
+    const missingSources = selectedSources.filter((source) => !report.sources[source].eligible)
+    if (missingSources.length === selectedSources.length || ((storeLimit || (welciaStoreLimit && selectedSources.includes("welcia"))) && !uniqueStores.length)) {
+      throw new Error("No usable product or physical store results; inspect the crawl report")
+    }
+    if (missingSources.length) {
+      const message = `No usable product rows from: ${missingSources.join(", ")}; inspect the crawl report`
+      if (!args.includes("--allow-partial")) throw new Error(message)
+      console.warn(message)
+    }
   }
   // Recover completed observations after an interrupted run without making network requests or changing timestamps.
   if (args.includes("--offline")) {
@@ -529,7 +537,7 @@ async function main() {
   })()
   await matsukiyoRun
   const sourceResults = await sourceRuns
-  sourceResults.forEach((r, i) => { if (r.status === "rejected") failures.push({ source: ["tsuruha", "welcia", "tsuruha-physical", "welcia-physical"][i], reason: r.reason.message }) })
+  sourceResults.forEach((r, i) => { if (r.status === "rejected") failures.push({ source: ["tsuruha", "ainz", "kirindo", "tomods", "kokumin", "create", "kyorindo", "doramori", "sugi", "seims", "qols", "welcia", "tsuruha-physical", "welcia-physical"][i], reason: r.reason.message }) })
   if (!selectedSources.includes("matsukiyo")) { await saveResults(); return }
   const storeMap = locs((await get(`${sources.matsukiyo.base}/sitemap_map.xml`)).html).filter((u) => /^https:\/\/www\.matsukiyococokara-online\.com\/map\?kid=\d+$/.test(u))
   discovered.physicalStores = storeMap.length
