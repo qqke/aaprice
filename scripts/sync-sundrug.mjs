@@ -1,3 +1,4 @@
+import { catalogGtin } from "../src/lib/gtin.mjs"
 import { spawnSync } from "node:child_process"
 import { pathToFileURL } from "node:url"
 
@@ -119,7 +120,7 @@ export function buildRows(products) {
   for (const product of products) {
     const normalized = normalizeProduct(product)
     rejectedVariants += (product?.variants?.length || 0) - normalized.length
-    for (const row of normalized) rows.set(row.barcode, row)
+    for (const row of normalized) rows.set(catalogGtin(row.barcode) ?? row.barcode, row)
   }
   return { rows: [...rows.values()], rejectedVariants }
 }
@@ -216,7 +217,7 @@ set
   catalog_source = 'sundrug',
   last_seen_at = now()
 from sundrug_sync_stage as stage
-where product.barcode = stage.barcode
+where product.id = public.resolve_catalog_product_id(stage.barcode)
   and (
     product.last_seen_at is null
     or product.last_seen_at < now() - interval '20 hours'
@@ -235,14 +236,14 @@ insert into public.products (id, barcode, name, brand, pack, category, descripti
 select barcode, barcode, name, brand, pack, category, description, image_url, 'sundrug', now()
 from sundrug_sync_stage as stage
 where not exists (
-  select 1 from public.products as product where product.barcode = stage.barcode
-);
+  select 1 from public.products as product where (product.barcode = stage.barcode or public.catalog_gtin(product.barcode) = public.catalog_gtin(stage.barcode))
+) on conflict do nothing;
 
 with inserted as (
   insert into public.prices (product_id, store_id, price_yen, source, note, collected_at)
   select product.id, '${STORE_ID}', stage.price_yen, 'crawler', 'Sandrug Online Store sync', now()
   from sundrug_sync_stage as stage
-  join public.products as product on product.barcode = stage.barcode
+  join public.products as product on product.id = public.resolve_catalog_product_id(stage.barcode)
   where stage.available
     and not exists (
       select 1

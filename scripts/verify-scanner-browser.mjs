@@ -68,7 +68,8 @@ export async function verifyScannerBrowser(page, origin, missingJan) {
   page.on("request", countEnrichment)
   let failBarcodeOnce = true
   await page.route("**/rest/v1/products?**", route => {
-    if (failBarcodeOnce && new URL(route.request().url()).searchParams.get("barcode") === `eq.${missingJan}`) {
+    const filter = new URL(route.request().url()).searchParams.get("barcode")
+    if (failBarcodeOnce && (filter === `eq.${missingJan}` || filter?.slice(4, -1).split(",").includes(missingJan))) {
       failBarcodeOnce = false
       return route.abort("failed")
     }

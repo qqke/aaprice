@@ -1,4 +1,5 @@
 import { readLocation, requestLocation } from "@/lib/location.mjs"
+import { barcodeForms } from "@/lib/gtin.mjs"
 import CommercialPurchaseButton from "@/components/CommercialPurchaseButton"
 import ProductImage from "@/components/ProductImage"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
@@ -305,7 +306,7 @@ function ScannerDialog({ open, onOpenChange, onFound, session, isAdmin = false }
     try {
       const [priceRead, productRead] = await Promise.allSettled([
         bounds ? readPrice(bounds, snapshot) : { price: "", automatic: false },
-        supabaseConfigured ? fetchProductByBarcode(barcode) : demoProducts.find((product) => product.barcode === barcode),
+        supabaseConfigured ? fetchProductByBarcode(barcode) : demoProducts.find((product) => barcodeForms(barcode).includes(product.barcode)),
       ])
       if (!openRef.current || epoch !== scanEpochRef.current || (bounds && !fromImage && !streamRef.current)) return
       if (productRead.status === "rejected") throw productRead.reason

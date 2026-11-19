@@ -184,7 +184,7 @@ test("keeps production UI interaction contracts", async () => {
   assert.match(api, /rpc\("record_commercial_click"/)
   assert.match(api, /rpc\("fetch_public_catalog_price_previews"/)
   assert.match(api, /rpc\("fetch_public_ranked_products"/)
-  assert.match(api, /commercial_outbound_clicked/)
+  assert.doesNotMatch(api, /recordTelemetryEvent\("commercial_outbound_clicked"/)
   assert.match(api, /rpc\("admin_fetch_commercial_offers"/)
   assert.match(api, /rpc\("admin_upsert_commercial_offer"/)
   assert.match(api, /rpc\("fetch_favorite_price_changes"/)

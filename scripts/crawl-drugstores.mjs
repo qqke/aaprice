@@ -1,3 +1,4 @@
+import { catalogGtin } from "../src/lib/gtin.mjs"
 import { createHash } from "node:crypto"
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
@@ -237,13 +238,13 @@ select id,name,chain_name,address,pref,city,lat,lng,hours from drugstore_stores
 on conflict (id) do update set name=excluded.name,chain_name=excluded.chain_name,address=excluded.address,
 pref=excluded.pref,lat=excluded.lat,lng=excluded.lng,hours=excluded.hours;
 insert into public.products (id,barcode,name,brand,pack,category,description,image_url,catalog_source,last_seen_at)
-select distinct on (barcode) barcode,barcode,name,brand,'','','',coalesce("imageUrl",''),source,"collectedAt"
-from drugstore_products s where not exists(select 1 from public.products p where p.barcode=s.barcode)
-order by barcode,"collectedAt" desc
+select distinct on (public.catalog_gtin(barcode)) barcode,barcode,name,brand,'','','',coalesce("imageUrl",''),source,"collectedAt"
+from drugstore_products s where not exists(select 1 from public.products p where public.catalog_gtin(p.barcode)=public.catalog_gtin(s.barcode))
+order by public.catalog_gtin(barcode),"collectedAt" desc,barcode
 on conflict do nothing;
 insert into public.prices (product_id,store_id,price_yen,source,note,collected_at)
 select p.id,s."storeId",s."priceYen",'crawler','公式オンライン・税込・送料別（店頭価格ではありません） ' || s."sourceUrl",s."collectedAt"
-from drugstore_products s join public.products p on p.barcode=s.barcode
+from drugstore_products s join public.products p on p.id=public.resolve_catalog_product_id(s.barcode)
 where s."collectedAt" >= now() - interval '7 days'
 and not exists (select 1 from public.prices old where old.product_id=p.id and old.store_id=s."storeId"
 and old.source='crawler' and old.price_yen=s."priceYen" and old.collected_at >= s."collectedAt" - interval '20 hours');
@@ -254,7 +255,7 @@ commit;
 export function deduplicateProducts(products) {
   const byUrl = [...new Map([...products].sort((a, b) => a.collectedAt.localeCompare(b.collectedAt)).map((p) => [`${p.source}:${p.sourceUrl}`, p])).values()]
   const unique = [...new Map([...byUrl].sort((a, b) => Number(a.eligible) - Number(b.eligible) || a.collectedAt.localeCompare(b.collectedAt))
-    .map((p) => [`${p.source}:${p.barcode}`, p])).values()]
+    .map((p) => [`${p.source}:${catalogGtin(p.barcode) ?? p.barcode}`, p])).values()]
   return { unique, review: byUrl.filter((p) => !p.eligible) }
 }
 
@@ -537,7 +538,7 @@ async function main() {
   })()
   await matsukiyoRun
   const sourceResults = await sourceRuns
-  sourceResults.forEach((r, i) => { if (r.status === "rejected") failures.push({ source: ["tsuruha", "ainz", "kirindo", "tomods", "kokumin", "create", "kyorindo", "doramori", "sugi", "seims", "qols", "welcia", "tsuruha-physical", "welcia-physical"][i], reason: r.reason.message }) })
+  sourceResults.forEach((r, i) => { if (r.status === "rejected") failures.push({ source: ["tsuruha", "welcia", "tsuruha-physical", "welcia-physical"][i], reason: r.reason.message }) })
   if (!selectedSources.includes("matsukiyo")) { await saveResults(); return }
   const storeMap = locs((await get(`${sources.matsukiyo.base}/sitemap_map.xml`)).html).filter((u) => /^https:\/\/www\.matsukiyococokara-online\.com\/map\?kid=\d+$/.test(u))
   discovered.physicalStores = storeMap.length

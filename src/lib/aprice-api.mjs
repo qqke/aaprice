@@ -1,3 +1,4 @@
+import { barcodeForms } from "./gtin.mjs"
 import { authRedirectUrl } from "./paths.mjs"
 
 const runtimeConfig = globalThis.__APriceConfig || {}
@@ -115,6 +116,10 @@ export async function searchProducts(term = "", limit = 30, { offset = 0, curate
     const barcode = value.replace(/\D/g, "")
     const filters = [`name.ilike.${pattern}`, `brand.ilike.${pattern}`, `category.ilike.${pattern}`]
     if (barcode) filters.push(`barcode.ilike.%${barcode}%`)
+    if (value === barcode) {
+      const aliases = barcodeForms(barcode).filter(form => form !== barcode)
+      if (aliases.length) filters.push(`barcode.in.(${aliases.join(",")})`)
+    }
     query.or = `(${filters.join(",")})`
   }
   return request("products", { query })
@@ -123,10 +128,16 @@ export async function searchProducts(term = "", limit = 30, { offset = 0, curate
 export async function fetchProductByBarcode(value) {
   const barcode = String(value || "").replace(/\D/g, "")
   if (!barcode) return null
+  const forms = barcodeForms(barcode)
+  const filter = forms.length === 1 ? `eq.${barcode}` : `in.(${forms.join(",")})`
   const rows = await request("products", {
-    query: { select: "*", barcode: `eq.${barcode}`, limit: 1 },
+    query: { select: "*", barcode: filter },
   })
-  return rows?.[0] || null
+  if (!rows?.length) return null
+  if (rows.length === 1) return rows[0]
+  const exact = rows.filter(product => product.barcode === barcode)
+  if (exact.length === 1) return exact[0]
+  throw new Error("条码对应多个历史商品，请按商品名搜索并核对包装")
 }
 
 export async function registerScannedProduct(barcode) {
@@ -223,7 +234,6 @@ export async function recordCommercialClick(offerId, source) {
   const session = await getSession().catch(() => null)
   const url = await rpc("record_commercial_click", { payload: { offer_id: offerId, session_id: getTelemetrySessionId(), source } }, session?.access_token)
   if (typeof url !== "string" || !url.startsWith("https://")) throw new Error("商业链接暂不可用")
-  void recordTelemetryEvent("commercial_outbound_clicked", { offer_id: offerId, source }).catch(() => {})
   return url
 }
 
