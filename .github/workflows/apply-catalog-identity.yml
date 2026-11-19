@@ -26,19 +26,16 @@ jobs:
       - name: Apply and verify only the catalog migration
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           migration=supabase/migrations/20261119062150_canonical_catalog_and_click_reporting.sql
           work=$(mktemp -d)
           supabase init --workdir "$work"
-          target=(--linked --project-ref tplkpguxlvrhxassyjfm)
-          if [[ -n "$DATABASE_URL" ]]; then target=(--db-url "$DATABASE_URL"); fi
-          if [[ -n "$DATABASE_URL" ]]; then
-            history=$(psql "$DATABASE_URL" -XAtqc "select to_regclass('supabase_migrations.schema_migrations') is not null")
-          else
-            history=t
-          fi
+          DATABASE_URL=$(printf %s "$DATABASE_URL" | tr -d '\r\n')
+          : "${DATABASE_URL:?Missing SUPABASE_DB_URL}"
+          echo "::add-mask::$DATABASE_URL"
+          target=(--db-url "$DATABASE_URL")
+          history=$(psql "$DATABASE_URL" -XAtqc "select to_regclass('supabase_migrations.schema_migrations') is not null")
           if [[ "$history" == t ]]; then
             supabase migration fetch --workdir "$work" "${target[@]}" --yes
           fi
