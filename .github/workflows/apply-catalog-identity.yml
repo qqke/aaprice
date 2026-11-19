@@ -34,7 +34,14 @@ jobs:
           supabase init --workdir "$work"
           target=(--linked --project-ref tplkpguxlvrhxassyjfm)
           if [[ -n "$DATABASE_URL" ]]; then target=(--db-url "$DATABASE_URL"); fi
-          supabase migration fetch --workdir "$work" "${target[@]}" --yes
+          if [[ -n "$DATABASE_URL" ]]; then
+            history=$(psql "$DATABASE_URL" -XAtqc "select to_regclass('supabase_migrations.schema_migrations') is not null")
+          else
+            history=t
+          fi
+          if [[ "$history" == t ]]; then
+            supabase migration fetch --workdir "$work" "${target[@]}" --yes
+          fi
           mkdir -p "$work/supabase/migrations"
           cp "$migration" "$work/$migration"
           supabase db push --workdir "$work" "${target[@]}" --skip-vault --yes
