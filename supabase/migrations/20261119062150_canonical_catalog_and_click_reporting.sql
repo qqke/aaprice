@@ -1,3 +1,5 @@
+begin;
+
 -- External catalog IDs remain stable. Only valid-length numeric representations share an identity.
 create or replace function public.catalog_gtin(barcode text)
 returns text language sql immutable strict parallel safe set search_path = pg_catalog
@@ -232,3 +234,4 @@ revoke all on function public.admin_fetch_telemetry_summary(jsonb) from public;
 grant execute on function public.admin_fetch_telemetry_summary(jsonb) to authenticated;
 
 notify pgrst, 'reload schema';
+commit;
