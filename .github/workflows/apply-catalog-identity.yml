@@ -1,0 +1,41 @@
+name: Apply catalog identity migration
+on:
+  push:
+    branches: [main]
+    paths:
+      - supabase/migrations/20261119062150_canonical_catalog_and_click_reporting.sql
+      - .github/workflows/apply-catalog-identity.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-identity-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - name: Apply and verify only the catalog migration
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          migration=supabase/migrations/20261119062150_canonical_catalog_and_click_reporting.sql
+          work=$(mktemp -d)
+          supabase init --workdir "$work"
+          target=(--linked --project-ref tplkpguxlvrhxassyjfm)
+          if [[ -n "$DATABASE_URL" ]]; then target=(--db-url "$DATABASE_URL"); fi
+          supabase migration fetch --workdir "$work" "${target[@]}" --yes
+          mkdir -p "$work/supabase/migrations"
+          cp "$migration" "$work/$migration"
+          supabase db push --workdir "$work" "${target[@]}" --skip-vault --yes
+          supabase db query --workdir "$work" "${target[@]}" "select 'public.products_catalog_gtin_uidx'::regclass as unique_index, public.catalog_gtin('96385074') = public.catalog_gtin('00000096385074') as matches"
