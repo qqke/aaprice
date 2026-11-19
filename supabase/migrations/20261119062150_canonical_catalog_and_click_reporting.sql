@@ -6,8 +6,46 @@ as $$
 $$;
 grant execute on function public.catalog_gtin(text) to authenticated, service_role;
 
--- Existing collisions stop the migration for review, without moving or deleting any records.
-create unique index products_catalog_gtin_uidx on public.products (public.catalog_gtin(barcode));
+-- Freeze the exact (id, barcode) pairs of pre-existing collisions. No winner is inferred.
+-- Building the constraint and the index under the same lock closes the preflight/write race.
+lock table public.products in share row exclusive mode;
+do $migration$
+declare
+  conflicting_keys text;
+  allowed_pairs text;
+begin
+  with existing as (
+    select id, barcode, public.catalog_gtin(barcode) as gtin,
+      count(*) over (partition by public.catalog_gtin(barcode)) as copies
+    from public.products
+  )
+  select string_agg(distinct quote_literal(gtin), ','),
+    string_agg(format('(%L,%L)', id, barcode), ',')
+  into conflicting_keys, allowed_pairs
+  from existing where gtin is not null and copies > 1;
+
+  if allowed_pairs is null then
+    create unique index products_catalog_gtin_uidx on public.products (public.catalog_gtin(barcode));
+  else
+    execute format('alter table public.products add constraint products_legacy_gtin_pairs
+      check (public.catalog_gtin(barcode) not in (%s) or (id,barcode) in (%s))', conflicting_keys, allowed_pairs);
+    execute format('create unique index products_catalog_gtin_uidx on public.products
+      (public.catalog_gtin(barcode), (case when (id,barcode) in (%s) then id else '''' end))', allowed_pairs);
+  end if;
+end
+$migration$;
+
+-- An exact historical representation wins. Ambiguous alternative forms have no match.
+create or replace function public.resolve_catalog_product_id(input_barcode text)
+returns text language sql stable strict set search_path = public, pg_temp
+as $$
+  select case when count(*) filter (where barcode = input_barcode) = 1
+              then min(id) filter (where barcode = input_barcode)
+              when count(*) = 1 then min(id) end
+  from public.products
+  where barcode = input_barcode or public.catalog_gtin(barcode) = public.catalog_gtin(input_barcode)
+$$;
+grant execute on function public.resolve_catalog_product_id(text) to authenticated, service_role;
 
 create or replace function public.register_scanned_product(payload jsonb)
 returns public.products
@@ -23,8 +61,11 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('scanned-user:' || auth.uid()::text, 0));
   -- Serialize matching scans, including the first insert, without overwriting real metadata.
   perform pg_advisory_xact_lock(hashtextextended('scanned-product:' || public.catalog_gtin(barcode_value), 0));
-  select * into result from public.products where public.catalog_gtin(barcode) = public.catalog_gtin(barcode_value) for update;
+  select * into result from public.products where id = public.resolve_catalog_product_id(barcode_value) for update;
   if not found then
+    if exists (select 1 from public.products where public.catalog_gtin(barcode) = public.catalog_gtin(barcode_value)) then
+      raise exception '条码对应多个历史商品，请核对商品名和包装';
+    end if;
     if (select count(*) from public.product_submissions where user_id = auth.uid() and created_at >= now() - interval '1 day') >= 100 then
       raise exception 'daily product registration limit reached';
     end if;
@@ -33,12 +74,12 @@ begin
     on conflict do nothing returning * into result;
     if not found then
       select * into strict result from public.products
-      where public.catalog_gtin(barcode) = public.catalog_gtin(barcode_value) for update;
+      where id = public.resolve_catalog_product_id(barcode_value) for update;
     end if;
   end if;
   if result.needs_details then
     select id into pending_id from public.product_submissions
-      where public.catalog_gtin(barcode) = public.catalog_gtin(result.barcode) and review_status = 'pending' order by created_at limit 1 for update;
+      where barcode = result.barcode and review_status = 'pending' order by created_at limit 1 for update;
     if pending_id is null then
       insert into public.product_submissions(user_id, barcode, name, promoted_product_id)
       values(auth.uid(), result.barcode, result.name, result.id);

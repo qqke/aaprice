@@ -43,3 +43,11 @@ jobs:
           cp "$migration" "$work/$migration"
           supabase db push --workdir "$work" "${target[@]}" --skip-vault --yes
           supabase db query --workdir "$work" "${target[@]}" "select 'public.products_catalog_gtin_uidx'::regclass as unique_index, public.catalog_gtin('96385074') = public.catalog_gtin('00000096385074') as matches"
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          with collisions as (
+            select count(*) as rows_per_key from public.products
+            where public.catalog_gtin(barcode) is not null
+            group by public.catalog_gtin(barcode) having count(*) > 1
+          )
+          select count(*) as historical_groups, coalesce(sum(rows_per_key),0) as historical_products from collisions;
+          SQL
