@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises"
+import { dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { robotsAllow } from "./crawl-drugstores.mjs"
 
@@ -111,8 +112,8 @@ export async function fetchCatalog({ existingBarcodes = new Set(), fetchImpl = f
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = await fetchCatalog()
-  const output = process.argv[2] || "artifacts/products-2026-10-22/matsukiyo.json"
-  await mkdir(new URL("../", pathToFileURL(`${process.cwd()}/${output}`)), { recursive: true })
+  const output = resolve(process.argv[2] || "artifacts/products-2026-10-22/matsukiyo.json")
+  await mkdir(dirname(output), { recursive: true })
   await writeFile(output, `${JSON.stringify(result.products, null, 2)}\n`)
   const { products, ...report } = result
   await writeFile(output.replace(/\.json$/, "-report.json"), `${JSON.stringify({ ...report, uniqueProducts: products.length }, null, 2)}\n`)

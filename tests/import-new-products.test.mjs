@@ -77,6 +77,12 @@ test("accepts verified Bourbon and Sakura native product origins without trustin
   }
 })
 
+test("accepts official Kewpie products while rejecting lookalike source URLs", () => {
+  const origin = "https://www.kewpie.co.jp"
+  assert.equal(prepareRows([{ ...product, catalogSource: "kewpie", sourceUrl: `${origin}/products/detail/4901577094040/`, pack: "145g" }]).rows.length, 1)
+  assert.equal(prepareRows([{ ...product, catalogSource: "kewpie", sourceUrl: `${origin}.invalid/products/detail/4901577094040/` }]).rows.length, 0)
+})
+
 test("rejects short internal circulation codes and zero-padded aliases while retaining global GTIN-8", () => {
   for (const raw of ["02345673", "22345677"]) for (const length of [8, 12, 13, 14]) {
     const barcode = raw.padStart(length, "0")

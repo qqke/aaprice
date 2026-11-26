@@ -39,7 +39,7 @@ async function main() {
       if (data.products.length < 250) { complete = true; break }
     }
     let next = 0
-    await Promise.all(Array.from({ length: 4 }, async () => {
+    await Promise.all(Array.from({ length: 1 }, async () => {
       while (next < missingBarcodes.length) {
         const product = missingBarcodes[next++]
         if (blocked) { failures.push({ handle: product.handle, reason: "Skipped after rate limit" }); continue }

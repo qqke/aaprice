@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url'
 import { validGtin } from './import-new-products.mjs'
 import { databaseProcess } from './sync-sundrug.mjs'
 
-const origin = 'https://www.soft99.co.jp', out = 'artifacts/products-round7-2026-10-28'
+const origin = 'https://www.soft99.co.jp', out = process.argv.find(a => a.startsWith('--out='))?.slice(6) || 'artifacts/products-round7-2026-10-28'
 const plain = s => s.replace(/<[^>]+>/g, ' ').replace(/&#(x[\da-f]+|\d+);/gi, (_, n) => String.fromCodePoint(n[0].toLowerCase() === 'x' ? parseInt(n.slice(1), 16) : Number(n))).replace(/&(amp|nbsp|quot|apos|lt|gt|times);/g, (_, n) => ({ amp: '&', nbsp: ' ', quot: '"', apos: "'", lt: '<', gt: '>', times: '×' })[n]).replace(/\s+/g, ' ').trim()
 export function parseProduct(html, sourceUrl) {
   const tables = [...html.matchAll(/<table class="productTable">([\s\S]*?)<\/table>/g)]
@@ -43,8 +43,8 @@ async function main() {
   try {
     const robots = await get(origin + '/robots.txt')
     if (robots.split(/\r?\n/).some(line => /^Disallow:\s*\/products/i.test(line) || /^Disallow:\s*\/$/.test(line))) throw Error('Products disallowed by robots')
-    const roots = ['car_wash','repair','car_maintenance','home_care','glasses_care','sports_care']
-    const queue = ['/products/', ...roots.map(r => `/products/${r}/`), '/products/new_release/'], visited = new Set(), products = new Set()
+    const roots = ['car_wash','repair','car_maintenance','home_care','glasses_care','sports_care','pro_use','other']
+    const queue = ['/products/', ...roots.slice(0, 6).map(r => `/products/${r}/`), '/products/new_release/','/business/'], visited = new Set(), products = new Set()
     while (queue.length) {
       const path = queue.shift()
       if (visited.has(path)) continue
@@ -79,7 +79,7 @@ async function main() {
       if ((rows.size + excluded.length) % 25 === 0) console.log(JSON.stringify({ processedCandidates: rows.size, excluded: excluded.length, url }))
     }
     report.candidates = rows.size; report.excluded = excluded; report.complete = true
-    report.coverageLimit = 'Six public consumer categories and new releases; discontinued, professional-only and brand-only routes not audited.'
+    report.coverageLimit = 'Six public consumer categories, new releases, and linked public business categories; discontinued and brand-only routes not audited.'
     await writeFile(`${out}/soft99.json`, JSON.stringify([...rows.values()], null, 2))
   } catch (error) { report.error = error.message; process.exitCode = 1 }
   finally { await writeFile(`${out}/soft99-report.json`, JSON.stringify(report, null, 2)); console.log(JSON.stringify(report)) }
