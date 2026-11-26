@@ -799,6 +799,9 @@ export default function CompareApp({ initialScan = false }) {
   const catalogView = useRef(null)
   const catalogEpoch = useRef(0)
   const [query, setQuery] = useState("")
+  const searchInput = useRef(null)
+  const filterToggle = useRef(null)
+  const [searchAboveViewport, setSearchAboveViewport] = useState(false)
   const [segment, setSegment] = useState("全部")
   const [brand, setBrand] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -823,6 +826,19 @@ export default function CompareApp({ initialScan = false }) {
   const [locationError, setLocationError] = useState("")
 
   useEffect(() => { if (initialScan) setScanOpen(true) }, [initialScan])
+
+  useEffect(() => {
+    const input = searchInput.current
+    const header = document.querySelector(".site-header")
+    if (!input || !header) return
+
+    // The sticky header covers the top of the scrollable viewport.
+    const observer = new IntersectionObserver(([entry]) => {
+      setSearchAboveViewport(!entry.isIntersecting && entry.boundingClientRect.bottom <= (entry.rootBounds?.top ?? 0))
+    }, { rootMargin: `-${header.offsetHeight}px 0px 0px 0px` })
+    observer.observe(input)
+    return () => observer.disconnect()
+  }, [])
 
   catalogView.current = { catalog, query, segment, brand, budget: budget[0], sort, filtersOpen, hasMore: catalogHasMore, userId: session?.user.id || null, location, loading: catalogLoading }
 
@@ -1146,6 +1162,16 @@ export default function CompareApp({ initialScan = false }) {
 
   const locationCopy = { idle: "获取当前位置", loading: "正在定位…", ready: "更新当前位置", error: "重新定位" }[locationStatus]
 
+  const focusSearch = () => {
+    searchInput.current?.scrollIntoView({ block: "center", behavior: "instant" })
+    searchInput.current?.focus({ preventScroll: true })
+  }
+
+  const clearSearch = () => {
+    setQuery("")
+    focusSearch()
+  }
+
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
       <SiteHeader session={session} catalogHref="#catalog" showLogin={supabaseConfigured} onLogin={() => setAuthOpen(true)} />
@@ -1156,7 +1182,7 @@ export default function CompareApp({ initialScan = false }) {
             <div className="min-w-0">
               <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-4xl">日本药妆比价</h1>
               <div role="search" aria-label="商品目录" className="search-shell mt-4 flex gap-1 rounded-2xl border bg-card p-1.5 shadow-sm sm:gap-2">
-                <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input id="product-search" type="search" maxLength={300} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN" aria-label="搜索商品" className={`h-12 border-0 bg-transparent pl-10 text-base shadow-none focus-visible:ring-0 ${query ? "pr-14" : "pr-3"}`} />{query && <Button variant="ghost" size="icon-sm" onClick={() => { setQuery(""); document.getElementById("product-search")?.focus() }} className="absolute right-2 top-1/2 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
+                <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input ref={searchInput} id="product-search" type="search" maxLength={300} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="商品名、品牌或 JAN" aria-label="搜索商品" className={`h-12 border-0 bg-transparent pl-10 text-base shadow-none focus-visible:ring-0 ${query ? "pr-14" : "pr-3"}`} />{query && <Button variant="ghost" size="icon" onClick={clearSearch} className="absolute right-0 top-1/2 size-11 -translate-y-1/2" aria-label="清除搜索"><X /></Button>}</div>
                 <Button size="lg" onClick={() => setScanOpen(true)} aria-label="扫码检索" className="h-12 shrink-0 px-4 sm:px-6"><ScanLine /><span className="text-xs">扫码</span></Button>
               </div>
             </div>
@@ -1172,21 +1198,22 @@ export default function CompareApp({ initialScan = false }) {
             <div className="mb-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="mr-auto text-lg font-semibold" aria-live="polite">{catalogLoading ? "正在加载商品" : catalogError ? "商品加载失败" : `已显示 ${filtered.length}${catalogHasMore ? "+" : ""} 件商品`}</h2>
-                <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-xl border bg-card px-3 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序{activeFilters.length ? ` · ${activeFilters.length}` : ""} <ChevronDown className={`ml-auto size-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} /></button>
+                <button ref={filterToggle} type="button" onClick={() => setFiltersOpen((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-xl border bg-card px-3 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={filtersOpen} aria-controls="catalog-filters"><SlidersHorizontal className="size-4" /> 筛选与排序{activeFilters.length ? ` · ${activeFilters.length}` : ""} <ChevronDown className={`ml-auto size-4 motion-safe:transition-transform ${filtersOpen ? "rotate-180" : ""}`} /></button>
               </div>
               {activeFilters.length > 0 && <div role="group" aria-label="已选条件" className="mt-2 flex flex-wrap items-center gap-2">
-                {activeFilters.map(({ key, label, clear }) => <Button key={key} size="sm" variant="secondary" onClick={clear} aria-label={`移除条件：${label}`} className="max-w-full rounded-full"><span className="truncate">{label}</span><X /></Button>)}
-                <Button variant="ghost" size="sm" onClick={resetFilters}>重置条件</Button>
+                {activeFilters.map(({ key, label, clear }) => <Button key={key} size="sm" variant="secondary" onClick={() => { clear(); filterToggle.current?.focus() }} aria-label={`移除条件：${label}`} className="max-w-full rounded-full"><span className="truncate">{label}</span><X /></Button>)}
+                <Button variant="ghost" size="sm" onClick={() => { resetFilters(); filterToggle.current?.focus() }}>重置条件</Button>
               </div>}
-              <AnimatePresence initial={false}>
-                {filtersOpen && <motion.div id="catalog-filters" initial={reduceMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={reduceMotion ? undefined : { opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden">
+              <div id="catalog-filters" hidden={!filtersOpen}>
                 <div className={`mt-4 grid grid-cols-1 gap-5 rounded-2xl border bg-card p-4 sm:p-5 ${hasCatalogPrices ? "md:grid-cols-[1.3fr_1fr_0.9fr]" : "md:grid-cols-[1.3fr_1fr]"}`}>
                   <div><p className="text-sm font-medium">商品分类 <span className="font-normal text-muted-foreground">· 当前已加载商品</span></p><div className="mt-3 flex flex-wrap gap-2">{segments.map((item) => <Button key={item} variant={segment === item ? "default" : "outline"} size="sm" onClick={() => setSegment(item)} aria-pressed={segment === item} className="max-w-full truncate">{item}</Button>)}</div><label className="mt-4 block text-sm font-medium" htmlFor="brand-filter">品牌 / 厂商</label><select id="brand-filter" className="mt-2 h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" value={brand} onChange={(event) => setBrand(event.target.value)}><option value="">全部品牌 / 厂商</option>{brands.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
                   {hasCatalogPrices ? <><div><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">最高预算</span><span className="font-mono text-sm">{budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])}</span></div><Slider aria-label="最高预算" aria-valuetext={budget[0] === MAX_PRICE ? "不限" : formatPrice(budget[0])} value={budget} onValueChange={setBudget} min={MIN_PRICE} max={MAX_PRICE} step={100} className="mt-5" /></div>
                   <div><label htmlFor="sort" className="mb-2 block text-sm font-medium">结果排序</label><Select value={sort} onValueChange={setSort}><SelectTrigger id="sort" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="score">默认顺序</SelectItem><SelectItem value="price">最低价优先</SelectItem>{hasUnitPrices && <SelectItem value="unit">单位价优先</SelectItem>}{hasPriceDifferences && <SelectItem value="saving">差价最大</SelectItem>}{hasStoreDistances && <SelectItem value="distance">离我最近</SelectItem>}</SelectContent></Select><p className="mt-2 text-xs text-muted-foreground">价格排序使用已显示报价或近期价格概览。</p></div></> : <p className="text-sm text-muted-foreground">价格筛选将在查价后启用。</p>}
+                  <div className="flex justify-end md:col-span-full">
+                    <Button className="w-full sm:w-auto" onClick={() => { setFiltersOpen(false); filterToggle.current?.focus() }}>查看结果</Button>
+                  </div>
                 </div>
-                </motion.div>}
-              </AnimatePresence>
+              </div>
             </div>
 
             <div aria-busy={catalogLoading}>
@@ -1200,7 +1227,15 @@ export default function CompareApp({ initialScan = false }) {
         </section>
       </main>
 
-      <AnimatePresence>{selectedProducts.length > 0 && <motion.div initial={reduceMotion ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 24 }} className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-md rounded-xl border bg-popover p-3 shadow-lg"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">已选 {selectedProducts.length} 件</p><Button id="view-compare" onClick={() => setCompareOpen(true)}>查看清单<ChevronRight /></Button></div></motion.div>}</AnimatePresence>
+      {(selectedProducts.length > 0 || searchAboveViewport) && (
+        <div className={`catalog-actions fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-md items-center justify-between gap-2 rounded-xl border bg-popover p-2 shadow-lg ${selectedProducts.length ? "" : "sm:hidden"}`}>
+          {searchAboveViewport && <Button variant={selectedProducts.length ? "outline" : "ghost"} onClick={focusSearch} className="min-h-11 px-3 sm:hidden"><Search />搜索商品</Button>}
+          {selectedProducts.length > 0 && <>
+            <p role="status" className="ml-auto text-sm font-medium sm:ml-0">已选 {selectedProducts.length} 件</p>
+            <Button id="view-compare" className="min-h-11 px-3" onClick={() => setCompareOpen(true)}>查看清单<ChevronRight className="max-[360px]:hidden" /></Button>
+          </>}
+        </div>
+      )}
 
       <CompareDialog open={compareOpen} onOpenChange={setCompareOpen} selectedProducts={selectedProducts} commercialOffers={commercialOffers} onCommercial={openCommercialOffer} onRemove={toggleProduct} onLoadPrices={loadComparePrices} priceLoading={priceLoading} priceChecked={priceChecked} priceErrors={priceErrors} session={session} onClear={() => setSelected([])} />
       <ScannerDialog open={scanOpen} onOpenChange={setScanOpen} onFound={handleScannedProduct} session={session} isAdmin={isAdmin} />

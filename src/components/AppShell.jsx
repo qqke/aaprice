@@ -24,7 +24,7 @@ function NavAction({ icon: Icon, label, name = label, href, onClick }) {
 }
 
 export function SiteHeader({ session, isAdmin, catalogHref = appPath("/#catalog"), onLogin, showLogin = true }) {
-  return <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur-xl">
+  return <header className="site-header sticky top-0 z-30 border-b bg-card/95 backdrop-blur-xl">
     <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-2 px-4 sm:h-[72px] sm:px-6 lg:px-8">
       <BrandLink compact />
       <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="主导航">

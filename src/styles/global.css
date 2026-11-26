@@ -269,6 +269,25 @@
   scroll-margin-top: 88px;
 }
 
+html:has(.catalog-actions) {
+  scroll-padding-bottom: calc(4.5rem + max(.75rem, env(safe-area-inset-bottom)));
+}
+
+body:has(.catalog-actions) > footer {
+  padding-bottom: calc(4.5rem + max(.75rem, env(safe-area-inset-bottom)));
+}
+
+#catalog :is(button, a, select, [tabindex]), #product-search {
+  scroll-margin-top: 5rem;
+}
+
+@media (max-width: 639px) {
+  .product-card h3 .line-clamp-2 {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+}
+
 .product-mobile-actions [data-slot="button"] {
   min-height: 48px;
 }
